@@ -8,6 +8,8 @@ public sealed class MainForm : Form
     private readonly ColorController _colors = new();
     private readonly ProcessWatcher _watcher;
     private readonly NotifyIcon _tray;
+    private readonly Icon? _appIcon;
+    private readonly Dictionary<string, Icon?> _gameIcons = new(StringComparer.OrdinalIgnoreCase);
 
     private readonly ListBox _profiles = new();
     private readonly TextBox _name = new();
@@ -48,22 +50,26 @@ public sealed class MainForm : Form
         _watcher = new ProcessWatcher(() => _settings.Profiles);
         _watcher.ProfileChanged += OnProfileChanged;
 
-        Text = "Game Profile Switcher v0.2.1";
+        Text = "Game Profile Switcher v0.2.3";
         Width = 900;
-        Height = 735;
-        MinimumSize = new Size(840, 690);
+        Height = 775;
+        MinimumSize = new Size(860, 750);
         StartPosition = FormStartPosition.CenterScreen;
         BackColor = Back;
         ForeColor = TextMain;
         Font = new Font("Segoe UI", 9.5f, FontStyle.Regular, GraphicsUnit.Point);
         DoubleBuffered = true;
 
+        _appIcon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
+        if (_appIcon is not null)
+            Icon = _appIcon;
+
         BuildUi();
 
         _tray = new NotifyIcon
         {
             Text = "Game Profile Switcher",
-            Icon = SystemIcons.Application,
+            Icon = _appIcon ?? SystemIcons.Application,
             Visible = true,
             ContextMenuStrip = BuildTrayMenu()
         };
@@ -106,7 +112,7 @@ public sealed class MainForm : Form
             Dock = DockStyle.Fill,
             ColumnCount = 1,
             RowCount = 3,
-            Padding = new Padding(18, 14, 18, 16),
+            Padding = new Padding(18, 12, 18, 14),
             BackColor = Back
         };
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -128,7 +134,7 @@ public sealed class MainForm : Form
             Dock = DockStyle.Top,
             AutoSize = true,
             ColumnCount = 2,
-            Padding = new Padding(2, 0, 2, 12),
+            Padding = new Padding(2, 0, 2, 9),
             BackColor = Back
         };
         header.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
@@ -164,7 +170,7 @@ public sealed class MainForm : Form
 
         var version = new Label
         {
-            Text = "v0.2.1",
+            Text = "v0.2.3",
             AutoSize = true,
             ForeColor = Accent,
             BackColor = PanelBack2,
@@ -296,7 +302,7 @@ public sealed class MainForm : Form
         _enabled.AutoSize = true;
         _enabled.ForeColor = TextMain;
         _enabled.BackColor = PanelBack;
-        _enabled.Margin = new Padding(2, 6, 0, 10);
+        _enabled.Margin = new Padding(2, 4, 0, 6);
         editor.Controls.Add(_enabled, 0, 3);
 
         var sliders = new TableLayoutPanel
@@ -304,7 +310,7 @@ public sealed class MainForm : Form
             Dock = DockStyle.Top,
             AutoSize = true,
             ColumnCount = 1,
-            Margin = new Padding(0, 4, 0, 0),
+            Margin = new Padding(0, 2, 0, 0),
             Padding = Padding.Empty
         };
 
@@ -330,7 +336,7 @@ public sealed class MainForm : Form
             AutoSize = true,
             FlowDirection = FlowDirection.LeftToRight,
             WrapContents = false,
-            Margin = new Padding(0, 12, 0, 8)
+            Margin = new Padding(0, 8, 0, 6)
         };
         var save = NewButton("Save profile", primary: true);
         var apply = NewButton("Apply now", primary: false);
@@ -383,8 +389,8 @@ public sealed class MainForm : Form
             Dock = DockStyle.Fill,
             AutoSize = true,
             ColumnCount = 2,
-            Margin = new Padding(0, 12, 0, 0),
-            Padding = new Padding(2, 0, 2, 0),
+            Margin = new Padding(0, 10, 0, 0),
+            Padding = new Padding(2, 0, 10, 0),
             BackColor = Back
         };
         footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 62));
@@ -423,7 +429,7 @@ public sealed class MainForm : Form
             Dock = DockStyle.Top,
             AutoSize = true,
             ColumnCount = 1,
-            Margin = new Padding(0, 8, 0, 4)
+            Margin = new Padding(0, 6, 0, 3)
         };
         wrap.Controls.Add(FieldLabel(caption), 0, 0);
         StyleTextBox(box);
@@ -439,7 +445,7 @@ public sealed class MainForm : Form
             Dock = DockStyle.Top,
             AutoSize = true,
             ColumnCount = 1,
-            Margin = new Padding(0, 6, 0, 4)
+            Margin = new Padding(0, 4, 0, 3)
         };
         wrap.Controls.Add(FieldLabel("Game executable"), 0, 0);
 
@@ -480,7 +486,7 @@ public sealed class MainForm : Form
             AutoSize = true,
             ColumnCount = 2,
             RowCount = 2,
-            Margin = new Padding(0, 4, 0, 4)
+            Margin = new Padding(0, 2, 0, 2)
         };
         wrap.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         wrap.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 64));
@@ -500,10 +506,11 @@ public sealed class MainForm : Form
         wrap.Controls.Add(valueLabel, 1, 0);
 
         slider.Dock = DockStyle.Fill;
-        slider.Margin = new Padding(0, 2, 6, 0);
+        slider.AutoSize = false;
+        slider.Margin = new Padding(0, 0, 6, 0);
         slider.BackColor = PanelBack;
         slider.TickStyle = TickStyle.None;
-        slider.Height = 30;
+        slider.Height = 26;
         wrap.Controls.Add(slider, 0, 1);
         wrap.SetColumnSpan(slider, 2);
 
@@ -543,27 +550,66 @@ public sealed class MainForm : Form
             e.Graphics.FillRectangle(accentBrush, new Rectangle(e.Bounds.Left, e.Bounds.Top + 5, 3, e.Bounds.Height - 10));
         }
 
-        var iconRect = new Rectangle(e.Bounds.Left + 12, e.Bounds.Top + 10, 26, 26);
-        using (var circle = new SolidBrush(selected ? Accent : Color.FromArgb(72, 78, 88)))
+        var iconRect = new Rectangle(e.Bounds.Left + 12, e.Bounds.Top + 8, 30, 30);
+        var gameIcon = GetGameIcon(p.ExePath);
+        if (gameIcon is not null)
+        {
+            e.Graphics.DrawIcon(gameIcon, iconRect);
+        }
+        else
+        {
+            using var circle = new SolidBrush(selected ? Accent : Color.FromArgb(72, 78, 88));
             e.Graphics.FillEllipse(circle, iconRect);
+
+            using var fallbackFont = new Font("Segoe UI Semibold", 9.5f, FontStyle.Bold);
+            string initial = string.IsNullOrWhiteSpace(p.Name) ? "?" : p.Name.Trim()[0].ToString().ToUpperInvariant();
+            var initialSize = e.Graphics.MeasureString(initial, fallbackFont);
+            using var initialBrush = new SolidBrush(Color.White);
+            e.Graphics.DrawString(initial, fallbackFont, initialBrush,
+                iconRect.Left + (iconRect.Width - initialSize.Width) / 2,
+                iconRect.Top + (iconRect.Height - initialSize.Height) / 2 - 1);
+        }
 
         using var gameFont = new Font("Segoe UI Semibold", 9.5f, FontStyle.Bold);
         using var exeFont = new Font("Segoe UI", 8f, FontStyle.Regular);
         using var gameBrush = new SolidBrush(TextMain);
         using var exeBrush = new SolidBrush(TextMuted);
 
-        string initial = string.IsNullOrWhiteSpace(p.Name) ? "?" : p.Name.Trim()[0].ToString().ToUpperInvariant();
-        var initialSize = e.Graphics.MeasureString(initial, gameFont);
-        using var initialBrush = new SolidBrush(Color.White);
-        e.Graphics.DrawString(initial, gameFont, initialBrush,
-            iconRect.Left + (iconRect.Width - initialSize.Width) / 2,
-            iconRect.Top + (iconRect.Height - initialSize.Height) / 2 - 1);
-
-        e.Graphics.DrawString(p.Name, gameFont, gameBrush, e.Bounds.Left + 48, e.Bounds.Top + 7);
+        e.Graphics.DrawString(p.Name, gameFont, gameBrush, e.Bounds.Left + 50, e.Bounds.Top + 7);
         var exeName = string.IsNullOrWhiteSpace(p.ProcessName) ? "No executable selected" : p.ProcessName + ".exe";
-        e.Graphics.DrawString(exeName, exeFont, exeBrush, e.Bounds.Left + 48, e.Bounds.Top + 25);
+        e.Graphics.DrawString(exeName, exeFont, exeBrush, e.Bounds.Left + 50, e.Bounds.Top + 25);
 
         e.DrawFocusRectangle();
+    }
+
+
+    private Icon? GetGameIcon(string exePath)
+    {
+        if (string.IsNullOrWhiteSpace(exePath) || !File.Exists(exePath))
+            return null;
+
+        if (_gameIcons.TryGetValue(exePath, out var cached))
+            return cached;
+
+        try
+        {
+            var extracted = Icon.ExtractAssociatedIcon(exePath);
+            _gameIcons[exePath] = extracted;
+            return extracted;
+        }
+        catch
+        {
+            _gameIcons[exePath] = null;
+            return null;
+        }
+    }
+
+    private void ClearGameIconCache()
+    {
+        foreach (var icon in _gameIcons.Values)
+            icon?.Dispose();
+        _gameIcons.Clear();
+        _profiles.Invalidate();
     }
 
     private static Panel NewCard(Padding padding)
@@ -728,6 +774,7 @@ public sealed class MainForm : Form
         p.Enabled = _enabled.Checked;
 
         Save();
+        ClearGameIconCache();
         RefreshList(p);
         SetStatus("Profile saved", true);
     }
@@ -807,6 +854,8 @@ public sealed class MainForm : Form
         _watcher.Dispose();
         _tray.Visible = false;
         _tray.Dispose();
+        ClearGameIconCache();
+        _appIcon?.Dispose();
         _colors.Dispose();
         base.OnFormClosing(e);
     }
