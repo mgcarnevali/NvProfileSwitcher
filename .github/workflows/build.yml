@@ -24,7 +24,7 @@ jobs:
         working-directory: GameProfileSwitcher
         run: |
           rc /nologo app.rc
-          cl /nologo /std:c++20 /O2 /EHsc /MT /DUNICODE /D_UNICODE main.cpp app.res /Fe:GameProfileSwitcher.exe /link /SUBSYSTEM:WINDOWS /MACHINE:X64
+          cl /nologo /std:c++20 /O2 /EHsc /MT /DUNICODE /D_UNICODE /DNOMINMAX main.cpp app.res /Fe:GameProfileSwitcher.exe /link /SUBSYSTEM:WINDOWS /MACHINE:X64
 
       - name: Show binary size
         shell: powershell
