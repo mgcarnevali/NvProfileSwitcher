@@ -1,4 +1,4 @@
-name: Build GameProfileSwitcher
+name: Build GameProfileSwitcher Native
 
 on:
   workflow_dispatch:
@@ -14,26 +14,25 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+      - name: Setup MSVC
+        uses: ilammy/msvc-dev-cmd@v1
         with:
-          dotnet-version: '8.0.x'
+          arch: x64
 
-      - name: Restore
-        run: dotnet restore .\GameProfileSwitcher\GameProfileSwitcher.csproj
+      - name: Build native x64
+        shell: cmd
+        working-directory: GameProfileSwitcher
+        run: |
+          rc /nologo app.rc
+          cl /nologo /std:c++20 /O2 /EHsc /MT /DUNICODE /D_UNICODE main.cpp app.res /Fe:GameProfileSwitcher.exe /link /SUBSYSTEM:WINDOWS /MACHINE:X64
 
-      - name: Publish
-        run: >
-          dotnet publish .\GameProfileSwitcher\GameProfileSwitcher.csproj
-          -c Release
-          -r win-x64
-          --self-contained true
-          /p:PublishSingleFile=true
-          /p:IncludeNativeLibrariesForSelfExtract=true
-          -o .\publish
+      - name: Show binary size
+        shell: powershell
+        run: |
+          Get-Item .\GameProfileSwitcher\GameProfileSwitcher.exe | Select-Object Name,Length
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: GameProfileSwitcher-win-x64
-          path: .\publish\GameProfileSwitcher.exe
+          name: GameProfileSwitcher-native-win-x64
+          path: .\GameProfileSwitcher\GameProfileSwitcher.exe
