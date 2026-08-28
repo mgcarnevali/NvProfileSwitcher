@@ -48,10 +48,10 @@ public sealed class MainForm : Form
         _watcher = new ProcessWatcher(() => _settings.Profiles);
         _watcher.ProfileChanged += OnProfileChanged;
 
-        Text = "Game Profile Switcher v0.2";
+        Text = "Game Profile Switcher v0.2.1";
         Width = 900;
-        Height = 610;
-        MinimumSize = new Size(840, 560);
+        Height = 735;
+        MinimumSize = new Size(840, 690);
         StartPosition = FormStartPosition.CenterScreen;
         BackColor = Back;
         ForeColor = TextMain;
@@ -164,7 +164,7 @@ public sealed class MainForm : Form
 
         var version = new Label
         {
-            Text = "v0.2",
+            Text = "v0.2.1",
             AutoSize = true,
             ForeColor = Accent,
             BackColor = PanelBack2,
@@ -248,7 +248,7 @@ public sealed class MainForm : Form
         buttons.Controls.Add(remove, 1, 0);
         layout.Controls.Add(buttons, 0, 2);
 
-        var desktop = NewButton("Restore Desktop profile", primary: false);
+        var desktop = NewButton("Restore Desktop", primary: false);
         desktop.Dock = DockStyle.Fill;
         desktop.Click += (_, _) => ApplyDesktop();
         layout.Controls.Add(desktop, 0, 3);
@@ -642,7 +642,7 @@ public sealed class MainForm : Form
             Renderer = new ToolStripProfessionalRenderer(new DarkMenuColors())
         };
         menu.Items.Add("Open Game Profile Switcher", null, (_, _) => ShowFromTray());
-        menu.Items.Add("Restore Desktop profile", null, (_, _) => ApplyDesktop());
+        menu.Items.Add("Restore Desktop", null, (_, _) => ApplyDesktop());
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("Exit", null, (_, _) =>
         {
