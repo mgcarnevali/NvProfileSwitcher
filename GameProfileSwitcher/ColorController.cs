@@ -1,17 +1,24 @@
+using System.Runtime.InteropServices;
 using NvAPIWrapper;
 using NvDisplay = NvAPIWrapper.Display.Display;
-using WinDisplay = WindowsDisplayAPI.Display;
-using WindowsDisplayAPI;
 
 namespace GameProfileSwitcher;
 
 public sealed class ColorController : IDisposable
 {
     private NvDisplay? _nvPrimary;
-    private WinDisplay? _winPrimary;
     private bool _nvInitialized;
 
     public string Status { get; private set; } = "Not initialized";
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetDC(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    private static extern int ReleaseDC(IntPtr hWnd, IntPtr hDC);
+
+    [DllImport("gdi32.dll")]
+    private static extern bool SetDeviceGammaRamp(IntPtr hDC, IntPtr lpRamp);
 
     public bool Initialize()
     {
@@ -21,14 +28,12 @@ public sealed class ColorController : IDisposable
             _nvInitialized = true;
 
             _nvPrimary = GetNvidiaPrimaryDisplay();
-            _winPrimary = WinDisplay.GetDisplays().FirstOrDefault(d => d.DisplayScreen?.IsPrimary == true);
 
             if (_nvPrimary is null)
-                throw new InvalidOperationException("Could not map the NVIDIA primary display.");
-            if (_winPrimary is null)
-                throw new InvalidOperationException("Could not find the Windows primary display.");
+                throw new InvalidOperationException(
+                    "Could not find the NVIDIA primary display.");
 
-            Status = "Ready - primary display mapped";
+            Status = "Ready";
             return true;
         }
         catch (Exception ex)
@@ -40,22 +45,84 @@ public sealed class ColorController : IDisposable
 
     public void Apply(GameProfile profile)
     {
-        if (_nvPrimary is null || _winPrimary is null)
-            throw new InvalidOperationException("Color controller is not initialized.");
+        if (_nvPrimary is null)
+            throw new InvalidOperationException(
+                "Color controller is not initialized.");
 
-        var vibrance = Math.Clamp(profile.DigitalVibrance, 0, 100);
-        var brightness = Math.Clamp(profile.Brightness, 0.0, 1.0);
-        var contrast = Math.Clamp(profile.Contrast, 0.0, 1.0);
-        var gamma = Math.Clamp(profile.Gamma, 0.50, 3.00);
+        int vibrance = Math.Clamp(profile.DigitalVibrance, 0, 100);
+        double brightness = Math.Clamp(profile.Brightness, 0.0, 1.0);
+        double contrast = Math.Clamp(profile.Contrast, 0.0, 1.0);
+        double gamma = Math.Clamp(profile.Gamma, 0.50, 3.00);
 
         // NVIDIA Digital Vibrance through NVAPI.
         _nvPrimary.DigitalVibranceControl.CurrentLevel = vibrance;
 
-        // Brightness / Contrast / Gamma through the Windows hardware gamma ramp.
-        // This is the same approach used by several existing NVIDIA color toggle/profile tools.
-        _winPrimary.GammaRamp = new DisplayGammaRamp(brightness, contrast, gamma);
+        // Brightness / Contrast / Gamma through Windows gamma ramp.
+        ApplyGammaRamp(brightness, contrast, gamma);
 
         Status = $"Applied: {profile.Name}";
+    }
+
+    private static void ApplyGammaRamp(
+        double brightness,
+        double contrast,
+        double gamma)
+    {
+        const int rampSize = 256;
+        const int channels = 3;
+
+        ushort[] ramp = new ushort[rampSize * channels];
+
+        for (int i = 0; i < rampSize; i++)
+        {
+            double value = i / 255.0;
+
+            // Gamma
+            value = Math.Pow(value, 1.0 / gamma);
+
+            // Contrast around midpoint
+            double contrastFactor = contrast / 0.5;
+            value = ((value - 0.5) * contrastFactor) + 0.5;
+
+            // Brightness: 0.5 = neutral
+            value += brightness - 0.5;
+
+            value = Math.Clamp(value, 0.0, 1.0);
+
+            ushort output = (ushort)Math.Round(value * 65535.0);
+
+            ramp[i] = output;
+            ramp[i + 256] = output;
+            ramp[i + 512] = output;
+        }
+
+        IntPtr dc = GetDC(IntPtr.Zero);
+
+        if (dc == IntPtr.Zero)
+            throw new InvalidOperationException("Could not obtain display DC.");
+
+        IntPtr memory = IntPtr.Zero;
+
+        try
+        {
+            memory = Marshal.AllocHGlobal(ramp.Length * sizeof(ushort));
+            Marshal.Copy(
+                ramp.Select(v => unchecked((short)v)).ToArray(),
+                0,
+                memory,
+                ramp.Length);
+
+            if (!SetDeviceGammaRamp(dc, memory))
+                throw new InvalidOperationException(
+                    "Windows rejected the gamma ramp.");
+        }
+        finally
+        {
+            if (memory != IntPtr.Zero)
+                Marshal.FreeHGlobal(memory);
+
+            ReleaseDC(IntPtr.Zero, dc);
+        }
     }
 
     private static NvDisplay? GetNvidiaPrimaryDisplay()
@@ -63,7 +130,7 @@ public sealed class ColorController : IDisposable
         var displays = NvDisplay.GetDisplays();
         var paths = NvAPIWrapper.Display.PathInfo.GetDisplaysConfig();
 
-        for (var i = 0; i < paths.Length && i < displays.Length; i++)
+        for (int i = 0; i < paths.Length && i < displays.Length; i++)
         {
             if (paths[i].IsGDIPrimary)
                 return displays[i];
@@ -76,7 +143,13 @@ public sealed class ColorController : IDisposable
     {
         if (_nvInitialized)
         {
-            try { NVIDIA.Unload(); } catch { }
+            try
+            {
+                NVIDIA.Unload();
+            }
+            catch
+            {
+            }
         }
     }
 }
