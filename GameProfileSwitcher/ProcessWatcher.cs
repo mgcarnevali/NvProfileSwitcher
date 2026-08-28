@@ -18,6 +18,7 @@ public sealed class ProcessWatcher : IDisposable
 
     public void Start() => _timer.Start();
     public void Stop() => _timer.Stop();
+    public void Reset() => _activeProcess = null;
 
     private void Poll()
     {

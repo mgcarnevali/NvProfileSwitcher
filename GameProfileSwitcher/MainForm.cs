@@ -33,6 +33,7 @@ public sealed class MainForm : Form
 
     private bool _reallyExit;
     private bool _loading;
+    private bool _automaticSwitchingPaused;
 
     private static readonly Color Back = Color.FromArgb(22, 24, 28);
     private static readonly Color PanelBack = Color.FromArgb(30, 33, 38);
@@ -50,7 +51,7 @@ public sealed class MainForm : Form
         _watcher = new ProcessWatcher(() => _settings.Profiles);
         _watcher.ProfileChanged += OnProfileChanged;
 
-        Text = "Game Profile Switcher v0.2.3";
+        Text = "Game Profile Switcher v0.2.4";
         Width = 900;
         Height = 775;
         MinimumSize = new Size(860, 750);
@@ -689,6 +690,29 @@ public sealed class MainForm : Form
         };
         menu.Items.Add("Open Game Profile Switcher", null, (_, _) => ShowFromTray());
         menu.Items.Add("Restore Desktop", null, (_, _) => ApplyDesktop());
+
+        var pauseItem = new ToolStripMenuItem("Pause automatic switching");
+        pauseItem.Click += (_, _) =>
+        {
+            _automaticSwitchingPaused = !_automaticSwitchingPaused;
+
+            if (_automaticSwitchingPaused)
+            {
+                _watcher.Stop();
+                ApplyDesktop();
+                _active.Text = "Active profile: Desktop / Normal (Paused)";
+                pauseItem.Text = "Resume automatic switching";
+            }
+            else
+            {
+                _watcher.Reset();
+                _watcher.Start();
+                _active.Text = "Active profile: Desktop / Normal";
+                pauseItem.Text = "Pause automatic switching";
+            }
+        };
+        menu.Items.Add(pauseItem);
+
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("Exit", null, (_, _) =>
         {
