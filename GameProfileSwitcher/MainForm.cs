@@ -1,3 +1,5 @@
+using System.Drawing.Drawing2D;
+
 namespace GameProfileSwitcher;
 
 public sealed class MainForm : Form
@@ -10,17 +12,35 @@ public sealed class MainForm : Form
     private readonly ListBox _profiles = new();
     private readonly TextBox _name = new();
     private readonly TextBox _exe = new();
-    private readonly NumericUpDown _vibrance = new();
-    private readonly NumericUpDown _brightness = new();
-    private readonly NumericUpDown _contrast = new();
-    private readonly NumericUpDown _gamma = new();
-    private readonly CheckBox _enabled = new() { Text = "Enabled" };
+    private readonly CheckBox _enabled = new() { Text = "Enable automatic profile" };
     private readonly CheckBox _startWindows = new() { Text = "Start with Windows" };
-    private readonly Label _status = new() { AutoSize = true };
-    private readonly Label _active = new() { AutoSize = true };
+    private readonly CheckBox _startMinimized = new() { Text = "Start minimized to tray" };
+
+    private readonly TrackBar _vibrance = new();
+    private readonly TrackBar _brightness = new();
+    private readonly TrackBar _contrast = new();
+    private readonly TrackBar _gamma = new();
+    private readonly Label _vibranceValue = new();
+    private readonly Label _brightnessValue = new();
+    private readonly Label _contrastValue = new();
+    private readonly Label _gammaValue = new();
+
+    private readonly Label _status = new();
+    private readonly Label _active = new();
+    private readonly Panel _statusDot = new();
 
     private bool _reallyExit;
     private bool _loading;
+
+    private static readonly Color Back = Color.FromArgb(22, 24, 28);
+    private static readonly Color PanelBack = Color.FromArgb(30, 33, 38);
+    private static readonly Color PanelBack2 = Color.FromArgb(36, 40, 46);
+    private static readonly Color Border = Color.FromArgb(55, 60, 68);
+    private static readonly Color TextMain = Color.FromArgb(235, 238, 242);
+    private static readonly Color TextMuted = Color.FromArgb(155, 163, 174);
+    private static readonly Color Accent = Color.FromArgb(70, 190, 120);
+    private static readonly Color AccentHover = Color.FromArgb(82, 207, 135);
+    private static readonly Color Danger = Color.FromArgb(220, 84, 84);
 
     public MainForm(bool startMinimized)
     {
@@ -28,11 +48,15 @@ public sealed class MainForm : Form
         _watcher = new ProcessWatcher(() => _settings.Profiles);
         _watcher.ProfileChanged += OnProfileChanged;
 
-        Text = "Game Profile Switcher v0.1";
-        Width = 820;
-        Height = 560;
-        MinimumSize = new Size(760, 500);
+        Text = "Game Profile Switcher v0.2";
+        Width = 900;
+        Height = 610;
+        MinimumSize = new Size(840, 560);
         StartPosition = FormStartPosition.CenterScreen;
+        BackColor = Back;
+        ForeColor = TextMain;
+        Font = new Font("Segoe UI", 9.5f, FontStyle.Regular, GraphicsUnit.Point);
+        DoubleBuffered = true;
 
         BuildUi();
 
@@ -46,53 +70,289 @@ public sealed class MainForm : Form
         _tray.DoubleClick += (_, _) => ShowFromTray();
 
         var ok = _colors.Initialize();
-        _status.Text = _colors.Status;
+        SetStatus(ok ? _colors.Status : _colors.Status, ok);
         if (ok)
         {
-            try { _colors.Apply(_settings.DesktopProfile); }
-            catch (Exception ex) { _status.Text = ex.Message; }
+            try
+            {
+                _colors.Apply(_settings.DesktopProfile);
+                SetStatus(_colors.Status, true);
+            }
+            catch (Exception ex)
+            {
+                SetStatus(ex.Message, false);
+            }
         }
 
         RefreshList();
+        _loading = true;
         _startWindows.Checked = _settings.StartWithWindows;
+        _startMinimized.Checked = _settings.StartMinimized;
+        _loading = false;
+
+        _active.Text = "Active profile: Desktop / Normal";
         _watcher.Start();
 
         if (startMinimized || _settings.StartMinimized)
-        {
             Shown += (_, _) => Hide();
-        }
     }
 
     private void BuildUi()
+    {
+        SuspendLayout();
+
+        var root = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 1,
+            RowCount = 3,
+            Padding = new Padding(18, 14, 18, 16),
+            BackColor = Back
+        };
+        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        Controls.Add(root);
+
+        root.Controls.Add(BuildHeader(), 0, 0);
+        root.Controls.Add(BuildMainArea(), 0, 1);
+        root.Controls.Add(BuildFooter(), 0, 2);
+
+        ResumeLayout(true);
+    }
+
+    private Control BuildHeader()
+    {
+        var header = new TableLayoutPanel
+        {
+            Dock = DockStyle.Top,
+            AutoSize = true,
+            ColumnCount = 2,
+            Padding = new Padding(2, 0, 2, 12),
+            BackColor = Back
+        };
+        header.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        header.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+
+        var titleWrap = new FlowLayoutPanel
+        {
+            AutoSize = true,
+            FlowDirection = FlowDirection.TopDown,
+            WrapContents = false,
+            Margin = Padding.Empty,
+            Padding = Padding.Empty
+        };
+
+        var title = new Label
+        {
+            Text = "Game Profile Switcher",
+            AutoSize = true,
+            Font = new Font("Segoe UI Semibold", 16f, FontStyle.Bold),
+            ForeColor = TextMain,
+            Margin = Padding.Empty
+        };
+        var subtitle = new Label
+        {
+            Text = "Automatic display color profiles for your games",
+            AutoSize = true,
+            ForeColor = TextMuted,
+            Margin = new Padding(1, 2, 0, 0)
+        };
+        titleWrap.Controls.Add(title);
+        titleWrap.Controls.Add(subtitle);
+        header.Controls.Add(titleWrap, 0, 0);
+
+        var version = new Label
+        {
+            Text = "v0.2",
+            AutoSize = true,
+            ForeColor = Accent,
+            BackColor = PanelBack2,
+            Padding = new Padding(10, 5, 10, 5),
+            Margin = new Padding(0, 4, 0, 0)
+        };
+        header.Controls.Add(version, 1, 0);
+
+        return header;
+    }
+
+    private Control BuildMainArea()
     {
         var root = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
             ColumnCount = 2,
             RowCount = 1,
-            Padding = new Padding(12)
+            Margin = Padding.Empty,
+            BackColor = Back
         };
-        root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 34));
-        root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 66));
-        Controls.Add(root);
+        root.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 255));
+        root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
 
-        var left = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 3 };
-        left.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        left.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        left.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        root.Controls.Add(left, 0, 0);
+        root.Controls.Add(BuildSidebar(), 0, 0);
+        root.Controls.Add(BuildEditor(), 1, 0);
+        return root;
+    }
+
+    private Control BuildSidebar()
+    {
+        var card = NewCard(new Padding(12));
+        card.Margin = new Padding(0, 0, 12, 0);
+
+        var layout = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 1,
+            RowCount = 4,
+            BackColor = PanelBack,
+            Margin = Padding.Empty,
+            Padding = Padding.Empty
+        };
+        layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        card.Controls.Add(layout);
+
+        layout.Controls.Add(SectionTitle("GAME PROFILES"), 0, 0);
 
         _profiles.Dock = DockStyle.Fill;
+        _profiles.BorderStyle = BorderStyle.None;
+        _profiles.BackColor = PanelBack;
+        _profiles.ForeColor = TextMain;
+        _profiles.Font = new Font("Segoe UI", 10f);
+        _profiles.IntegralHeight = false;
+        _profiles.ItemHeight = 46;
+        _profiles.DrawMode = DrawMode.OwnerDrawFixed;
+        _profiles.Margin = new Padding(0, 8, 0, 8);
         _profiles.SelectedIndexChanged += (_, _) => LoadSelected();
-        left.Controls.Add(_profiles, 0, 0);
+        _profiles.DrawItem += DrawProfileItem;
+        layout.Controls.Add(_profiles, 0, 1);
 
-        var leftButtons = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true };
-        var add = new Button { Text = "Add game", AutoSize = true };
-        var remove = new Button { Text = "Remove", AutoSize = true };
+        var buttons = new TableLayoutPanel
+        {
+            AutoSize = true,
+            Dock = DockStyle.Fill,
+            ColumnCount = 2,
+            Margin = new Padding(0, 0, 0, 8)
+        };
+        buttons.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+        buttons.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+
+        var add = NewButton("+  Add game", primary: true);
+        var remove = NewButton("Remove", primary: false);
+        remove.ForeColor = Color.FromArgb(235, 180, 180);
         add.Click += (_, _) => AddProfile();
         remove.Click += (_, _) => RemoveProfile();
-        leftButtons.Controls.AddRange(new Control[] { add, remove });
-        left.Controls.Add(leftButtons, 0, 1);
+        buttons.Controls.Add(add, 0, 0);
+        buttons.Controls.Add(remove, 1, 0);
+        layout.Controls.Add(buttons, 0, 2);
+
+        var desktop = NewButton("Restore Desktop profile", primary: false);
+        desktop.Dock = DockStyle.Fill;
+        desktop.Click += (_, _) => ApplyDesktop();
+        layout.Controls.Add(desktop, 0, 3);
+
+        return card;
+    }
+
+    private Control BuildEditor()
+    {
+        var card = NewCard(new Padding(18));
+        card.Margin = new Padding(0);
+
+        var editor = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 1,
+            RowCount = 8,
+            BackColor = PanelBack,
+            Margin = Padding.Empty,
+            Padding = Padding.Empty
+        };
+        editor.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        editor.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        editor.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        editor.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        editor.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        editor.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        editor.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        editor.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        card.Controls.Add(editor);
+
+        var top = new TableLayoutPanel
+        {
+            Dock = DockStyle.Top,
+            AutoSize = true,
+            ColumnCount = 1,
+            Margin = Padding.Empty
+        };
+        top.Controls.Add(SectionTitle("PROFILE SETTINGS"), 0, 0);
+        editor.Controls.Add(top, 0, 0);
+
+        editor.Controls.Add(BuildTextField("Profile name", _name), 0, 1);
+        editor.Controls.Add(BuildExeField(), 0, 2);
+
+        _enabled.AutoSize = true;
+        _enabled.ForeColor = TextMain;
+        _enabled.BackColor = PanelBack;
+        _enabled.Margin = new Padding(2, 6, 0, 10);
+        editor.Controls.Add(_enabled, 0, 3);
+
+        var sliders = new TableLayoutPanel
+        {
+            Dock = DockStyle.Top,
+            AutoSize = true,
+            ColumnCount = 1,
+            Margin = new Padding(0, 4, 0, 0),
+            Padding = Padding.Empty
+        };
+
+        ConfigureSlider(_vibrance, 0, 100, 50, 1);
+        ConfigureSlider(_brightness, 0, 100, 50, 1);
+        ConfigureSlider(_contrast, 0, 100, 50, 1);
+        ConfigureSlider(_gamma, 50, 300, 100, 5);
+
+        _vibrance.Scroll += (_, _) => UpdateSliderLabels();
+        _brightness.Scroll += (_, _) => UpdateSliderLabels();
+        _contrast.Scroll += (_, _) => UpdateSliderLabels();
+        _gamma.Scroll += (_, _) => UpdateSliderLabels();
+
+        sliders.Controls.Add(BuildSliderRow("Digital Vibrance", _vibrance, _vibranceValue), 0, 0);
+        sliders.Controls.Add(BuildSliderRow("Brightness", _brightness, _brightnessValue), 0, 1);
+        sliders.Controls.Add(BuildSliderRow("Contrast", _contrast, _contrastValue), 0, 2);
+        sliders.Controls.Add(BuildSliderRow("Gamma", _gamma, _gammaValue), 0, 3);
+        editor.Controls.Add(sliders, 0, 4);
+
+        var actions = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            AutoSize = true,
+            FlowDirection = FlowDirection.LeftToRight,
+            WrapContents = false,
+            Margin = new Padding(0, 12, 0, 8)
+        };
+        var save = NewButton("Save profile", primary: true);
+        var apply = NewButton("Apply now", primary: false);
+        save.Click += (_, _) => SaveSelected();
+        apply.Click += (_, _) => ApplySelected();
+        actions.Controls.Add(save);
+        actions.Controls.Add(apply);
+        editor.Controls.Add(actions, 0, 5);
+
+        var divider = new Panel { Dock = DockStyle.Top, Height = 1, BackColor = Border, Margin = new Padding(0, 4, 0, 10) };
+        editor.Controls.Add(divider, 0, 6);
+
+        var startup = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            AutoSize = true,
+            FlowDirection = FlowDirection.LeftToRight,
+            WrapContents = true,
+            Margin = Padding.Empty
+        };
+        StyleCheckBox(_startWindows);
+        StyleCheckBox(_startMinimized);
 
         _startWindows.CheckedChanged += (_, _) =>
         {
@@ -101,93 +361,288 @@ public sealed class MainForm : Form
             StartupManager.SetEnabled(_startWindows.Checked);
             Save();
         };
-        left.Controls.Add(_startWindows, 0, 2);
+        _startMinimized.CheckedChanged += (_, _) =>
+        {
+            if (_loading) return;
+            _settings.StartMinimized = _startMinimized.Checked;
+            Save();
+        };
 
-        var right = new TableLayoutPanel
+        startup.Controls.Add(_startWindows);
+        startup.Controls.Add(_startMinimized);
+        editor.Controls.Add(startup, 0, 7);
+
+        UpdateSliderLabels();
+        return card;
+    }
+
+    private Control BuildFooter()
+    {
+        var footer = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
-            ColumnCount = 3,
-            RowCount = 10,
-            Padding = new Padding(18, 0, 0, 0)
+            AutoSize = true,
+            ColumnCount = 2,
+            Margin = new Padding(0, 12, 0, 0),
+            Padding = new Padding(2, 0, 2, 0),
+            BackColor = Back
         };
-        right.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-        right.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        right.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-        root.Controls.Add(right, 1, 0);
+        footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 62));
+        footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 38));
 
-        AddRow(right, 0, "Profile name", _name);
-        AddRow(right, 1, "Game EXE", _exe, MakeBrowseButton());
-
-        SetupNumeric(_vibrance, 0, 100, 1, 50, 0);
-        SetupNumeric(_brightness, 0, 1, 0.01m, 0.50m, 2);
-        SetupNumeric(_contrast, 0, 1, 0.01m, 0.50m, 2);
-        SetupNumeric(_gamma, 0.50m, 3.00m, 0.05m, 1.00m, 2);
-
-        AddRow(right, 2, "Digital Vibrance", _vibrance);
-        AddRow(right, 3, "Brightness", _brightness);
-        AddRow(right, 4, "Contrast", _contrast);
-        AddRow(right, 5, "Gamma", _gamma);
-        right.Controls.Add(_enabled, 1, 6);
-
-        var buttons = new FlowLayoutPanel { AutoSize = true, Dock = DockStyle.Fill };
-        var save = new Button { Text = "Save profile", AutoSize = true };
-        var test = new Button { Text = "Apply now", AutoSize = true };
-        var normal = new Button { Text = "Restore Desktop", AutoSize = true };
-        save.Click += (_, _) => SaveSelected();
-        test.Click += (_, _) => ApplySelected();
-        normal.Click += (_, _) => ApplyDesktop();
-        buttons.Controls.AddRange(new Control[] { save, test, normal });
-        right.Controls.Add(buttons, 1, 7);
-
-        var note = new Label
+        var activeWrap = new FlowLayoutPanel
         {
             AutoSize = true,
-            MaximumSize = new Size(470, 0),
-            Text = "v0.1 targets the Windows/NVIDIA primary display. Digital Vibrance uses NVAPI; Brightness/Contrast/Gamma use the Windows hardware gamma ramp."
+            FlowDirection = FlowDirection.LeftToRight,
+            WrapContents = false,
+            Margin = Padding.Empty
         };
-        right.Controls.Add(note, 1, 8);
+        _statusDot.Size = new Size(9, 9);
+        _statusDot.BackColor = Accent;
+        _statusDot.Margin = new Padding(0, 6, 8, 0);
+        _active.AutoSize = true;
+        _active.ForeColor = TextMain;
+        _active.Margin = Padding.Empty;
+        activeWrap.Controls.Add(_statusDot);
+        activeWrap.Controls.Add(_active);
 
-        var statusPanel = new FlowLayoutPanel { AutoSize = true, FlowDirection = FlowDirection.TopDown, Dock = DockStyle.Fill };
-        statusPanel.Controls.Add(_active);
-        statusPanel.Controls.Add(_status);
-        right.Controls.Add(statusPanel, 1, 9);
+        _status.AutoSize = true;
+        _status.ForeColor = TextMuted;
+        _status.TextAlign = ContentAlignment.MiddleRight;
+        _status.Dock = DockStyle.Fill;
+
+        footer.Controls.Add(activeWrap, 0, 0);
+        footer.Controls.Add(_status, 1, 0);
+        return footer;
     }
 
-    private static void AddRow(TableLayoutPanel panel, int row, string label, Control control, Control? extra = null)
+    private Control BuildTextField(string caption, TextBox box)
     {
-        panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        panel.Controls.Add(new Label { Text = label, AutoSize = true, Anchor = AnchorStyles.Left }, 0, row);
-        control.Dock = DockStyle.Fill;
-        panel.Controls.Add(control, 1, row);
-        if (extra is not null) panel.Controls.Add(extra, 2, row);
-    }
-
-    private static void SetupNumeric(NumericUpDown n, decimal min, decimal max, decimal increment, decimal value, int decimals)
-    {
-        n.Minimum = min;
-        n.Maximum = max;
-        n.Increment = increment;
-        n.Value = value;
-        n.DecimalPlaces = decimals;
-    }
-
-    private Button MakeBrowseButton()
-    {
-        var button = new Button { Text = "...", Width = 38 };
-        button.Click += (_, _) =>
+        var wrap = new TableLayoutPanel
         {
-            using var dlg = new OpenFileDialog { Filter = "Executables (*.exe)|*.exe|All files (*.*)|*.*" };
+            Dock = DockStyle.Top,
+            AutoSize = true,
+            ColumnCount = 1,
+            Margin = new Padding(0, 8, 0, 4)
+        };
+        wrap.Controls.Add(FieldLabel(caption), 0, 0);
+        StyleTextBox(box);
+        box.Dock = DockStyle.Top;
+        wrap.Controls.Add(box, 0, 1);
+        return wrap;
+    }
+
+    private Control BuildExeField()
+    {
+        var wrap = new TableLayoutPanel
+        {
+            Dock = DockStyle.Top,
+            AutoSize = true,
+            ColumnCount = 1,
+            Margin = new Padding(0, 6, 0, 4)
+        };
+        wrap.Controls.Add(FieldLabel("Game executable"), 0, 0);
+
+        var row = new TableLayoutPanel
+        {
+            Dock = DockStyle.Top,
+            AutoSize = true,
+            ColumnCount = 2,
+            Margin = Padding.Empty
+        };
+        row.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        row.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        StyleTextBox(_exe);
+        _exe.Dock = DockStyle.Fill;
+        row.Controls.Add(_exe, 0, 0);
+        var browse = NewButton("Browse...", primary: false);
+        browse.Margin = new Padding(8, 0, 0, 0);
+        browse.Click += (_, _) =>
+        {
+            using var dlg = new OpenFileDialog
+            {
+                Filter = "Executables (*.exe)|*.exe|All files (*.*)|*.*",
+                Title = "Select game executable"
+            };
             if (dlg.ShowDialog(this) == DialogResult.OK)
                 _exe.Text = dlg.FileName;
         };
-        return button;
+        row.Controls.Add(browse, 1, 0);
+        wrap.Controls.Add(row, 0, 1);
+        return wrap;
+    }
+
+    private Control BuildSliderRow(string caption, TrackBar slider, Label valueLabel)
+    {
+        var wrap = new TableLayoutPanel
+        {
+            Dock = DockStyle.Top,
+            AutoSize = true,
+            ColumnCount = 2,
+            RowCount = 2,
+            Margin = new Padding(0, 4, 0, 4)
+        };
+        wrap.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        wrap.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 64));
+
+        var label = FieldLabel(caption);
+        label.Margin = new Padding(0, 0, 0, 0);
+        wrap.Controls.Add(label, 0, 0);
+
+        valueLabel.AutoSize = false;
+        valueLabel.Width = 58;
+        valueLabel.Height = 24;
+        valueLabel.TextAlign = ContentAlignment.MiddleCenter;
+        valueLabel.ForeColor = Accent;
+        valueLabel.BackColor = PanelBack2;
+        valueLabel.Font = new Font("Segoe UI Semibold", 9.5f, FontStyle.Bold);
+        valueLabel.Margin = new Padding(6, 0, 0, 0);
+        wrap.Controls.Add(valueLabel, 1, 0);
+
+        slider.Dock = DockStyle.Fill;
+        slider.Margin = new Padding(0, 2, 6, 0);
+        slider.BackColor = PanelBack;
+        slider.TickStyle = TickStyle.None;
+        slider.Height = 30;
+        wrap.Controls.Add(slider, 0, 1);
+        wrap.SetColumnSpan(slider, 2);
+
+        return wrap;
+    }
+
+    private static void ConfigureSlider(TrackBar slider, int min, int max, int value, int smallChange)
+    {
+        slider.Minimum = min;
+        slider.Maximum = max;
+        slider.Value = Math.Clamp(value, min, max);
+        slider.SmallChange = smallChange;
+        slider.LargeChange = Math.Max(smallChange, (max - min) / 10);
+    }
+
+    private void UpdateSliderLabels()
+    {
+        _vibranceValue.Text = $"{_vibrance.Value}%";
+        _brightnessValue.Text = $"{_brightness.Value}%";
+        _contrastValue.Text = $"{_contrast.Value}%";
+        _gammaValue.Text = (_gamma.Value / 100.0).ToString("0.00");
+    }
+
+    private void DrawProfileItem(object? sender, DrawItemEventArgs e)
+    {
+        if (e.Index < 0 || e.Index >= _profiles.Items.Count) return;
+        var p = (GameProfile)_profiles.Items[e.Index];
+        bool selected = (e.State & DrawItemState.Selected) == DrawItemState.Selected;
+
+        var bg = selected ? PanelBack2 : PanelBack;
+        using var bgBrush = new SolidBrush(bg);
+        e.Graphics.FillRectangle(bgBrush, e.Bounds);
+
+        if (selected)
+        {
+            using var accentBrush = new SolidBrush(Accent);
+            e.Graphics.FillRectangle(accentBrush, new Rectangle(e.Bounds.Left, e.Bounds.Top + 5, 3, e.Bounds.Height - 10));
+        }
+
+        var iconRect = new Rectangle(e.Bounds.Left + 12, e.Bounds.Top + 10, 26, 26);
+        using (var circle = new SolidBrush(selected ? Accent : Color.FromArgb(72, 78, 88)))
+            e.Graphics.FillEllipse(circle, iconRect);
+
+        using var gameFont = new Font("Segoe UI Semibold", 9.5f, FontStyle.Bold);
+        using var exeFont = new Font("Segoe UI", 8f, FontStyle.Regular);
+        using var gameBrush = new SolidBrush(TextMain);
+        using var exeBrush = new SolidBrush(TextMuted);
+
+        string initial = string.IsNullOrWhiteSpace(p.Name) ? "?" : p.Name.Trim()[0].ToString().ToUpperInvariant();
+        var initialSize = e.Graphics.MeasureString(initial, gameFont);
+        using var initialBrush = new SolidBrush(Color.White);
+        e.Graphics.DrawString(initial, gameFont, initialBrush,
+            iconRect.Left + (iconRect.Width - initialSize.Width) / 2,
+            iconRect.Top + (iconRect.Height - initialSize.Height) / 2 - 1);
+
+        e.Graphics.DrawString(p.Name, gameFont, gameBrush, e.Bounds.Left + 48, e.Bounds.Top + 7);
+        var exeName = string.IsNullOrWhiteSpace(p.ProcessName) ? "No executable selected" : p.ProcessName + ".exe";
+        e.Graphics.DrawString(exeName, exeFont, exeBrush, e.Bounds.Left + 48, e.Bounds.Top + 25);
+
+        e.DrawFocusRectangle();
+    }
+
+    private static Panel NewCard(Padding padding)
+    {
+        return new Panel
+        {
+            Dock = DockStyle.Fill,
+            Padding = padding,
+            BackColor = PanelBack
+        };
+    }
+
+    private static Label SectionTitle(string text) => new()
+    {
+        Text = text,
+        AutoSize = true,
+        ForeColor = TextMuted,
+        Font = new Font("Segoe UI Semibold", 8.5f, FontStyle.Bold),
+        Margin = new Padding(0, 0, 0, 2)
+    };
+
+    private static Label FieldLabel(string text) => new()
+    {
+        Text = text,
+        AutoSize = true,
+        ForeColor = TextMuted,
+        Margin = new Padding(0, 0, 0, 4)
+    };
+
+    private static void StyleTextBox(TextBox box)
+    {
+        box.BorderStyle = BorderStyle.FixedSingle;
+        box.BackColor = PanelBack2;
+        box.ForeColor = TextMain;
+        box.Font = new Font("Segoe UI", 9.5f);
+        box.Margin = Padding.Empty;
+    }
+
+    private static void StyleCheckBox(CheckBox box)
+    {
+        box.AutoSize = true;
+        box.ForeColor = TextMain;
+        box.BackColor = PanelBack;
+        box.Margin = new Padding(0, 0, 18, 0);
+    }
+
+    private static Button NewButton(string text, bool primary)
+    {
+        var b = new Button
+        {
+            Text = text,
+            AutoSize = true,
+            Height = 34,
+            Padding = new Padding(12, 4, 12, 4),
+            FlatStyle = FlatStyle.Flat,
+            BackColor = primary ? Accent : PanelBack2,
+            ForeColor = primary ? Color.FromArgb(15, 22, 17) : TextMain,
+            Cursor = Cursors.Hand,
+            Margin = new Padding(0, 0, 8, 0),
+            Font = new Font("Segoe UI Semibold", 9f, FontStyle.Bold),
+            UseVisualStyleBackColor = false
+        };
+        b.FlatAppearance.BorderSize = 1;
+        b.FlatAppearance.BorderColor = primary ? Accent : Border;
+        b.FlatAppearance.MouseOverBackColor = primary ? AccentHover : Color.FromArgb(45, 50, 57);
+        b.FlatAppearance.MouseDownBackColor = primary ? Color.FromArgb(58, 170, 105) : Color.FromArgb(52, 57, 65);
+        return b;
     }
 
     private ContextMenuStrip BuildTrayMenu()
     {
-        var menu = new ContextMenuStrip();
-        menu.Items.Add("Open", null, (_, _) => ShowFromTray());
-        menu.Items.Add("Restore Desktop", null, (_, _) => ApplyDesktop());
+        var menu = new ContextMenuStrip
+        {
+            BackColor = PanelBack,
+            ForeColor = TextMain,
+            Renderer = new ToolStripProfessionalRenderer(new DarkMenuColors())
+        };
+        menu.Items.Add("Open Game Profile Switcher", null, (_, _) => ShowFromTray());
+        menu.Items.Add("Restore Desktop profile", null, (_, _) => ApplyDesktop());
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("Exit", null, (_, _) =>
         {
@@ -201,7 +656,8 @@ public sealed class MainForm : Form
     {
         _profiles.BeginUpdate();
         _profiles.Items.Clear();
-        foreach (var p in _settings.Profiles) _profiles.Items.Add(p);
+        foreach (var p in _settings.Profiles)
+            _profiles.Items.Add(p);
         _profiles.EndUpdate();
 
         if (select is not null)
@@ -215,20 +671,29 @@ public sealed class MainForm : Form
     private void LoadSelected()
     {
         if (Selected is not { } p) return;
+
         _loading = true;
         _name.Text = p.Name;
         _exe.Text = p.ExePath;
         _vibrance.Value = Math.Clamp(p.DigitalVibrance, 0, 100);
-        _brightness.Value = (decimal)Math.Clamp(p.Brightness, 0, 1);
-        _contrast.Value = (decimal)Math.Clamp(p.Contrast, 0, 1);
-        _gamma.Value = (decimal)Math.Clamp(p.Gamma, 0.5, 3);
+        _brightness.Value = Math.Clamp((int)Math.Round(p.Brightness * 100), 0, 100);
+        _contrast.Value = Math.Clamp((int)Math.Round(p.Contrast * 100), 0, 100);
+        _gamma.Value = Math.Clamp((int)Math.Round(p.Gamma * 100), 50, 300);
         _enabled.Checked = p.Enabled;
+        UpdateSliderLabels();
         _loading = false;
     }
 
     private void AddProfile()
     {
-        var p = new GameProfile { Name = "New Game", DigitalVibrance = 50, Brightness = .5, Contrast = .5, Gamma = 1.0 };
+        var p = new GameProfile
+        {
+            Name = "New Game",
+            DigitalVibrance = 50,
+            Brightness = .5,
+            Contrast = .5,
+            Gamma = 1.0
+        };
         _settings.Profiles.Add(p);
         Save();
         RefreshList(p);
@@ -237,6 +702,14 @@ public sealed class MainForm : Form
     private void RemoveProfile()
     {
         if (Selected is not { } p) return;
+        var result = MessageBox.Show(
+            this,
+            $"Remove '{p.Name}'?",
+            "Game Profile Switcher",
+            MessageBoxButtons.YesNo,
+            MessageBoxIcon.Question);
+        if (result != DialogResult.Yes) return;
+
         _settings.Profiles.Remove(p);
         Save();
         RefreshList();
@@ -245,16 +718,18 @@ public sealed class MainForm : Form
     private void SaveSelected()
     {
         if (Selected is not { } p) return;
+
         p.Name = string.IsNullOrWhiteSpace(_name.Text) ? "Unnamed" : _name.Text.Trim();
         p.ExePath = _exe.Text.Trim();
-        p.DigitalVibrance = (int)_vibrance.Value;
-        p.Brightness = (double)_brightness.Value;
-        p.Contrast = (double)_contrast.Value;
-        p.Gamma = (double)_gamma.Value;
+        p.DigitalVibrance = _vibrance.Value;
+        p.Brightness = _brightness.Value / 100.0;
+        p.Contrast = _contrast.Value / 100.0;
+        p.Gamma = _gamma.Value / 100.0;
         p.Enabled = _enabled.Checked;
+
         Save();
         RefreshList(p);
-        _status.Text = "Saved";
+        SetStatus("Profile saved", true);
     }
 
     private void ApplySelected()
@@ -264,7 +739,11 @@ public sealed class MainForm : Form
         TryApply(p);
     }
 
-    private void ApplyDesktop() => TryApply(_settings.DesktopProfile);
+    private void ApplyDesktop()
+    {
+        _active.Text = "Active profile: Desktop / Normal";
+        TryApply(_settings.DesktopProfile);
+    }
 
     private void OnProfileChanged(GameProfile? profile)
     {
@@ -281,7 +760,7 @@ public sealed class MainForm : Form
         }
         else
         {
-            _active.Text = $"Active profile: {profile.Name} ({profile.ProcessName}.exe)";
+            _active.Text = $"Active profile: {profile.Name}";
             TryApply(profile);
         }
     }
@@ -291,12 +770,19 @@ public sealed class MainForm : Form
         try
         {
             _colors.Apply(p);
-            _status.Text = _colors.Status;
+            SetStatus(_colors.Status, true);
         }
         catch (Exception ex)
         {
-            _status.Text = "Apply failed: " + ex.Message;
+            SetStatus("Apply failed: " + ex.Message, false);
         }
+    }
+
+    private void SetStatus(string message, bool ok)
+    {
+        _status.Text = message;
+        _status.ForeColor = ok ? TextMuted : Color.FromArgb(235, 145, 145);
+        _statusDot.BackColor = ok ? Accent : Danger;
     }
 
     private void Save() => ProfileStore.Save(_settings);
@@ -323,5 +809,17 @@ public sealed class MainForm : Form
         _tray.Dispose();
         _colors.Dispose();
         base.OnFormClosing(e);
+    }
+
+    private sealed class DarkMenuColors : ProfessionalColorTable
+    {
+        public override Color ToolStripDropDownBackground => PanelBack;
+        public override Color ImageMarginGradientBegin => PanelBack;
+        public override Color ImageMarginGradientMiddle => PanelBack;
+        public override Color ImageMarginGradientEnd => PanelBack;
+        public override Color MenuItemSelected => PanelBack2;
+        public override Color MenuItemBorder => Border;
+        public override Color SeparatorDark => Border;
+        public override Color SeparatorLight => Border;
     }
 }
