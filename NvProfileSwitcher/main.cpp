@@ -45,7 +45,7 @@ constexpr COLORREF C_BACK=RGB(10,13,16), C_PANEL=RGB(18,22,26), C_PANEL2=RGB(24,
 constexpr COLORREF C_TEXT=RGB(241,244,247), C_MUTED=RGB(151,161,171), C_ACCENT=RGB(82,214,39), C_ACCENT2=RGB(43,164,22), C_ACCENT_DARK=RGB(24,50,28), C_DANGER=RGB(232,75,75);
 constexpr COLORREF C_TRACK=RGB(61,67,73), C_WINBLUE=RGB(0,120,215);
 constexpr UINT WM_TRAY=WM_APP+1;
-constexpr wchar_t APP_VERSION[]=L"0.6.9";
+constexpr wchar_t APP_VERSION[]=L"0.6.10";
 constexpr wchar_t APP_URL[]=L"https://github.com/mgcarnevali/NvProfileSwitcher";
 enum {IDC_LIST=1001,IDC_NAME,IDC_EXE,IDC_BROWSE,IDC_ENABLED,IDC_DISPLAY,IDC_LBL_DISPLAY,IDC_VIB,IDC_BRI,IDC_CON,IDC_GAM,IDC_SAVE,IDC_APPLY,IDC_ADD,IDC_REMOVE,IDC_RESTORE,IDC_STARTWIN,IDC_STARTMIN,IDC_VALVIB,IDC_VALBRI,IDC_VALCON,IDC_VALGAM,IDC_LBL_NAME,IDC_LBL_EXE,IDC_LBL_ENABLED,IDC_LBL_VIB,IDC_LBL_BRI,IDC_LBL_CON,IDC_LBL_GAM};
 enum {ID_TRAY_OPEN=2001,ID_TRAY_RESTORE,ID_TRAY_PAUSE,ID_TRAY_ABOUT,ID_TRAY_EXIT};
@@ -734,20 +734,23 @@ void ShowAbout(){
         return;
     }
 
-    HWND a=CreateWindowExW(WS_EX_DLGMODALFRAME,L"NvProfileSwitcherAbout",L"About NvProfileSwitcher",
-        WS_CAPTION|WS_SYSMENU,0,0,488,242,gWnd,nullptr,gInst,nullptr);
+    HWND a=CreateWindowExW(WS_EX_DLGMODALFRAME|WS_EX_TOPMOST,L"NvProfileSwitcherAbout",L"About NvProfileSwitcher",
+        WS_CAPTION|WS_SYSMENU,0,0,488,242,nullptr,nullptr,gInst,nullptr);
     if(!a)return;
 
     BOOL darkTitle=TRUE;
     DwmSetWindowAttribute(a,20,&darkTitle,sizeof(darkTitle));
 
-    RECT wr{},pr{};
+    RECT wr{},work{};
     GetWindowRect(a,&wr);
-    GetWindowRect(gWnd,&pr);
+    SystemParametersInfoW(SPI_GETWORKAREA,0,&work,0);
     int ww=wr.right-wr.left, wh=wr.bottom-wr.top;
-    int x=pr.left+((pr.right-pr.left)-ww)/2;
-    int y=pr.top+((pr.bottom-pr.top)-wh)/2;
-    SetWindowPos(a,HWND_TOP,x,y,0,0,SWP_NOSIZE|SWP_SHOWWINDOW);
+    int x=work.left+((work.right-work.left)-ww)/2;
+    int y=work.top+((work.bottom-work.top)-wh)/2;
+
+    ShowWindow(a,SW_SHOW);
+    SetWindowPos(a,HWND_TOPMOST,x,y,0,0,SWP_NOSIZE|SWP_SHOWWINDOW);
+    UpdateWindow(a);
     SetForegroundWindow(a);
 }
 
