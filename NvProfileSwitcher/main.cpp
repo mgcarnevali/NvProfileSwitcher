@@ -27,6 +27,7 @@
 #pragma comment(lib, "gdi32.lib")
 #pragma comment(lib, "uxtheme.lib")
 #pragma comment(lib, "dwmapi.lib")
+#pragma comment(lib, "winhttp.lib")
 
 struct GameProfile {
     std::wstring name=L"New Profile";
