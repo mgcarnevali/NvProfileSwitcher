@@ -51,7 +51,18 @@ using NvQueryInterface=void* (__cdecl*)(unsigned int);
 using NvInit=int (__cdecl*)(); using NvUnload=int (__cdecl*)(); using NvEnumDisplay=int (__cdecl*)(int,void**);
 struct DVCINFOEX { unsigned int version; int currentLevel,minLevel,maxLevel,defaultLevel; };
 using NvGetDVC=int (__cdecl*)(void*,unsigned int,DVCINFOEX*); using NvSetDVC=int (__cdecl*)(void*,unsigned int,DVCINFOEX*);
-HMODULE gNv{}; NvUnload pUnload{}; NvGetDVC pGetDvc{}; NvSetDVC pSetDvc{}; void* gDisplay{};
+#pragma pack(push,1)
+struct NV_GAMMA_CORRECTION_EX {
+    unsigned int version;
+    float gammaRamp[1024*3];
+    unsigned int unknown;
+};
+#pragma pack(pop)
+using NvGetPrimaryDisplayId=int (__cdecl*)(unsigned int*);
+using NvSetTargetGamma=int (__cdecl*)(unsigned int,NV_GAMMA_CORRECTION_EX*);
+HMODULE gNv{}; NvUnload pUnload{}; NvGetDVC pGetDvc{}; NvSetDVC pSetDvc{};
+NvGetPrimaryDisplayId pGetPrimaryDisplayId{}; NvSetTargetGamma pSetTargetGamma{};
+void* gDisplay{}; unsigned int gDisplayId{};
 
 std::wstring AppDataFile(){ wchar_t p[MAX_PATH]{}; SHGetFolderPathW(nullptr,CSIDL_APPDATA,nullptr,SHGFP_TYPE_CURRENT,p); std::wstring d=std::wstring(p)+L"\\GameProfileSwitcher"; CreateDirectoryW(d.c_str(),nullptr); return d+L"\\profiles.json"; }
 std::string W2U(const std::wstring&s){ if(s.empty())return{}; int n=WideCharToMultiByte(CP_UTF8,0,s.c_str(),-1,nullptr,0,nullptr,nullptr); std::string r(n,0); WideCharToMultiByte(CP_UTF8,0,s.c_str(),-1,r.data(),n,nullptr,nullptr); r.pop_back(); return r; }
@@ -66,9 +77,83 @@ GameProfile ParseProfile(const std::string&o){ GameProfile p; p.name=Unescape(Fi
 void Save(){ std::ofstream f(AppDataFile(),std::ios::binary|std::ios::trunc); auto dump=[&](const GameProfile&p,int ind){ std::string sp(ind,' '); f<<sp<<"{\n"<<sp<<"  \"Name\": \""<<Escape(p.name)<<"\",\n"<<sp<<"  \"ExePath\": \""<<Escape(p.exePath)<<"\",\n"<<sp<<"  \"DigitalVibrance\": "<<p.vibrance<<",\n"<<sp<<"  \"Brightness\": "<<p.brightness<<",\n"<<sp<<"  \"Contrast\": "<<p.contrast<<",\n"<<sp<<"  \"Gamma\": "<<p.gamma<<",\n"<<sp<<"  \"Enabled\": "<<(p.enabled?"true":"false")<<"\n"<<sp<<"}";}; f<<"{\n  \"DesktopProfile\": "; dump(gSettings.desktop,2); f<<",\n  \"Profiles\": [\n"; for(size_t i=0;i<gSettings.profiles.size();++i){ dump(gSettings.profiles[i],4); if(i+1<gSettings.profiles.size())f<<","; f<<"\n";} f<<"  ],\n  \"StartWithWindows\": "<<(gSettings.startWindows?"true":"false")<<",\n  \"StartMinimized\": "<<(gSettings.startMinimized?"true":"false")<<"\n}\n"; }
 void Load(){ std::string s=ReadAll(AppDataFile()); if(s.empty()){ gSettings.profiles.push_back({L"Escape from Tarkov",L"",75,.50,.60,1.40,true}); Save(); return;} gSettings.startWindows=FieldB(s,"StartWithWindows",false); gSettings.startMinimized=FieldB(s,"StartMinimized",false); size_t dp=s.find("\"DesktopProfile\""); if(dp!=std::string::npos){ size_t a=s.find('{',dp), b=s.find('}',a); if(a!=std::string::npos&&b!=std::string::npos)gSettings.desktop=ParseProfile(s.substr(a,b-a+1)); } size_t pr=s.find("\"Profiles\""); if(pr!=std::string::npos){ size_t a=s.find('[',pr), b=s.find(']',a); if(a!=std::string::npos&&b!=std::string::npos){ size_t pos=a; while((pos=s.find('{',pos))!=std::string::npos&&pos<b){ size_t e=s.find('}',pos); if(e==std::string::npos||e>b)break; gSettings.profiles.push_back(ParseProfile(s.substr(pos,e-pos+1))); pos=e+1; } } } }
 
-bool InitNv(){ gNv=LoadLibraryW(L"nvapi64.dll"); if(!gNv){gStatus=L"NVIDIA driver / NVAPI not found";return false;} auto q=(NvQueryInterface)GetProcAddress(gNv,"nvapi_QueryInterface"); if(!q){gStatus=L"nvapi_QueryInterface not found";return false;} auto init=(NvInit)q(0x0150E828); pUnload=(NvUnload)q(0xD22BDD7E); auto en=(NvEnumDisplay)q(0x9ABDD40D); pGetDvc=(NvGetDVC)q(0x0E45002D); pSetDvc=(NvSetDVC)q(0x4A82C2B1); if(!init||!en||!pGetDvc||!pSetDvc||init()!=0||en(0,&gDisplay)!=0){gStatus=L"Could not initialize NVIDIA display";return false;} gStatus=L"Ready"; return true; }
-void SetGamma(double bri,double con,double gam){ WORD ramp[3][256]{}; for(int i=0;i<256;i++){ double v=i/255.0; v=pow(v,1.0/gam); v=((v-.5)*(con/.5))+.5; v+=bri-.5; v=std::clamp(v,0.0,1.0); WORD x=(WORD)llround(v*65535.0); ramp[0][i]=ramp[1][i]=ramp[2][i]=x;} HDC dc=GetDC(nullptr); SetDeviceGammaRamp(dc,ramp); ReleaseDC(nullptr,dc); }
-bool Apply(const GameProfile&p){ if(!gDisplay||!pSetDvc||!pGetDvc){gStatus=L"NVIDIA driver / NVAPI not initialized";gStatusOk=false;InvalidateRect(gWnd,nullptr,FALSE);return false;} DVCINFOEX d{}; d.version=sizeof(d)|0x10000; if(pGetDvc(gDisplay,0,&d)!=0){gStatus=L"Could not read Digital Vibrance";gStatusOk=false;return false;} d.currentLevel=std::clamp(p.vibrance,d.minLevel,d.maxLevel); if(pSetDvc(gDisplay,0,&d)!=0){gStatus=L"Could not set Digital Vibrance";gStatusOk=false;return false;} SetGamma(p.brightness,p.contrast,p.gamma); gStatus=L"Applied: "+p.name; gStatusOk=true; InvalidateRect(gWnd,nullptr,FALSE); return true; }
+bool InitNv(){
+    gNv=LoadLibraryW(L"nvapi64.dll");
+    if(!gNv){gStatus=L"NVIDIA driver / NVAPI not found";return false;}
+    auto q=(NvQueryInterface)GetProcAddress(gNv,"nvapi_QueryInterface");
+    if(!q){gStatus=L"nvapi_QueryInterface not found";return false;}
+    auto init=(NvInit)q(0x0150E828);
+    pUnload=(NvUnload)q(0xD22BDD7E);
+    auto en=(NvEnumDisplay)q(0x9ABDD40D);
+    pGetDvc=(NvGetDVC)q(0x0E45002D);
+    pSetDvc=(NvSetDVC)q(0x4A82C2B1);
+    pGetPrimaryDisplayId=(NvGetPrimaryDisplayId)q(0x1E9D8A31);
+    pSetTargetGamma=(NvSetTargetGamma)q(0x7082A053);
+    if(!init||!en||!pGetDvc||!pSetDvc||!pGetPrimaryDisplayId||!pSetTargetGamma||init()!=0||en(0,&gDisplay)!=0||pGetPrimaryDisplayId(&gDisplayId)!=0){
+        gStatus=L"Could not initialize NVIDIA display";
+        return false;
+    }
+    gStatus=L"Ready";
+    return true;
+}
+
+// Maps the NVIDIA App style 0..100 slider (50 = neutral) onto the actual
+// DVC range reported by the driver. This mirrors NvAPIWrapper's normalized
+// semantics without depending on NvAPIWrapper itself.
+int DvcRawFromPercent(int percent,const DVCINFOEX& d){
+    percent=std::clamp(percent,0,100);
+    if(percent>=50){
+        double t=(percent-50)/50.0;
+        return (int)llround(d.defaultLevel+t*(d.maxLevel-d.defaultLevel));
+    }
+    double t=(50-percent)/50.0;
+    return (int)llround(d.defaultLevel-t*(d.defaultLevel-d.minLevel));
+}
+
+// NVIDIA display-pipeline LUT, matching the native curve used by
+// NvColorProfiles 1.2.3 / NvAPI_DISP_SetTargetGammaCorrection.
+bool SetNvGamma(double bri,double con,double gam){
+    if(!pSetTargetGamma||!gDisplayId)return false;
+    NV_GAMMA_CORRECTION_EX data{};
+    data.version=(unsigned int)(sizeof(data)|(1u<<16));
+    data.unknown=1;
+
+    double brightnessRaw=80.0+std::clamp(bri,0.0,1.0)*40.0;
+    double contrastRaw=80.0+std::clamp(con,0.0,1.0)*40.0;
+    double gammaRaw=std::clamp(gam,0.4,2.8)*100.0;
+    double contrastNorm=(contrastRaw-100.0)/100.0;
+    double brightnessShift=(brightnessRaw-100.0)/100.0;
+    double gammaInv=1.0/(gammaRaw/100.0);
+
+    for(int i=0;i<1024;i++){
+        double x=i/1023.0;
+        double v;
+        if(contrastNorm<=0.0) v=(contrastNorm+1.0)*(x-0.5);
+        else v=(x-0.5)/std::max(1.0-contrastNorm,1e-6);
+        v+=brightnessShift+0.5;
+        v=std::clamp(v,0.0,1.0);
+        v=pow(v,gammaInv);
+        v=std::clamp(v,0.0,1.0);
+        float f=(float)v;
+        data.gammaRamp[i*3+0]=f;
+        data.gammaRamp[i*3+1]=f;
+        data.gammaRamp[i*3+2]=f;
+    }
+    return pSetTargetGamma(gDisplayId,&data)==0;
+}
+
+bool Apply(const GameProfile&p){
+    if(!gDisplay||!pSetDvc||!pGetDvc||!pSetTargetGamma||!gDisplayId){
+        gStatus=L"NVIDIA driver / NVAPI not initialized";gStatusOk=false;InvalidateRect(gWnd,nullptr,FALSE);return false;
+    }
+    DVCINFOEX d{};
+    d.version=(unsigned int)(sizeof(d)|(1u<<16));
+    if(pGetDvc(gDisplay,0,&d)!=0){gStatus=L"Could not read Digital Vibrance";gStatusOk=false;InvalidateRect(gWnd,nullptr,FALSE);return false;}
+    d.currentLevel=std::clamp(DvcRawFromPercent(p.vibrance,d),d.minLevel,d.maxLevel);
+    if(pSetDvc(gDisplay,0,&d)!=0){gStatus=L"Could not set Digital Vibrance";gStatusOk=false;InvalidateRect(gWnd,nullptr,FALSE);return false;}
+    if(!SetNvGamma(p.brightness,p.contrast,p.gamma)){gStatus=L"Could not set NVIDIA color LUT";gStatusOk=false;InvalidateRect(gWnd,nullptr,FALSE);return false;}
+    gStatus=L"Applied: "+p.name;gStatusOk=true;InvalidateRect(gWnd,nullptr,FALSE);return true;
+}
 
 std::wstring ProcessName(const std::wstring&p){ const wchar_t* n=PathFindFileNameW(p.c_str()); std::wstring s=n?n:L""; auto dot=s.find_last_of(L'.'); if(dot!=std::wstring::npos)s.resize(dot); return s; }
 std::wstring ForegroundProcessName(){
@@ -151,11 +236,11 @@ void SetDesktopUi(bool desktop){
     InvalidateRect(gWnd,nullptr,TRUE);
 }
 void LoadSelected(){ int i=(int)SendMessageW(H(IDC_LIST),LB_GETCURSEL,0,0); if(i<0||i>(int)gSettings.profiles.size())return; gSelected=i; auto*p=SelectedProfile(); if(!p)return; bool desktop=IsDesktopSelected(); SetDesktopUi(desktop); Txt(IDC_NAME,p->name);Txt(IDC_EXE,desktop?L"":p->exePath);SendMessageW(H(IDC_ENABLED),BM_SETCHECK,desktop?BST_UNCHECKED:(p->enabled?BST_CHECKED:BST_UNCHECKED),0);SendMessageW(H(IDC_VIB),TBM_SETPOS,TRUE,p->vibrance);SendMessageW(H(IDC_BRI),TBM_SETPOS,TRUE,(LPARAM)llround(p->brightness*100));SendMessageW(H(IDC_CON),TBM_SETPOS,TRUE,(LPARAM)llround(p->contrast*100));SendMessageW(H(IDC_GAM),TBM_SETPOS,TRUE,(LPARAM)llround(p->gamma*100));UpdateSliderLabels(); }
-void SaveSelected(){ auto*p=SelectedProfile(); if(!p)return; if(!IsDesktopSelected()){p->name=GetTxt(IDC_NAME);p->exePath=GetTxt(IDC_EXE);p->enabled=SendMessageW(H(IDC_ENABLED),BM_GETCHECK,0,0)==BST_CHECKED;}p->vibrance=(int)SendMessageW(H(IDC_VIB),TBM_GETPOS,0,0);p->brightness=(int)SendMessageW(H(IDC_BRI),TBM_GETPOS,0,0)/100.0;p->contrast=(int)SendMessageW(H(IDC_CON),TBM_GETPOS,0,0)/100.0;p->gamma=(int)SendMessageW(H(IDC_GAM),TBM_GETPOS,0,0)/100.0;Save();RefreshList(); }
+void SaveSelected(){ auto*p=SelectedProfile(); if(!p)return; bool desktop=IsDesktopSelected(); if(!desktop){p->name=GetTxt(IDC_NAME);p->exePath=GetTxt(IDC_EXE);p->enabled=SendMessageW(H(IDC_ENABLED),BM_GETCHECK,0,0)==BST_CHECKED;}p->vibrance=(int)SendMessageW(H(IDC_VIB),TBM_GETPOS,0,0);p->brightness=(int)SendMessageW(H(IDC_BRI),TBM_GETPOS,0,0)/100.0;p->contrast=(int)SendMessageW(H(IDC_CON),TBM_GETPOS,0,0)/100.0;p->gamma=(int)SendMessageW(H(IDC_GAM),TBM_GETPOS,0,0)/100.0;Save();RefreshList(); if(desktop){Apply(gSettings.desktop);gActive=gSettings.desktop.name;}else{std::wstring fg=ForegroundProcessName();if(!p->exePath.empty()&&_wcsicmp(ProcessName(p->exePath).c_str(),fg.c_str())==0){Apply(*p);gActive=p->name;}} }
 
 void DrawLabel(HDC dc,const wchar_t*t,int x,int y,COLORREF c,HFONT f=nullptr){ SetBkMode(dc,TRANSPARENT);SetTextColor(dc,c);SelectObject(dc,f?f:gFont);TextOutW(dc,x,y,t,(int)wcslen(t)); }
 void Fill(HDC dc,int x,int y,int w,int h,COLORREF c){HBRUSH b=CreateSolidBrush(c);RECT r{x,y,x+w,y+h};FillRect(dc,&r,b);DeleteObject(b);} 
-void Paint(HWND w){PAINTSTRUCT ps;HDC dc=BeginPaint(w,&ps);RECT rc;GetClientRect(w,&rc);FillRect(dc,&rc,gBackBrush);Fill(dc,20,78,245,rc.bottom-118,C_PANEL);Fill(dc,278,78,rc.right-298,rc.bottom-118,C_PANEL);DrawLabel(dc,L"Game Profile Switcher",28,24,C_TEXT,gFontTitle);DrawLabel(dc,L"Automatic display color profiles for your games",28,52,C_MUTED);Fill(dc,rc.right-90,20,60,30,C_PANEL2);DrawLabel(dc,L"v0.3.13",rc.right-79,27,C_ACCENT);DrawLabel(dc,L"GAME PROFILES",35,92,C_MUTED,gFontBold);DrawLabel(dc,L"PROFILE SETTINGS",300,92,C_MUTED,gFontBold); SIZE z{};SelectObject(dc,gFont);GetTextExtentPoint32W(dc,gStatus.c_str(),(int)gStatus.size(),&z);DrawLabel(dc,gStatus.c_str(),rc.right-z.cx-28,rc.bottom-28,gStatusOk?C_MUTED:C_DANGER);EndPaint(w,&ps);} 
+void Paint(HWND w){PAINTSTRUCT ps;HDC dc=BeginPaint(w,&ps);RECT rc;GetClientRect(w,&rc);FillRect(dc,&rc,gBackBrush);Fill(dc,20,78,245,rc.bottom-118,C_PANEL);Fill(dc,278,78,rc.right-298,rc.bottom-118,C_PANEL);DrawLabel(dc,L"Game Profile Switcher",28,24,C_TEXT,gFontTitle);DrawLabel(dc,L"Automatic display color profiles for your games",28,52,C_MUTED);Fill(dc,rc.right-90,20,60,30,C_PANEL2);DrawLabel(dc,L"v0.3.14",rc.right-79,27,C_ACCENT);DrawLabel(dc,L"GAME PROFILES",35,92,C_MUTED,gFontBold);DrawLabel(dc,L"PROFILE SETTINGS",300,92,C_MUTED,gFontBold); SIZE z{};SelectObject(dc,gFont);GetTextExtentPoint32W(dc,gStatus.c_str(),(int)gStatus.size(),&z);DrawLabel(dc,gStatus.c_str(),rc.right-z.cx-28,rc.bottom-28,gStatusOk?C_MUTED:C_DANGER);EndPaint(w,&ps);} 
 
 void BuildControls(){ RECT r;GetClientRect(gWnd,&r); int rightX=298,rightW=r.right-318;
  HWND list=Add(L"LISTBOX",L"",LBS_NOTIFY|LBS_OWNERDRAWFIXED|WS_VSCROLL,32,120,221,r.bottom-260,IDC_LIST); SendMessageW(list,LB_SETITEMHEIGHT,0,48);
@@ -204,4 +289,4 @@ void ResizeControls(){
 void ShowMain(){ShowWindow(gWnd,SW_SHOW);SetForegroundWindow(gWnd);} void RestoreDesktop(){Apply(gSettings.desktop);gActive=gSettings.desktop.name;InvalidateRect(gWnd,nullptr,FALSE);} void UpdateTrayPause(){ModifyMenuW(gTrayMenu,ID_TRAY_PAUSE,MF_BYCOMMAND|MF_STRING,ID_TRAY_PAUSE,gPaused?L"Resume automatic switching":L"Pause automatic switching");}
 LRESULT CALLBACK Proc(HWND w,UINT m,WPARAM wp,LPARAM lp){switch(m){case WM_CREATE:gWnd=w;BuildControls();RefreshList();LoadSelected();SetTimer(w,1,750,nullptr);return 0;case WM_SIZE:ResizeControls();InvalidateRect(w,nullptr,TRUE);return 0;case WM_PAINT:Paint(w);return 0;case WM_CTLCOLORSTATIC:{HDC dc=(HDC)wp;SetTextColor(dc,C_TEXT);SetBkColor(dc,C_PANEL);SetBkMode(dc,TRANSPARENT);return (LRESULT)gPanelBrush;}case WM_CTLCOLOREDIT:{HDC dc=(HDC)wp;SetTextColor(dc,C_TEXT);SetBkColor(dc,C_PANEL2);return (LRESULT)gPanel2Brush;}case WM_CTLCOLORBTN:{HDC dc=(HDC)wp;SetTextColor(dc,C_TEXT);SetBkColor(dc,C_PANEL);return (LRESULT)gPanelBrush;}case WM_DRAWITEM:{auto*d=(DRAWITEMSTRUCT*)lp;if(d->CtlID==IDC_LIST&&d->itemID!=(UINT)-1){FillRect(d->hDC,&d->rcItem,(d->itemState&ODS_SELECTED)?gPanel2Brush:gPanelBrush);bool desktop=d->itemID==0;GameProfile*p=desktop?&gSettings.desktop:&gSettings.profiles[d->itemID-1];SHFILEINFOW fi{};HICON ic=nullptr;bool destroyIcon=false;if(desktop){ic=gIcon;}else if(!p->exePath.empty()&&PathFileExistsW(p->exePath.c_str())&&SHGetFileInfoW(p->exePath.c_str(),0,&fi,sizeof(fi),SHGFI_ICON|SHGFI_SMALLICON)){ic=fi.hIcon;destroyIcon=true;}int x=d->rcItem.left+8,y=d->rcItem.top+8;if(ic){DrawIconEx(d->hDC,x,y,ic,24,24,0,nullptr,DI_NORMAL);if(destroyIcon)DestroyIcon(ic);}else{HBRUSH b=CreateSolidBrush(C_ACCENT);HGDIOBJ old=SelectObject(d->hDC,b);Ellipse(d->hDC,x,y,x+28,y+28);SelectObject(d->hDC,old);DeleteObject(b);if(!p->name.empty()){wchar_t c[2]{p->name[0],0};DrawLabel(d->hDC,c,x+9,y+5,RGB(255,255,255));}}DrawLabel(d->hDC,p->name.c_str(),x+38,d->rcItem.top+6,C_TEXT);std::wstring sub=desktop?L"Default display profile":ProcessName(p->exePath);DrawLabel(d->hDC,sub.c_str(),x+38,d->rcItem.top+25,C_MUTED);return TRUE;}break;}case WM_HSCROLL:UpdateSliderLabels();return 0;case WM_TIMER:CheckProcesses();return 0;case WM_COMMAND:{int id=LOWORD(wp);if(id==IDC_LIST&&HIWORD(wp)==LBN_SELCHANGE){LoadSelected();return 0;}switch(id){case IDC_BROWSE:{OPENFILENAMEW o{sizeof(o)};wchar_t f[MAX_PATH]{};o.hwndOwner=w;o.lpstrFilter=L"Executables (*.exe)\0*.exe\0All files\0*.*\0";o.lpstrFile=f;o.nMaxFile=MAX_PATH;o.Flags=OFN_FILEMUSTEXIST;if(GetOpenFileNameW(&o))Txt(IDC_EXE,f);break;}case IDC_SAVE:SaveSelected();break;case IDC_ADD:gSettings.profiles.push_back({});gSelected=(int)gSettings.profiles.size();Save();RefreshList();LoadSelected();break;case IDC_REMOVE:if(gSelected>0&&gSelected<=(int)gSettings.profiles.size()){gSettings.profiles.erase(gSettings.profiles.begin()+(gSelected-1));gSelected=std::max<int>(0,gSelected-1);Save();RefreshList();LoadSelected();}break;case IDC_STARTWIN:gSettings.startWindows=SendMessageW(H(IDC_STARTWIN),BM_GETCHECK,0,0)==BST_CHECKED;SetStartup(gSettings.startWindows);Save();break;case IDC_STARTMIN:gSettings.startMinimized=SendMessageW(H(IDC_STARTMIN),BM_GETCHECK,0,0)==BST_CHECKED;Save();break;case ID_TRAY_OPEN:ShowMain();break;case ID_TRAY_RESTORE:RestoreDesktop();break;case ID_TRAY_PAUSE:gPaused=!gPaused;if(gPaused)RestoreDesktop();UpdateTrayPause();break;case ID_TRAY_EXIT:gReallyExit=true;DestroyWindow(w);break;}return 0;}case WM_CLOSE:if(!gReallyExit){ShowWindow(w,SW_HIDE);return 0;}break;case WM_TRAY:if(lp==WM_LBUTTONDBLCLK){ShowMain();return 0;}if(lp==WM_RBUTTONUP||lp==WM_CONTEXTMENU){POINT p;GetCursorPos(&p);SetForegroundWindow(w);TrackPopupMenu(gTrayMenu,TPM_RIGHTBUTTON,p.x,p.y,0,w,nullptr);return 0;}break;case WM_DESTROY:KillTimer(w,1);Shell_NotifyIconW(NIM_DELETE,&gNid);if(pUnload)pUnload();if(gNv)FreeLibrary(gNv);PostQuitMessage(0);return 0;}return DefWindowProcW(w,m,wp,lp);} 
 
-int WINAPI wWinMain(HINSTANCE h,HINSTANCE,LPWSTR cmd,int){gInst=h;INITCOMMONCONTROLSEX ic{sizeof(ic),ICC_BAR_CLASSES|ICC_STANDARD_CLASSES};InitCommonControlsEx(&ic);Load();gBackBrush=CreateSolidBrush(C_BACK);gPanelBrush=CreateSolidBrush(C_PANEL);gPanel2Brush=CreateSolidBrush(C_PANEL2);gFont=CreateFontW(-15,0,0,0,FW_NORMAL,0,0,0,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,DEFAULT_PITCH,L"Segoe UI");gFontBold=CreateFontW(-15,0,0,0,FW_SEMIBOLD,0,0,0,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,DEFAULT_PITCH,L"Segoe UI");gFontTitle=CreateFontW(-24,0,0,0,FW_BOLD,0,0,0,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,DEFAULT_PITCH,L"Segoe UI");gIcon=LoadIconW(h,MAKEINTRESOURCEW(IDI_APPICON));WNDCLASSEXW wc{sizeof(wc)};wc.style=CS_HREDRAW|CS_VREDRAW;wc.lpfnWndProc=Proc;wc.hInstance=h;wc.hIcon=gIcon;wc.hIconSm=gIcon;wc.hCursor=LoadCursor(nullptr,IDC_ARROW);wc.hbrBackground=gBackBrush;wc.lpszClassName=L"GameProfileSwitcherNative";RegisterClassExW(&wc);gWnd=CreateWindowExW(0,wc.lpszClassName,L"Game Profile Switcher v0.3.13",WS_OVERLAPPEDWINDOW,CW_USEDEFAULT,CW_USEDEFAULT,900,775,nullptr,nullptr,h,nullptr);SetWindowLongPtrW(gWnd,GWLP_USERDATA,0);gTrayMenu=CreatePopupMenu();AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_OPEN,L"Open Game Profile Switcher");AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_RESTORE,L"Restore Desktop");AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_PAUSE,L"Pause automatic switching");AppendMenuW(gTrayMenu,MF_SEPARATOR,0,nullptr);AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_EXIT,L"Exit");gNid.cbSize=sizeof(gNid);gNid.hWnd=gWnd;gNid.uID=1;gNid.uFlags=NIF_MESSAGE|NIF_ICON|NIF_TIP;gNid.uCallbackMessage=WM_TRAY;gNid.hIcon=gIcon;wcscpy_s(gNid.szTip,L"Game Profile Switcher");Shell_NotifyIconW(NIM_ADD,&gNid);gStatusOk=InitNv();if(gStatusOk)Apply(gSettings.desktop);gActive=gSettings.desktop.name;bool min=(wcsstr(cmd,L"--minimized")!=nullptr)||gSettings.startMinimized;ShowWindow(gWnd,min?SW_HIDE:SW_SHOW);UpdateWindow(gWnd);MSG msg;while(GetMessageW(&msg,nullptr,0,0)>0){TranslateMessage(&msg);DispatchMessageW(&msg);}DeleteObject(gFont);DeleteObject(gFontBold);DeleteObject(gFontTitle);DeleteObject(gBackBrush);DeleteObject(gPanelBrush);DeleteObject(gPanel2Brush);return 0;}
+int WINAPI wWinMain(HINSTANCE h,HINSTANCE,LPWSTR cmd,int){gInst=h;INITCOMMONCONTROLSEX ic{sizeof(ic),ICC_BAR_CLASSES|ICC_STANDARD_CLASSES};InitCommonControlsEx(&ic);Load();gBackBrush=CreateSolidBrush(C_BACK);gPanelBrush=CreateSolidBrush(C_PANEL);gPanel2Brush=CreateSolidBrush(C_PANEL2);gFont=CreateFontW(-15,0,0,0,FW_NORMAL,0,0,0,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,DEFAULT_PITCH,L"Segoe UI");gFontBold=CreateFontW(-15,0,0,0,FW_SEMIBOLD,0,0,0,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,DEFAULT_PITCH,L"Segoe UI");gFontTitle=CreateFontW(-24,0,0,0,FW_BOLD,0,0,0,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,DEFAULT_PITCH,L"Segoe UI");gIcon=LoadIconW(h,MAKEINTRESOURCEW(IDI_APPICON));WNDCLASSEXW wc{sizeof(wc)};wc.style=CS_HREDRAW|CS_VREDRAW;wc.lpfnWndProc=Proc;wc.hInstance=h;wc.hIcon=gIcon;wc.hIconSm=gIcon;wc.hCursor=LoadCursor(nullptr,IDC_ARROW);wc.hbrBackground=gBackBrush;wc.lpszClassName=L"GameProfileSwitcherNative";RegisterClassExW(&wc);gWnd=CreateWindowExW(0,wc.lpszClassName,L"Game Profile Switcher v0.3.14",WS_OVERLAPPEDWINDOW,CW_USEDEFAULT,CW_USEDEFAULT,900,775,nullptr,nullptr,h,nullptr);SetWindowLongPtrW(gWnd,GWLP_USERDATA,0);gTrayMenu=CreatePopupMenu();AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_OPEN,L"Open Game Profile Switcher");AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_RESTORE,L"Restore Desktop");AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_PAUSE,L"Pause automatic switching");AppendMenuW(gTrayMenu,MF_SEPARATOR,0,nullptr);AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_EXIT,L"Exit");gNid.cbSize=sizeof(gNid);gNid.hWnd=gWnd;gNid.uID=1;gNid.uFlags=NIF_MESSAGE|NIF_ICON|NIF_TIP;gNid.uCallbackMessage=WM_TRAY;gNid.hIcon=gIcon;wcscpy_s(gNid.szTip,L"Game Profile Switcher");Shell_NotifyIconW(NIM_ADD,&gNid);gStatusOk=InitNv();if(gStatusOk)Apply(gSettings.desktop);gActive=gSettings.desktop.name;bool min=(wcsstr(cmd,L"--minimized")!=nullptr)||gSettings.startMinimized;ShowWindow(gWnd,min?SW_HIDE:SW_SHOW);UpdateWindow(gWnd);MSG msg;while(GetMessageW(&msg,nullptr,0,0)>0){TranslateMessage(&msg);DispatchMessageW(&msg);}DeleteObject(gFont);DeleteObject(gFontBold);DeleteObject(gFontTitle);DeleteObject(gBackBrush);DeleteObject(gPanelBrush);DeleteObject(gPanel2Brush);return 0;}
