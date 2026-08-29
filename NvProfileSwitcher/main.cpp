@@ -8,6 +8,7 @@
 #include <shlwapi.h>
 #include <uxtheme.h>
 #include <dwmapi.h>
+#include <winhttp.h>
 #include <string>
 #include <vector>
 #include <fstream>
@@ -45,8 +46,11 @@ constexpr COLORREF C_BACK=RGB(10,13,16), C_PANEL=RGB(18,22,26), C_PANEL2=RGB(24,
 constexpr COLORREF C_TEXT=RGB(241,244,247), C_MUTED=RGB(151,161,171), C_ACCENT=RGB(82,214,39), C_ACCENT2=RGB(43,164,22), C_ACCENT_DARK=RGB(24,50,28), C_DANGER=RGB(232,75,75);
 constexpr COLORREF C_TRACK=RGB(61,67,73), C_WINBLUE=RGB(0,120,215);
 constexpr UINT WM_TRAY=WM_APP+1;
-constexpr wchar_t APP_VERSION[]=L"0.6.10";
+constexpr UINT WM_UPDATE_AVAILABLE=WM_APP+2;
+constexpr wchar_t APP_VERSION[]=L"0.6.11";
 constexpr wchar_t APP_URL[]=L"https://github.com/mgcarnevali/NvProfileSwitcher";
+constexpr wchar_t UPDATE_HOST[]=L"api.github.com";
+constexpr wchar_t UPDATE_PATH[]=L"/repos/mgcarnevali/NvProfileSwitcher/releases/latest";
 enum {IDC_LIST=1001,IDC_NAME,IDC_EXE,IDC_BROWSE,IDC_ENABLED,IDC_DISPLAY,IDC_LBL_DISPLAY,IDC_VIB,IDC_BRI,IDC_CON,IDC_GAM,IDC_SAVE,IDC_APPLY,IDC_ADD,IDC_REMOVE,IDC_RESTORE,IDC_STARTWIN,IDC_STARTMIN,IDC_VALVIB,IDC_VALBRI,IDC_VALCON,IDC_VALGAM,IDC_LBL_NAME,IDC_LBL_EXE,IDC_LBL_ENABLED,IDC_LBL_VIB,IDC_LBL_BRI,IDC_LBL_CON,IDC_LBL_GAM};
 enum {ID_TRAY_OPEN=2001,ID_TRAY_RESTORE,ID_TRAY_PAUSE,ID_TRAY_ABOUT,ID_TRAY_EXIT};
 
@@ -639,6 +643,288 @@ void ResizeControls(){
     SetDesktopUi(IsDesktopSelected());
 }
 
+
+struct UpdateInfo{
+    std::wstring version;
+    std::wstring url;
+};
+
+std::wstring Utf8ToWide(const std::string& text){
+    if(text.empty())return L"";
+    int n=MultiByteToWideChar(CP_UTF8,0,text.data(),(int)text.size(),nullptr,0);
+    if(n<=0)return L"";
+    std::wstring out(n,0);
+    MultiByteToWideChar(CP_UTF8,0,text.data(),(int)text.size(),out.data(),n);
+    return out;
+}
+
+std::string JsonStringValue(const std::string& json,const std::string& key){
+    std::string token="\""+key+"\"";
+    size_t p=json.find(token);
+    if(p==std::string::npos)return {};
+    p=json.find(':',p+token.size());
+    if(p==std::string::npos)return {};
+    p=json.find('"',p+1);
+    if(p==std::string::npos)return {};
+    ++p;
+    std::string out;
+    bool esc=false;
+    for(;p<json.size();++p){
+        char c=json[p];
+        if(esc){
+            switch(c){
+                case '"': out.push_back('"'); break;
+                case '\\': out.push_back('\\'); break;
+                case '/': out.push_back('/'); break;
+                case 'b': out.push_back('\b'); break;
+                case 'f': out.push_back('\f'); break;
+                case 'n': out.push_back('\n'); break;
+                case 'r': out.push_back('\r'); break;
+                case 't': out.push_back('\t'); break;
+                default: out.push_back(c); break;
+            }
+            esc=false;
+        }else if(c=='\\'){
+            esc=true;
+        }else if(c=='"'){
+            break;
+        }else{
+            out.push_back(c);
+        }
+    }
+    return out;
+}
+
+std::vector<int> ParseVersionParts(std::wstring v){
+    if(!v.empty()&&(v[0]==L'v'||v[0]==L'V'))v.erase(v.begin());
+    size_t dash=v.find_first_of(L"-+");
+    if(dash!=std::wstring::npos)v.resize(dash);
+    std::vector<int> parts;
+    size_t start=0;
+    while(start<=v.size()){
+        size_t dot=v.find(L'.',start);
+        std::wstring part=v.substr(start,dot==std::wstring::npos?v.size()-start:dot-start);
+        if(part.empty())return {};
+        for(wchar_t c:part)if(c<L'0'||c>L'9')return {};
+        parts.push_back(_wtoi(part.c_str()));
+        if(dot==std::wstring::npos)break;
+        start=dot+1;
+    }
+    return parts;
+}
+
+bool IsVersionNewer(const std::wstring& remote,const std::wstring& local){
+    auto a=ParseVersionParts(remote);
+    auto b=ParseVersionParts(local);
+    if(a.empty()||b.empty())return false;
+    size_t n=std::max(a.size(),b.size());
+    a.resize(n,0); b.resize(n,0);
+    for(size_t i=0;i<n;++i){
+        if(a[i]>b[i])return true;
+        if(a[i]<b[i])return false;
+    }
+    return false;
+}
+
+bool GetLatestRelease(UpdateInfo& info){
+    HINTERNET session=WinHttpOpen(L"NvProfileSwitcher Update Checker",
+        WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,WINHTTP_NO_PROXY_NAME,WINHTTP_NO_PROXY_BYPASS,0);
+    if(!session)return false;
+
+    WinHttpSetTimeouts(session,4000,4000,4000,6000);
+
+    HINTERNET connect=WinHttpConnect(session,UPDATE_HOST,INTERNET_DEFAULT_HTTPS_PORT,0);
+    if(!connect){WinHttpCloseHandle(session);return false;}
+
+    HINTERNET request=WinHttpOpenRequest(connect,L"GET",UPDATE_PATH,nullptr,
+        WINHTTP_NO_REFERER,WINHTTP_DEFAULT_ACCEPT_TYPES,WINHTTP_FLAG_SECURE);
+    if(!request){
+        WinHttpCloseHandle(connect);
+        WinHttpCloseHandle(session);
+        return false;
+    }
+
+    const wchar_t* headers=
+        L"Accept: application/vnd.github+json\r\n"
+        L"X-GitHub-Api-Version: 2022-11-28\r\n"
+        L"User-Agent: NvProfileSwitcher\r\n";
+
+    BOOL ok=WinHttpAddRequestHeaders(request,headers,(DWORD)-1L,WINHTTP_ADDREQ_FLAG_ADD|WINHTTP_ADDREQ_FLAG_REPLACE)
+        && WinHttpSendRequest(request,WINHTTP_NO_ADDITIONAL_HEADERS,0,WINHTTP_NO_REQUEST_DATA,0,0,0)
+        && WinHttpReceiveResponse(request,nullptr);
+
+    DWORD status=0,statusSize=sizeof(status);
+    if(ok)ok=WinHttpQueryHeaders(request,WINHTTP_QUERY_STATUS_CODE|WINHTTP_QUERY_FLAG_NUMBER,
+        WINHTTP_HEADER_NAME_BY_INDEX,&status,&statusSize,WINHTTP_NO_HEADER_INDEX) && status==200;
+
+    std::string body;
+    if(ok){
+        for(;;){
+            DWORD avail=0;
+            if(!WinHttpQueryDataAvailable(request,&avail) || avail==0)break;
+            size_t old=body.size();
+            body.resize(old+avail);
+            DWORD read=0;
+            if(!WinHttpReadData(request,body.data()+old,avail,&read)){ok=FALSE;break;}
+            body.resize(old+read);
+            if(read==0)break;
+        }
+    }
+
+    WinHttpCloseHandle(request);
+    WinHttpCloseHandle(connect);
+    WinHttpCloseHandle(session);
+
+    if(!ok||body.empty())return false;
+
+    std::string tag=JsonStringValue(body,"tag_name");
+    std::string url=JsonStringValue(body,"html_url");
+    if(tag.empty()||url.empty())return false;
+
+    info.version=Utf8ToWide(tag);
+    if(!info.version.empty()&&(info.version[0]==L'v'||info.version[0]==L'V'))
+        info.version.erase(info.version.begin());
+    info.url=Utf8ToWide(url);
+    return !info.version.empty()&&!info.url.empty();
+}
+
+DWORD WINAPI UpdateCheckThread(LPVOID){
+    UpdateInfo info;
+    if(GetLatestRelease(info) && IsVersionNewer(info.version,APP_VERSION)){
+        auto* result=new UpdateInfo(std::move(info));
+        if(!PostMessageW(gWnd,WM_UPDATE_AVAILABLE,0,(LPARAM)result))
+            delete result;
+    }
+    return 0;
+}
+
+LRESULT CALLBACK UpdateProc(HWND w,UINT m,WPARAM wp,LPARAM lp){
+    auto* info=(UpdateInfo*)GetWindowLongPtrW(w,GWLP_USERDATA);
+    switch(m){
+    case WM_CREATE:{
+        auto* cs=(CREATESTRUCTW*)lp;
+        info=(UpdateInfo*)cs->lpCreateParams;
+        SetWindowLongPtrW(w,GWLP_USERDATA,(LONG_PTR)info);
+
+        HFONT title=CreateFontW(-20,0,0,0,FW_SEMIBOLD,0,0,0,DEFAULT_CHARSET,0,0,
+            CLEARTYPE_QUALITY,DEFAULT_PITCH,L"Segoe UI");
+        SetPropW(w,L"UpdateTitleFont",title);
+
+        std::wstring heading=L"NvProfileSwitcher ";
+        heading+=info->version;
+        heading+=L" is available";
+
+        HWND hTitle=CreateWindowExW(0,L"STATIC",heading.c_str(),WS_CHILD|WS_VISIBLE,
+            22,20,420,28,w,nullptr,gInst,nullptr);
+        SendMessageW(hTitle,WM_SETFONT,(WPARAM)title,TRUE);
+
+        std::wstring current=L"You are currently running version ";
+        current+=APP_VERSION;
+        current+=L".";
+        HWND hCurrent=CreateWindowExW(0,L"STATIC",current.c_str(),WS_CHILD|WS_VISIBLE,
+            22,60,420,22,w,nullptr,gInst,nullptr);
+        SendMessageW(hCurrent,WM_SETFONT,(WPARAM)gFont,TRUE);
+
+        HWND hText=CreateWindowExW(0,L"STATIC",
+            L"A newer version is available on GitHub.",
+            WS_CHILD|WS_VISIBLE,22,88,420,22,w,nullptr,gInst,nullptr);
+        SendMessageW(hText,WM_SETFONT,(WPARAM)gFont,TRUE);
+
+        HWND download=CreateWindowExW(0,L"BUTTON",L"Download",WS_CHILD|WS_VISIBLE|BS_OWNERDRAW,
+            238,130,100,36,w,(HMENU)3101,gInst,nullptr);
+        SendMessageW(download,WM_SETFONT,(WPARAM)gFontBold,TRUE);
+
+        HWND later=CreateWindowExW(0,L"BUTTON",L"Later",WS_CHILD|WS_VISIBLE|BS_OWNERDRAW,
+            350,130,100,36,w,(HMENU)IDCANCEL,gInst,nullptr);
+        SendMessageW(later,WM_SETFONT,(WPARAM)gFontBold,TRUE);
+        return 0;
+    }
+    case WM_CTLCOLORSTATIC:{
+        HDC dc=(HDC)wp;
+        SetTextColor(dc,C_TEXT);
+        SetBkColor(dc,C_BACK);
+        SetBkMode(dc,TRANSPARENT);
+        return (LRESULT)gBackBrush;
+    }
+    case WM_DRAWITEM:{
+        auto* d=(DRAWITEMSTRUCT*)lp;
+        if(d->CtlID==3101||d->CtlID==IDCANCEL){
+            bool down=(d->itemState&ODS_SELECTED)!=0;
+            RECT r=d->rcItem;
+            COLORREF fill=d->CtlID==3101?(down?C_ACCENT2:C_ACCENT):(down?C_ACCENT_DARK:C_PANEL2);
+            COLORREF border=d->CtlID==3101?C_ACCENT:C_BORDER;
+            FillRound(d->hDC,r,fill,border,7);
+            const wchar_t* text=d->CtlID==3101?L"Download":L"Later";
+            SIZE z{};
+            SelectObject(d->hDC,gFontBold);
+            GetTextExtentPoint32W(d->hDC,text,(int)wcslen(text),&z);
+            DrawLabel(d->hDC,text,r.left+(r.right-r.left-z.cx)/2,
+                r.top+(r.bottom-r.top-z.cy)/2,d->CtlID==3101?RGB(8,15,8):C_TEXT,gFontBold);
+            return TRUE;
+        }
+        break;
+    }
+    case WM_COMMAND:
+        if(LOWORD(wp)==3101){
+            if(info&&!info->url.empty())
+                ShellExecuteW(w,L"open",info->url.c_str(),nullptr,nullptr,SW_SHOWNORMAL);
+            DestroyWindow(w);
+            return 0;
+        }
+        if(LOWORD(wp)==IDCANCEL){
+            DestroyWindow(w);
+            return 0;
+        }
+        break;
+    case WM_CLOSE:
+        DestroyWindow(w);
+        return 0;
+    case WM_DESTROY:{
+        HFONT f=(HFONT)RemovePropW(w,L"UpdateTitleFont");
+        if(f)DeleteObject(f);
+        delete info;
+        SetWindowLongPtrW(w,GWLP_USERDATA,0);
+        return 0;
+    }}
+    return DefWindowProcW(w,m,wp,lp);
+}
+
+void ShowUpdateAvailable(UpdateInfo* info){
+    static bool registered=false;
+    if(!registered){
+        WNDCLASSEXW wc{sizeof(wc)};
+        wc.lpfnWndProc=UpdateProc;
+        wc.hInstance=gInst;
+        wc.hIcon=gIcon;
+        wc.hIconSm=gIcon;
+        wc.hCursor=LoadCursor(nullptr,IDC_ARROW);
+        wc.hbrBackground=gBackBrush;
+        wc.lpszClassName=L"NvProfileSwitcherUpdate";
+        RegisterClassExW(&wc);
+        registered=true;
+    }
+
+    HWND a=CreateWindowExW(WS_EX_DLGMODALFRAME|WS_EX_TOPMOST,L"NvProfileSwitcherUpdate",
+        L"NvProfileSwitcher Update",WS_CAPTION|WS_SYSMENU,
+        0,0,488,214,nullptr,nullptr,gInst,info);
+    if(!a){delete info;return;}
+
+    BOOL darkTitle=TRUE;
+    DwmSetWindowAttribute(a,20,&darkTitle,sizeof(darkTitle));
+
+    RECT wr{},work{};
+    GetWindowRect(a,&wr);
+    SystemParametersInfoW(SPI_GETWORKAREA,0,&work,0);
+    int ww=wr.right-wr.left, wh=wr.bottom-wr.top;
+    int x=work.left+((work.right-work.left)-ww)/2;
+    int y=work.top+((work.bottom-work.top)-wh)/2;
+
+    ShowWindow(a,SW_SHOW);
+    SetWindowPos(a,HWND_TOPMOST,x,y,0,0,SWP_NOSIZE|SWP_SHOWWINDOW);
+    UpdateWindow(a);
+    SetForegroundWindow(a);
+}
+
 LRESULT CALLBACK AboutProc(HWND w,UINT m,WPARAM wp,LPARAM lp){
     switch(m){
     case WM_CREATE:{
@@ -763,7 +1049,7 @@ void ShowMain(){
     SetForegroundWindow(gWnd);
     BringWindowToTop(gWnd);
 } void RestoreDesktop(){Apply(gSettings.desktop);gActive=gSettings.desktop.name;InvalidateRect(gWnd,nullptr,FALSE);} void UpdateTrayPause(){ModifyMenuW(gTrayMenu,ID_TRAY_PAUSE,MF_BYCOMMAND|MF_STRING,ID_TRAY_PAUSE,gPaused?L"Resume automatic switching":L"Pause automatic switching");}
-LRESULT CALLBACK Proc(HWND w,UINT m,WPARAM wp,LPARAM lp){switch(m){case WM_CREATE:gWnd=w;BuildControls();RefreshList();LoadSelected();SetTimer(w,1,250,nullptr);return 0;case WM_SIZE:
+LRESULT CALLBACK Proc(HWND w,UINT m,WPARAM wp,LPARAM lp){switch(m){case WM_UPDATE_AVAILABLE:ShowUpdateAvailable((UpdateInfo*)lp);return 0;case WM_CREATE:gWnd=w;BuildControls();RefreshList();LoadSelected();SetTimer(w,1,250,nullptr);return 0;case WM_SIZE:
     if(wp==SIZE_MINIMIZED){
         ShowWindow(w,SW_HIDE);
         return 0;
@@ -844,4 +1130,4 @@ gIconFont=CreateFontW(-18,0,0,0,FW_NORMAL,FALSE,FALSE,FALSE,DEFAULT_CHARSET,OUT_
 mainTitle+=APP_VERSION;
 gWnd=CreateWindowExW(0,wc.lpszClassName,mainTitle.c_str(),WS_OVERLAPPEDWINDOW,CW_USEDEFAULT,CW_USEDEFAULT,980,800,nullptr,nullptr,h,nullptr);
 BOOL darkTitle=TRUE;DwmSetWindowAttribute(gWnd,20,&darkTitle,sizeof(darkTitle));
-SetWindowLongPtrW(gWnd,GWLP_USERDATA,0);gTrayMenu=CreatePopupMenu();AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_OPEN,L"Open NvProfileSwitcher");AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_PAUSE,L"Pause automatic switching");AppendMenuW(gTrayMenu,MF_SEPARATOR,0,nullptr);AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_ABOUT,L"About NvProfileSwitcher");AppendMenuW(gTrayMenu,MF_SEPARATOR,0,nullptr);AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_EXIT,L"Exit");gNid.cbSize=sizeof(gNid);gNid.hWnd=gWnd;gNid.uID=1;gNid.uFlags=NIF_MESSAGE|NIF_ICON|NIF_TIP;gNid.uCallbackMessage=WM_TRAY;gNid.hIcon=gIcon;wcscpy_s(gNid.szTip,L"NvProfileSwitcher");Shell_NotifyIconW(NIM_ADD,&gNid);gStatusOk=InitNv();if(gStatusOk){if(auto* p=SelectedProfile())RefreshDisplayCombo(*p);Apply(gSettings.desktop);}gActive=gSettings.desktop.name;bool min=(wcsstr(cmd,L"--minimized")!=nullptr)||gSettings.startMinimized;ShowWindow(gWnd,min?SW_HIDE:SW_SHOW);UpdateWindow(gWnd);MSG msg;while(GetMessageW(&msg,nullptr,0,0)>0){TranslateMessage(&msg);DispatchMessageW(&msg);}DeleteObject(gFont);DeleteObject(gFontBold);DeleteObject(gFontTitle);DeleteObject(gIconFont);DeleteObject(gBackBrush);DeleteObject(gPanelBrush);DeleteObject(gPanel2Brush);DeleteObject(gFieldBrush);return 0;}
+SetWindowLongPtrW(gWnd,GWLP_USERDATA,0);gTrayMenu=CreatePopupMenu();AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_OPEN,L"Open NvProfileSwitcher");AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_PAUSE,L"Pause automatic switching");AppendMenuW(gTrayMenu,MF_SEPARATOR,0,nullptr);AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_ABOUT,L"About NvProfileSwitcher");AppendMenuW(gTrayMenu,MF_SEPARATOR,0,nullptr);AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_EXIT,L"Exit");gNid.cbSize=sizeof(gNid);gNid.hWnd=gWnd;gNid.uID=1;gNid.uFlags=NIF_MESSAGE|NIF_ICON|NIF_TIP;gNid.uCallbackMessage=WM_TRAY;gNid.hIcon=gIcon;wcscpy_s(gNid.szTip,L"NvProfileSwitcher");Shell_NotifyIconW(NIM_ADD,&gNid);gStatusOk=InitNv();if(gStatusOk){if(auto* p=SelectedProfile())RefreshDisplayCombo(*p);Apply(gSettings.desktop);}gActive=gSettings.desktop.name;bool min=(wcsstr(cmd,L"--minimized")!=nullptr)||gSettings.startMinimized;ShowWindow(gWnd,min?SW_HIDE:SW_SHOW);UpdateWindow(gWnd);if(HANDLE h=CreateThread(nullptr,0,UpdateCheckThread,nullptr,0,nullptr))CloseHandle(h);MSG msg;while(GetMessageW(&msg,nullptr,0,0)>0){TranslateMessage(&msg);DispatchMessageW(&msg);}DeleteObject(gFont);DeleteObject(gFontBold);DeleteObject(gFontTitle);DeleteObject(gIconFont);DeleteObject(gBackBrush);DeleteObject(gPanelBrush);DeleteObject(gPanel2Brush);DeleteObject(gFieldBrush);return 0;}
