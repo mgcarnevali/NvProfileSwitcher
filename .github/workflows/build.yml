@@ -5,6 +5,11 @@ on:
   push:
     branches:
       - main
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -31,8 +36,23 @@ jobs:
         run: |
           Get-Item .\NvProfileSwitcher\NvProfileSwitcher.exe | Select-Object Name,Length
 
-      - name: Upload artifact
+      - name: Create portable ZIP
+        shell: powershell
+        run: |
+          Compress-Archive `
+            -Path .\NvProfileSwitcher\NvProfileSwitcher.exe `
+            -DestinationPath .\NvProfileSwitcher.zip `
+            -Force
+
+      - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: NvProfileSwitcher-native-win-x64
-          path: .\NvProfileSwitcher\NvProfileSwitcher.exe
+          name: NvProfileSwitcher
+          path: .\NvProfileSwitcher.zip
+          if-no-files-found: error
+
+      - name: Attach ZIP to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: .\NvProfileSwitcher.zip
