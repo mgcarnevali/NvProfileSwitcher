@@ -50,7 +50,7 @@ enum {ID_TRAY_OPEN=2001,ID_TRAY_RESTORE,ID_TRAY_PAUSE,ID_TRAY_EXIT};
 
 HINSTANCE gInst{}; HWND gWnd{}; HFONT gFont{},gFontBold{},gFontTitle{},gIconFont{}; HBRUSH gBackBrush{},gPanelBrush{},gPanel2Brush{},gFieldBrush{}; HICON gIcon{};
 Settings gSettings; int gSelected=-1; bool gPaused=false,gReallyExit=false; std::wstring gActive=L"Windows", gStatus=L"Not initialized"; bool gStatusOk=false;
-NOTIFYICONDATAW gNid{}; HMENU gTrayMenu{}; HBRUSH gTrayMenuBrush{};
+NOTIFYICONDATAW gNid{}; HMENU gTrayMenu{};
 
 using NvQueryInterface=void* (__cdecl*)(unsigned int);
 using NvInit=int (__cdecl*)(); using NvUnload=int (__cdecl*)(); using NvEnumDisplay=int (__cdecl*)(int,void**);
@@ -658,7 +658,7 @@ void ResizeControls(){
     SetDesktopUi(IsDesktopSelected());
 }
 
-void ShowMain(){ShowWindow(gWnd,SW_SHOW);SetForegroundWindow(gWnd);} void RestoreDesktop(){Apply(gSettings.desktop);gActive=gSettings.desktop.name;InvalidateRect(gWnd,nullptr,FALSE);} void UpdateTrayPause(){DrawMenuBar(gWnd);}
+void ShowMain(){ShowWindow(gWnd,SW_SHOW);SetForegroundWindow(gWnd);} void RestoreDesktop(){Apply(gSettings.desktop);gActive=gSettings.desktop.name;InvalidateRect(gWnd,nullptr,FALSE);} void UpdateTrayPause(){ModifyMenuW(gTrayMenu,ID_TRAY_PAUSE,MF_BYCOMMAND|MF_STRING,ID_TRAY_PAUSE,gPaused?L"Resume automatic switching":L"Pause automatic switching");}
 LRESULT CALLBACK Proc(HWND w,UINT m,WPARAM wp,LPARAM lp){switch(m){case WM_CREATE:gWnd=w;BuildControls();RefreshList();LoadSelected();SetTimer(w,1,250,nullptr);return 0;case WM_SIZE:
     if(wp==SIZE_MINIMIZED){
         ShowWindow(w,SW_HIDE);
@@ -675,38 +675,8 @@ case WM_NOTIFY:{
     break;
 }
 case WM_CTLCOLORLISTBOX:{HDC dc=(HDC)wp;SetTextColor(dc,C_TEXT);SetBkColor(dc,C_PANEL);return (LRESULT)gPanelBrush;}
-case WM_CTLCOLORSTATIC:{HDC dc=(HDC)wp;SetTextColor(dc,C_TEXT);SetBkColor(dc,C_PANEL);SetBkMode(dc,TRANSPARENT);return (LRESULT)gPanelBrush;}case WM_CTLCOLOREDIT:{HDC dc=(HDC)wp;SetTextColor(dc,C_TEXT);SetBkColor(dc,C_FIELD);return (LRESULT)gFieldBrush;}case WM_CTLCOLORBTN:{HDC dc=(HDC)wp;SetTextColor(dc,C_TEXT);SetBkColor(dc,C_PANEL);return (LRESULT)gPanelBrush;}
-case WM_MEASUREITEM:{
-    auto* mi=(MEASUREITEMSTRUCT*)lp;
-    if(mi->CtlType==ODT_MENU){
-        mi->itemWidth=245;
-        mi->itemHeight=30;
-        return TRUE;
-    }
-    break;
-}
-case WM_DRAWITEM:{
+case WM_CTLCOLORSTATIC:{HDC dc=(HDC)wp;SetTextColor(dc,C_TEXT);SetBkColor(dc,C_PANEL);SetBkMode(dc,TRANSPARENT);return (LRESULT)gPanelBrush;}case WM_CTLCOLOREDIT:{HDC dc=(HDC)wp;SetTextColor(dc,C_TEXT);SetBkColor(dc,C_FIELD);return (LRESULT)gFieldBrush;}case WM_CTLCOLORBTN:{HDC dc=(HDC)wp;SetTextColor(dc,C_TEXT);SetBkColor(dc,C_PANEL);return (LRESULT)gPanelBrush;}case WM_DRAWITEM:{
     auto*d=(DRAWITEMSTRUCT*)lp;
-
-    if(d->CtlType==ODT_MENU){
-        bool selected=(d->itemState&ODS_SELECTED)!=0;
-        COLORREF bg=selected?RGB(38,83,35):C_PANEL2;
-        HBRUSH b=CreateSolidBrush(bg);
-        FillRect(d->hDC,&d->rcItem,b);
-        DeleteObject(b);
-
-        const wchar_t* text=L"";
-        if(d->itemID==ID_TRAY_OPEN) text=L"Open NvProfileSwitcher";
-        else if(d->itemID==ID_TRAY_PAUSE) text=gPaused?L"Resume automatic switching":L"Pause automatic switching";
-        else if(d->itemID==ID_TRAY_EXIT) text=L"Exit";
-
-        RECT tr=d->rcItem; tr.left+=14; tr.right-=12;
-        SetBkMode(d->hDC,TRANSPARENT);
-        SetTextColor(d->hDC,selected?RGB(255,255,255):C_TEXT);
-        SelectObject(d->hDC,gFont);
-        DrawTextW(d->hDC,text,-1,&tr,DT_LEFT|DT_VCENTER|DT_SINGLELINE);
-        return TRUE;
-    }
 
     if(d->CtlID==IDC_DISPLAY){
         Fill(d->hDC,d->rcItem.left,d->rcItem.top,d->rcItem.right-d->rcItem.left,d->rcItem.bottom-d->rcItem.top,
@@ -763,16 +733,6 @@ case WM_DRAWITEM:{
 }case WM_HSCROLL:UpdateSliderLabels();if((HWND)lp)InvalidateRect((HWND)lp,nullptr,FALSE);return 0;case WM_TIMER:CheckProcesses();return 0;case WM_COMMAND:{int id=LOWORD(wp);if(id==IDC_LIST&&HIWORD(wp)==LBN_SELCHANGE){LoadSelected();return 0;}switch(id){case IDC_BROWSE:{OPENFILENAMEW o{sizeof(o)};wchar_t f[MAX_PATH]{};o.hwndOwner=w;o.lpstrFilter=L"Executables (*.exe)\0*.exe\0All files\0*.*\0";o.lpstrFile=f;o.nMaxFile=MAX_PATH;o.Flags=OFN_FILEMUSTEXIST;if(GetOpenFileNameW(&o)){Txt(IDC_EXE,f);auto* p=SelectedProfile();if(p&&!IsDesktopSelected()){p->exePath=f;InvalidateRect(H(IDC_LIST),nullptr,TRUE);}}break;}case IDC_SAVE:SaveSelected();break;case IDC_ADD:gSettings.profiles.push_back({});gSelected=(int)gSettings.profiles.size();Save();RefreshList();LoadSelected();break;case IDC_REMOVE:if(gSelected>0&&gSelected<=(int)gSettings.profiles.size()){gSettings.profiles.erase(gSettings.profiles.begin()+(gSelected-1));gSelected=std::max<int>(0,gSelected-1);Save();RefreshList();LoadSelected();}break;case IDC_STARTWIN:gSettings.startWindows=SendMessageW(H(IDC_STARTWIN),BM_GETCHECK,0,0)==BST_CHECKED;SetStartup(gSettings.startWindows);Save();break;case IDC_STARTMIN:gSettings.startMinimized=SendMessageW(H(IDC_STARTMIN),BM_GETCHECK,0,0)==BST_CHECKED;Save();break;case ID_TRAY_OPEN:ShowMain();break;case ID_TRAY_PAUSE:gPaused=!gPaused;if(gPaused)RestoreDesktop();UpdateTrayPause();break;case ID_TRAY_EXIT:gReallyExit=true;DestroyWindow(w);break;}return 0;}case WM_CLOSE:if(!gReallyExit){ShowWindow(w,SW_HIDE);return 0;}break;case WM_TRAY:if(lp==WM_LBUTTONDBLCLK){ShowMain();return 0;}if(lp==WM_RBUTTONUP||lp==WM_CONTEXTMENU){POINT p;GetCursorPos(&p);SetForegroundWindow(w);TrackPopupMenu(gTrayMenu,TPM_RIGHTBUTTON,p.x,p.y,0,w,nullptr);return 0;}break;case WM_DESTROY:KillTimer(w,1);Shell_NotifyIconW(NIM_DELETE,&gNid);if(pUnload)pUnload();if(gNv)FreeLibrary(gNv);PostQuitMessage(0);return 0;}return DefWindowProcW(w,m,wp,lp);} 
 
 int WINAPI wWinMain(HINSTANCE h,HINSTANCE,LPWSTR cmd,int){gInst=h;INITCOMMONCONTROLSEX ic{sizeof(ic),ICC_BAR_CLASSES|ICC_STANDARD_CLASSES};InitCommonControlsEx(&ic);Load();gSettings.desktop.name=L"Windows";gBackBrush=CreateSolidBrush(C_BACK);gPanelBrush=CreateSolidBrush(C_PANEL);gPanel2Brush=CreateSolidBrush(C_PANEL2);gFieldBrush=CreateSolidBrush(C_FIELD);gFont=CreateFontW(-15,0,0,0,FW_NORMAL,0,0,0,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,DEFAULT_PITCH,L"Segoe UI");gFontBold=CreateFontW(-15,0,0,0,FW_SEMIBOLD,0,0,0,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,DEFAULT_PITCH,L"Segoe UI");gFontTitle=CreateFontW(-24,0,0,0,FW_BOLD,0,0,0,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,DEFAULT_PITCH,L"Segoe UI");
-gIconFont=CreateFontW(-18,0,0,0,FW_NORMAL,FALSE,FALSE,FALSE,DEFAULT_CHARSET,OUT_DEFAULT_PRECIS,CLIP_DEFAULT_PRECIS,CLEARTYPE_QUALITY,DEFAULT_PITCH,L"Segoe MDL2 Assets");gIcon=LoadIconW(h,MAKEINTRESOURCEW(IDI_APPICON));WNDCLASSEXW wc{sizeof(wc)};wc.style=CS_HREDRAW|CS_VREDRAW;wc.lpfnWndProc=Proc;wc.hInstance=h;wc.hIcon=gIcon;wc.hIconSm=gIcon;wc.hCursor=LoadCursor(nullptr,IDC_ARROW);wc.hbrBackground=gBackBrush;wc.lpszClassName=L"NvProfileSwitcherNative";RegisterClassExW(&wc);gWnd=CreateWindowExW(0,wc.lpszClassName,L"NvProfileSwitcher v0.6.3",WS_OVERLAPPEDWINDOW,CW_USEDEFAULT,CW_USEDEFAULT,980,800,nullptr,nullptr,h,nullptr);
+gIconFont=CreateFontW(-18,0,0,0,FW_NORMAL,FALSE,FALSE,FALSE,DEFAULT_CHARSET,OUT_DEFAULT_PRECIS,CLIP_DEFAULT_PRECIS,CLEARTYPE_QUALITY,DEFAULT_PITCH,L"Segoe MDL2 Assets");gIcon=LoadIconW(h,MAKEINTRESOURCEW(IDI_APPICON));WNDCLASSEXW wc{sizeof(wc)};wc.style=CS_HREDRAW|CS_VREDRAW;wc.lpfnWndProc=Proc;wc.hInstance=h;wc.hIcon=gIcon;wc.hIconSm=gIcon;wc.hCursor=LoadCursor(nullptr,IDC_ARROW);wc.hbrBackground=gBackBrush;wc.lpszClassName=L"NvProfileSwitcherNative";RegisterClassExW(&wc);gWnd=CreateWindowExW(0,wc.lpszClassName,L"NvProfileSwitcher v0.6.4",WS_OVERLAPPEDWINDOW,CW_USEDEFAULT,CW_USEDEFAULT,980,800,nullptr,nullptr,h,nullptr);
 BOOL darkTitle=TRUE;DwmSetWindowAttribute(gWnd,20,&darkTitle,sizeof(darkTitle));
-SetWindowLongPtrW(gWnd,GWLP_USERDATA,0);
-gTrayMenu=CreatePopupMenu();
-gTrayMenuBrush=CreateSolidBrush(C_PANEL2);
-MENUINFO trayMi{sizeof(trayMi)};
-trayMi.fMask=MIM_BACKGROUND;
-trayMi.hbrBack=gTrayMenuBrush;
-SetMenuInfo(gTrayMenu,&trayMi);
-AppendMenuW(gTrayMenu,MF_OWNERDRAW,ID_TRAY_OPEN,nullptr);
-AppendMenuW(gTrayMenu,MF_OWNERDRAW,ID_TRAY_PAUSE,nullptr);
-AppendMenuW(gTrayMenu,MF_SEPARATOR,0,nullptr);
-AppendMenuW(gTrayMenu,MF_OWNERDRAW,ID_TRAY_EXIT,nullptr);gNid.cbSize=sizeof(gNid);gNid.hWnd=gWnd;gNid.uID=1;gNid.uFlags=NIF_MESSAGE|NIF_ICON|NIF_TIP;gNid.uCallbackMessage=WM_TRAY;gNid.hIcon=gIcon;wcscpy_s(gNid.szTip,L"NvProfileSwitcher");Shell_NotifyIconW(NIM_ADD,&gNid);gStatusOk=InitNv();if(gStatusOk){if(auto* p=SelectedProfile())RefreshDisplayCombo(*p);Apply(gSettings.desktop);}gActive=gSettings.desktop.name;bool min=(wcsstr(cmd,L"--minimized")!=nullptr)||gSettings.startMinimized;ShowWindow(gWnd,min?SW_HIDE:SW_SHOW);UpdateWindow(gWnd);MSG msg;while(GetMessageW(&msg,nullptr,0,0)>0){TranslateMessage(&msg);DispatchMessageW(&msg);}DeleteObject(gFont);DeleteObject(gFontBold);DeleteObject(gFontTitle);DeleteObject(gIconFont);DeleteObject(gBackBrush);DeleteObject(gPanelBrush);DeleteObject(gPanel2Brush);DeleteObject(gFieldBrush);if(gTrayMenuBrush)DeleteObject(gTrayMenuBrush);if(gTrayMenu)DestroyMenu(gTrayMenu);return 0;}
+SetWindowLongPtrW(gWnd,GWLP_USERDATA,0);gTrayMenu=CreatePopupMenu();AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_OPEN,L"Open NvProfileSwitcher");AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_PAUSE,L"Pause automatic switching");AppendMenuW(gTrayMenu,MF_SEPARATOR,0,nullptr);AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_EXIT,L"Exit");gNid.cbSize=sizeof(gNid);gNid.hWnd=gWnd;gNid.uID=1;gNid.uFlags=NIF_MESSAGE|NIF_ICON|NIF_TIP;gNid.uCallbackMessage=WM_TRAY;gNid.hIcon=gIcon;wcscpy_s(gNid.szTip,L"NvProfileSwitcher");Shell_NotifyIconW(NIM_ADD,&gNid);gStatusOk=InitNv();if(gStatusOk){if(auto* p=SelectedProfile())RefreshDisplayCombo(*p);Apply(gSettings.desktop);}gActive=gSettings.desktop.name;bool min=(wcsstr(cmd,L"--minimized")!=nullptr)||gSettings.startMinimized;ShowWindow(gWnd,min?SW_HIDE:SW_SHOW);UpdateWindow(gWnd);MSG msg;while(GetMessageW(&msg,nullptr,0,0)>0){TranslateMessage(&msg);DispatchMessageW(&msg);}DeleteObject(gFont);DeleteObject(gFontBold);DeleteObject(gFontTitle);DeleteObject(gIconFont);DeleteObject(gBackBrush);DeleteObject(gPanelBrush);DeleteObject(gPanel2Brush);DeleteObject(gFieldBrush);return 0;}
