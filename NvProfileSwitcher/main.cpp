@@ -48,8 +48,9 @@ constexpr COLORREF C_TEXT=RGB(241,244,247), C_MUTED=RGB(151,161,171), C_ACCENT=R
 constexpr COLORREF C_TRACK=RGB(61,67,73), C_WINBLUE=RGB(0,120,215);
 constexpr UINT WM_TRAY=WM_APP+1;
 constexpr UINT WM_UPDATE_AVAILABLE=WM_APP+2;
-constexpr wchar_t APP_VERSION[]=L"0.6.11";
+constexpr wchar_t APP_VERSION[]=L"0.6.12";
 constexpr wchar_t APP_URL[]=L"https://github.com/mgcarnevali/NvProfileSwitcher";
+constexpr wchar_t SUPPORT_URL[]=L"https://ko-fi.com/mgcarnevali";
 constexpr wchar_t UPDATE_HOST[]=L"api.github.com";
 constexpr wchar_t UPDATE_PATH[]=L"/repos/mgcarnevali/NvProfileSwitcher/releases/latest";
 enum {IDC_LIST=1001,IDC_NAME,IDC_EXE,IDC_BROWSE,IDC_ENABLED,IDC_DISPLAY,IDC_LBL_DISPLAY,IDC_VIB,IDC_BRI,IDC_CON,IDC_GAM,IDC_SAVE,IDC_APPLY,IDC_ADD,IDC_REMOVE,IDC_RESTORE,IDC_STARTWIN,IDC_STARTMIN,IDC_VALVIB,IDC_VALBRI,IDC_VALCON,IDC_VALGAM,IDC_LBL_NAME,IDC_LBL_EXE,IDC_LBL_ENABLED,IDC_LBL_VIB,IDC_LBL_BRI,IDC_LBL_CON,IDC_LBL_GAM};
@@ -951,8 +952,10 @@ LRESULT CALLBACK AboutProc(HWND w,UINT m,WPARAM wp,LPARAM lp){
             WS_CHILD|WS_VISIBLE,22,118,350,22,w,nullptr,gInst,nullptr);
         SendMessageW(copy,WM_SETFONT,(WPARAM)gFont,TRUE);
 
-        HWND github=CreateWindowExW(0,L"BUTTON",L"GitHub",WS_CHILD|WS_VISIBLE|BS_OWNERDRAW,238,158,100,36,w,(HMENU)3001,gInst,nullptr);
+        HWND github=CreateWindowExW(0,L"BUTTON",L"GitHub",WS_CHILD|WS_VISIBLE|BS_OWNERDRAW,126,158,100,36,w,(HMENU)3001,gInst,nullptr);
         SendMessageW(github,WM_SETFONT,(WPARAM)gFontBold,TRUE);
+        HWND support=CreateWindowExW(0,L"BUTTON",L"Support",WS_CHILD|WS_VISIBLE|BS_OWNERDRAW,238,158,100,36,w,(HMENU)3002,gInst,nullptr);
+        SendMessageW(support,WM_SETFONT,(WPARAM)gFontBold,TRUE);
         HWND close=CreateWindowExW(0,L"BUTTON",L"Close",WS_CHILD|WS_VISIBLE|BS_OWNERDRAW,350,158,100,36,w,(HMENU)IDCANCEL,gInst,nullptr);
         SendMessageW(close,WM_SETFONT,(WPARAM)gFontBold,TRUE);
         return 0;
@@ -966,11 +969,11 @@ LRESULT CALLBACK AboutProc(HWND w,UINT m,WPARAM wp,LPARAM lp){
     }
     case WM_DRAWITEM:{
         auto* d=(DRAWITEMSTRUCT*)lp;
-        if(d->CtlID==3001 || d->CtlID==IDCANCEL){
+        if(d->CtlID==3001 || d->CtlID==3002 || d->CtlID==IDCANCEL){
             bool down=(d->itemState&ODS_SELECTED)!=0;
             RECT r=d->rcItem;
             FillRound(d->hDC,r,down?C_ACCENT_DARK:C_PANEL2,C_BORDER,7);
-            const wchar_t* text=d->CtlID==3001?L"GitHub":L"Close";
+            const wchar_t* text=d->CtlID==3001?L"GitHub":(d->CtlID==3002?L"Support":L"Close");
             SIZE z{};
             SelectObject(d->hDC,gFontBold);
             GetTextExtentPoint32W(d->hDC,text,(int)wcslen(text),&z);
@@ -982,6 +985,10 @@ LRESULT CALLBACK AboutProc(HWND w,UINT m,WPARAM wp,LPARAM lp){
     case WM_COMMAND:
         if(LOWORD(wp)==3001){
             ShellExecuteW(w,L"open",APP_URL,nullptr,nullptr,SW_SHOWNORMAL);
+            return 0;
+        }
+        if(LOWORD(wp)==3002){
+            ShellExecuteW(w,L"open",SUPPORT_URL,nullptr,nullptr,SW_SHOWNORMAL);
             return 0;
         }
         if(LOWORD(wp)==IDCANCEL){
