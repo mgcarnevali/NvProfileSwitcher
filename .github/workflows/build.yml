@@ -39,8 +39,14 @@ jobs:
       - name: Create portable ZIP
         shell: powershell
         run: |
+          New-Item -ItemType Directory -Path .\Release\NvProfileSwitcher -Force | Out-Null
+
+          Copy-Item `
+            .\NvProfileSwitcher\NvProfileSwitcher.exe `
+            .\Release\NvProfileSwitcher\NvProfileSwitcher.exe
+
           Compress-Archive `
-            -Path .\NvProfileSwitcher\NvProfileSwitcher.exe `
+            -Path .\Release\NvProfileSwitcher `
             -DestinationPath .\NvProfileSwitcher.zip `
             -Force
 
