@@ -1,53 +1,122 @@
-# Game Profile Switcher v0.1
+# NvProfileSwitcher
 
-Small Windows tray utility that automatically applies a color profile while a configured game EXE is running, then restores the Desktop profile when the game closes.
+Lightweight native Windows utility that automatically applies per-game NVIDIA display color profiles based on the application currently in the foreground.
 
-## v0.1 features
+When a configured game becomes active, NvProfileSwitcher applies its display profile. When you switch back to Windows or another application, the Windows profile is automatically restored.
 
-- Per-EXE profiles.
-- Automatic switch when a game process appears/disappears.
-- NVIDIA Digital Vibrance via NVAPI.
-- Brightness, Contrast and Gamma via Windows hardware gamma ramp.
-- Primary display only for this first version.
-- Tray icon.
-- Optional Start with Windows.
-- Built-in sample profile for `EscapeFromTarkov.exe`.
+## Features
+
+- Per-game profiles based on executable (`.exe`).
+- Automatic foreground application detection.
+- Automatically restores the Windows profile when leaving a configured game.
+- NVIDIA Digital Vibrance control through NVAPI.
+- Brightness, Contrast and Gamma control through the NVIDIA display pipeline.
+- Per-profile monitor selection.
+- Multi-monitor support.
+- Individual game executable icons.
+- Windows profile for normal desktop use.
+- Start with Windows option.
+- Start minimized to system tray option.
+- Minimize to tray.
+- Pause/resume automatic profile switching from the tray.
+- Manual Windows profile restore from the tray.
+- Lightweight native C++ application.
+- No .NET runtime required.
+- No installation required.
+
+## Requirements
+
+- Windows 10 or Windows 11.
+- NVIDIA GPU.
+- NVIDIA display driver with NVAPI support.
+
+## How it works
+
+NvProfileSwitcher monitors the foreground application.
+
+If the foreground executable matches an enabled game profile, that profile is applied to the selected display.
+
+When the foreground application no longer matches a configured game, the Windows profile is automatically restored.
+
+This means switching between a game and the desktop, browser, Discord, or any other application automatically switches between the game and Windows display profiles.
+
+## Profile settings
+
+Each profile can configure:
+
+- Display
+- Digital Vibrance
+- Brightness
+- Contrast
+- Gamma
+
+Profiles can be enabled or disabled individually.
+
+## Usage
+
+1. Launch `NvProfileSwitcher.exe`.
+2. Configure the **Windows** profile with your normal desktop color settings.
+3. Click **Add game**.
+4. Browse to the game's executable.
+5. Select the display where the game runs.
+6. Configure Digital Vibrance, Brightness, Contrast and Gamma.
+7. Click **Save profile**.
+8. Launch the game.
+
+NvProfileSwitcher will automatically apply the game profile when the game is in the foreground and restore the Windows profile when you switch away from it.
+
+> If you use another application that controls NVIDIA Digital Vibrance or gamma settings, such as vibranceGUI, close it before using NvProfileSwitcher to avoid both applications changing the same display settings.
+
+## System tray
+
+NvProfileSwitcher can run entirely from the Windows system tray.
+
+The tray menu provides:
+
+- Open NvProfileSwitcher
+- Restore Windows profile
+- Pause automatic switching
+- Resume automatic switching
+- Exit
+
+Minimizing the main window sends NvProfileSwitcher to the system tray.
+
+## Configuration
+
+Profiles and application settings are stored in:
+
+`%APPDATA%\NvProfileSwitcher\profiles.json`
+
+The configuration file is created automatically.
 
 ## Build
 
-1. Install the .NET 8 SDK on Windows.
-2. Extract this folder.
-3. Right-click `build.ps1` -> Run with PowerShell, or run:
+NvProfileSwitcher is built as a native x64 Windows application using MSVC.
 
-   `powershell -ExecutionPolicy Bypass -File .\build.ps1`
+The GitHub Actions workflow automatically builds the executable on pushes to the `main` branch.
 
-4. The portable executable will be created in `publish\GameProfileSwitcher.exe`.
+The native build uses:
 
-## First test
+- C++20
+- MSVC x64
+- Static C/C++ runtime (`/MT`)
+- Windows Win32 API
+- NVIDIA NVAPI
 
-1. Close vibranceGUI so two programs do not fight over Digital Vibrance.
-2. Open Game Profile Switcher.
-3. Select the Tarkov profile.
-4. Browse to your real `EscapeFromTarkov.exe` path.
-5. Set the values you want.
-6. Click `Apply now` to verify the look before using auto mode.
-7. Restore Desktop to verify the normal profile.
-8. Launch Tarkov. The app should switch automatically.
-9. Close Tarkov. It should restore Desktop automatically.
+No .NET SDK or runtime is required.
 
-## Important technical note
+## Technical details
 
-Digital Vibrance is changed through NVIDIA NVAPI. Brightness/Contrast/Gamma are implemented with the Windows hardware gamma-ramp mechanism (`SetDeviceGammaRamp` indirectly through WindowsDisplayAPI). This is programmatically controllable and useful for game profiles, but it is not guaranteed to be byte-for-byte identical to the sliders in every version of NVIDIA App.
+Digital Vibrance is controlled directly through NVIDIA NVAPI.
 
-The first milestone is to test whether the visual result on your specific NVIDIA driver/monitor matches what you want. If it does, the next versions can add multi-monitor selection, profile ordering, current-value capture, better UI, hotkeys, and Stream Deck hooks.
+Brightness, Contrast and Gamma are applied through NVIDIA's display pipeline using a gamma correction LUT.
 
-## Config file
+NvProfileSwitcher communicates directly with `nvapi64.dll` and does not require the NVIDIA App to be open.
 
-Profiles are stored at:
+The NVIDIA App sliders may not visually update when NvProfileSwitcher changes display values because NvProfileSwitcher applies the settings directly through NVAPI rather than controlling the NVIDIA App interface.
 
-`%APPDATA%\GameProfileSwitcher\profiles.json`
+Foreground application detection uses lightweight polling to determine which executable currently owns the foreground window.
 
-## Third-party libraries
+## License
 
-- NvAPIWrapper.Net 0.8.1.101 (LGPL-3.0)
-- WindowsDisplayAPI 1.3.0.13 (LGPL-3.0)
+License information will be added before the first public release.
