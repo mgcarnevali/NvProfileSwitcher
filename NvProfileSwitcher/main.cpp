@@ -85,18 +85,9 @@ std::vector<DisplayTarget> gDisplays;
 std::wstring AppDataFile(){
     wchar_t p[MAX_PATH]{};
     SHGetFolderPathW(nullptr,CSIDL_APPDATA,nullptr,SHGFP_TYPE_CURRENT,p);
-    std::wstring root=p;
-    std::wstring d=root+L"\\NvProfileSwitcher";
-    std::wstring cfg=d+L"\\profiles.json";
+    std::wstring d=std::wstring(p)+L"\\NvProfileSwitcher";
     CreateDirectoryW(d.c_str(),nullptr);
-
-    // One-time migration from the old application name.
-    if(!PathFileExistsW(cfg.c_str())){
-        std::wstring oldCfg=root+L"\\GameProfileSwitcher\\profiles.json";
-        if(PathFileExistsW(oldCfg.c_str()))
-            CopyFileW(oldCfg.c_str(),cfg.c_str(),TRUE);
-    }
-    return cfg;
+    return d+L"\\profiles.json";
 }
 std::string W2U(const std::wstring&s){ if(s.empty())return{}; int n=WideCharToMultiByte(CP_UTF8,0,s.c_str(),-1,nullptr,0,nullptr,nullptr); std::string r(n,0); WideCharToMultiByte(CP_UTF8,0,s.c_str(),-1,r.data(),n,nullptr,nullptr); r.pop_back(); return r; }
 std::wstring U2W(const std::string&s){ if(s.empty())return{}; int n=MultiByteToWideChar(CP_UTF8,0,s.c_str(),-1,nullptr,0); std::wstring r(n,0); MultiByteToWideChar(CP_UTF8,0,s.c_str(),-1,r.data(),n); r.pop_back(); return r; }
@@ -352,8 +343,6 @@ void CheckProcesses(){
 void SetStartup(bool on){
     HKEY k;
     if(RegCreateKeyExW(HKEY_CURRENT_USER,L"Software\\Microsoft\\Windows\\CurrentVersion\\Run",0,nullptr,0,KEY_SET_VALUE,nullptr,&k,nullptr)==ERROR_SUCCESS){
-        // Always clean up the legacy startup value after the rename.
-        RegDeleteValueW(k,L"GameProfileSwitcher");
         if(on){
             wchar_t p[MAX_PATH]; GetModuleFileNameW(nullptr,p,MAX_PATH);
             std::wstring v=L"\""+std::wstring(p)+L"\" --minimized";
@@ -670,7 +659,7 @@ void ResizeControls(){
 }
 
 void ShowMain(){ShowWindow(gWnd,SW_SHOW);SetForegroundWindow(gWnd);} void RestoreDesktop(){Apply(gSettings.desktop);gActive=gSettings.desktop.name;InvalidateRect(gWnd,nullptr,FALSE);} void UpdateTrayPause(){ModifyMenuW(gTrayMenu,ID_TRAY_PAUSE,MF_BYCOMMAND|MF_STRING,ID_TRAY_PAUSE,gPaused?L"Resume automatic switching":L"Pause automatic switching");}
-LRESULT CALLBACK Proc(HWND w,UINT m,WPARAM wp,LPARAM lp){switch(m){case WM_CREATE:gWnd=w;BuildControls();RefreshList();LoadSelected();SetTimer(w,1,750,nullptr);return 0;case WM_SIZE:
+LRESULT CALLBACK Proc(HWND w,UINT m,WPARAM wp,LPARAM lp){switch(m){case WM_CREATE:gWnd=w;BuildControls();RefreshList();LoadSelected();SetTimer(w,1,250,nullptr);return 0;case WM_SIZE:
     if(wp==SIZE_MINIMIZED){
         ShowWindow(w,SW_HIDE);
         return 0;
