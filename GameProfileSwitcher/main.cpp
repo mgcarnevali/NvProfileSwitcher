@@ -6,6 +6,8 @@
 #include <shlobj.h>
 #include <tlhelp32.h>
 #include <shlwapi.h>
+#include <uxtheme.h>
+#include <dwmapi.h>
 #include <string>
 #include <vector>
 #include <fstream>
@@ -22,6 +24,8 @@
 #pragma comment(lib, "comdlg32.lib")
 #pragma comment(lib, "user32.lib")
 #pragma comment(lib, "gdi32.lib")
+#pragma comment(lib, "uxtheme.lib")
+#pragma comment(lib, "dwmapi.lib")
 
 struct GameProfile {
     std::wstring name=L"New Profile";
@@ -37,14 +41,14 @@ struct Settings {
     bool startWindows=false, startMinimized=false;
 };
 
-constexpr COLORREF C_BACK=RGB(15,18,21), C_PANEL=RGB(24,28,32), C_PANEL2=RGB(31,36,41), C_BORDER=RGB(52,59,66);
-constexpr COLORREF C_TEXT=RGB(240,243,246), C_MUTED=RGB(153,163,174), C_ACCENT=RGB(65,200,95), C_ACCENT_DARK=RGB(28,54,38), C_DANGER=RGB(220,84,84);
-constexpr COLORREF C_WINBLUE=RGB(0,120,215);
+constexpr COLORREF C_BACK=RGB(10,13,16), C_PANEL=RGB(18,22,26), C_PANEL2=RGB(24,29,34), C_FIELD=RGB(20,24,28), C_BORDER=RGB(45,52,59);
+constexpr COLORREF C_TEXT=RGB(241,244,247), C_MUTED=RGB(151,161,171), C_ACCENT=RGB(82,214,39), C_ACCENT2=RGB(43,164,22), C_ACCENT_DARK=RGB(24,50,28), C_DANGER=RGB(232,75,75);
+constexpr COLORREF C_TRACK=RGB(61,67,73), C_WINBLUE=RGB(0,120,215);
 constexpr UINT WM_TRAY=WM_APP+1;
 enum {IDC_LIST=1001,IDC_NAME,IDC_EXE,IDC_BROWSE,IDC_ENABLED,IDC_DISPLAY,IDC_LBL_DISPLAY,IDC_VIB,IDC_BRI,IDC_CON,IDC_GAM,IDC_SAVE,IDC_APPLY,IDC_ADD,IDC_REMOVE,IDC_RESTORE,IDC_STARTWIN,IDC_STARTMIN,IDC_VALVIB,IDC_VALBRI,IDC_VALCON,IDC_VALGAM,IDC_LBL_NAME,IDC_LBL_EXE,IDC_LBL_ENABLED,IDC_LBL_VIB,IDC_LBL_BRI,IDC_LBL_CON,IDC_LBL_GAM};
 enum {ID_TRAY_OPEN=2001,ID_TRAY_RESTORE,ID_TRAY_PAUSE,ID_TRAY_EXIT};
 
-HINSTANCE gInst{}; HWND gWnd{}; HFONT gFont{},gFontBold{},gFontTitle{}; HBRUSH gBackBrush{},gPanelBrush{},gPanel2Brush{}; HICON gIcon{};
+HINSTANCE gInst{}; HWND gWnd{}; HFONT gFont{},gFontBold{},gFontTitle{}; HBRUSH gBackBrush{},gPanelBrush{},gPanel2Brush{},gFieldBrush{}; HICON gIcon{};
 Settings gSettings; int gSelected=-1; bool gPaused=false,gReallyExit=false; std::wstring gActive=L"Windows", gStatus=L"Not initialized"; bool gStatusOk=false;
 NOTIFYICONDATAW gNid{}; HMENU gTrayMenu{};
 
@@ -116,6 +120,28 @@ std::string NvDisplayNameA(const std::wstring& gdi){
     return W2U(n);
 }
 
+int WindowsDisplayNumber(const std::wstring& gdiName){
+    UINT32 pathCount=0, modeCount=0;
+    if(GetDisplayConfigBufferSizes(QDC_ONLY_ACTIVE_PATHS,&pathCount,&modeCount)!=ERROR_SUCCESS) return -1;
+
+    std::vector<DISPLAYCONFIG_PATH_INFO> paths(pathCount);
+    std::vector<DISPLAYCONFIG_MODE_INFO> modes(modeCount);
+    if(QueryDisplayConfig(QDC_ONLY_ACTIVE_PATHS,&pathCount,paths.data(),&modeCount,modes.data(),nullptr)!=ERROR_SUCCESS) return -1;
+
+    for(UINT32 i=0;i<pathCount;i++){
+        DISPLAYCONFIG_SOURCE_DEVICE_NAME src{};
+        src.header.type=DISPLAYCONFIG_DEVICE_INFO_GET_SOURCE_NAME;
+        src.header.size=sizeof(src);
+        src.header.adapterId=paths[i].sourceInfo.adapterId;
+        src.header.id=paths[i].sourceInfo.id;
+        if(DisplayConfigGetDeviceInfo(&src.header)==ERROR_SUCCESS){
+            if(_wcsicmp(src.viewGdiDeviceName,gdiName.c_str())==0)
+                return (int)paths[i].sourceInfo.id+1;
+        }
+    }
+    return -1;
+}
+
 void EnumerateNvDisplays(){
     gDisplays.clear();
     if(!pGetAssociatedDisplayHandle||!pGetDisplayIdByName) return;
@@ -147,8 +173,11 @@ void EnumerateNvDisplays(){
         if(friendly.empty()) friendly=L"NVIDIA display";
 
         bool primary=(dd.StateFlags&DISPLAY_DEVICE_PRIMARY_DEVICE)!=0;
-        std::wstring label=friendly+L" ("+gdi+L")";
-        if(primary) label+=L"  (Primary)";
+        int winNum=WindowsDisplayNumber(gdi);
+        std::wstring label=friendly;
+        if(winNum>0) label+=L"  —  Display "+std::to_wstring(winNum);
+        else label+=L"  —  "+gdi;
+        if(primary) label+=L" (Primary)";
         gDisplays.push_back({gdi,label,handle,id,primary});
     }
 
@@ -278,7 +307,7 @@ std::wstring ForegroundProcessName(){
     HANDLE hp=OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION,FALSE,pid);
     if(!hp)return{};
     wchar_t path[32768]{};
-    DWORD len=(DWORD)std::size(path);
+    DWORD len=(DWORD)(sizeof(path)/sizeof(path[0]));
     std::wstring name;
     if(QueryFullProcessImageNameW(hp,0,path,&len)){
         name=ProcessName(path);
@@ -349,11 +378,11 @@ void SetDesktopUi(bool desktop){
         {IDC_LBL_GAM,IDC_GAM,IDC_VALGAM,yGam}
     }){
         MoveWindow(H(sp.lbl),rightX,sp.y,190,22,TRUE);
-        MoveWindow(H(sp.track),rightX,sp.y+27,rightW-8,28,TRUE);
-        MoveWindow(H(sp.val),rightX+rightW-72,sp.y,64,22,TRUE);
+        MoveWindow(H(sp.track),rightX,sp.y+27,rightW-92,28,TRUE);
+        MoveWindow(H(sp.val),rightX+rightW-76,sp.y-2,76,28,TRUE);
     }
 
-    MoveWindow(H(IDC_SAVE),rightX,ySave,118,38,TRUE);
+    MoveWindow(H(IDC_SAVE),rightX,ySave,std::min(260,rightW),42,TRUE);
 
     // Global startup options stay at the bottom of the right panel.
     MoveWindow(H(IDC_STARTWIN),rightX,r.bottom-66,20,22,TRUE);
@@ -369,22 +398,25 @@ void SaveSelected(){ auto*p=SelectedProfile(); if(!p)return; bool desktop=IsDesk
 HICON LoadExeIcon(const std::wstring& path){
     if(path.empty() || !PathFileExistsW(path.c_str())) return nullptr;
 
-    // ExtractIconEx is more reliable for game executables than relying only on
-    // SHGetFileInfo's shell cache. Prefer the small embedded icon.
+    // Ask Windows for a 48x48 resource first. This avoids stretching a 16/32 px
+    // small icon and keeps game icons much sharper in the profile list.
+    HICON hi=nullptr;
+    UINT iconId=0;
+    UINT got=PrivateExtractIconsW(path.c_str(),0,48,48,&hi,&iconId,1,LR_DEFAULTCOLOR);
+    if(got>0 && hi) return hi;
+
     HICON hLarge=nullptr, hSmall=nullptr;
     UINT count=ExtractIconExW(path.c_str(),0,&hLarge,&hSmall,1);
     if(count>0){
-        if(hSmall){
-            if(hLarge) DestroyIcon(hLarge);
-            return hSmall;
+        if(hLarge){
+            if(hSmall) DestroyIcon(hSmall);
+            return hLarge;
         }
-        if(hLarge) return hLarge;
+        if(hSmall) return hSmall;
     }
 
-    // Fallback to the shell icon provider.
     SHFILEINFOW fi{};
-    if(SHGetFileInfoW(path.c_str(),FILE_ATTRIBUTE_NORMAL,&fi,sizeof(fi),
-        SHGFI_ICON|SHGFI_SMALLICON|SHGFI_USEFILEATTRIBUTES) && fi.hIcon)
+    if(SHGetFileInfoW(path.c_str(),0,&fi,sizeof(fi),SHGFI_ICON|SHGFI_LARGEICON) && fi.hIcon)
         return fi.hIcon;
 
     return nullptr;
@@ -402,6 +434,122 @@ void DrawWindowsLogo(HDC dc,int x,int y,int size){
     DeleteObject(b);
 }
 
+void FillRound(HDC dc,const RECT& r,COLORREF fill,COLORREF border,int radius=8){
+    HBRUSH b=CreateSolidBrush(fill);
+    HPEN p=CreatePen(PS_SOLID,1,border);
+    HGDIOBJ ob=SelectObject(dc,b), op=SelectObject(dc,p);
+    RoundRect(dc,r.left,r.top,r.right,r.bottom,radius,radius);
+    SelectObject(dc,ob);SelectObject(dc,op);
+    DeleteObject(b);DeleteObject(p);
+}
+
+void DrawPlusIcon(HDC dc,int cx,int cy,COLORREF c){
+    HPEN p=CreatePen(PS_SOLID,2,c);HGDIOBJ old=SelectObject(dc,p);
+    MoveToEx(dc,cx-6,cy,nullptr);LineTo(dc,cx+7,cy);
+    MoveToEx(dc,cx,cy-6,nullptr);LineTo(dc,cx,cy+7);
+    SelectObject(dc,old);DeleteObject(p);
+}
+void DrawTrashIcon(HDC dc,int x,int y,COLORREF c){
+    HPEN p=CreatePen(PS_SOLID,2,c);HGDIOBJ old=SelectObject(dc,p);
+    Rectangle(dc,x+3,y+6,x+15,y+20);
+    MoveToEx(dc,x+1,y+4,nullptr);LineTo(dc,x+17,y+4);
+    MoveToEx(dc,x+6,y+1,nullptr);LineTo(dc,x+12,y+1);
+    MoveToEx(dc,x+7,y+9,nullptr);LineTo(dc,x+7,y+17);
+    MoveToEx(dc,x+11,y+9,nullptr);LineTo(dc,x+11,y+17);
+    SelectObject(dc,old);DeleteObject(p);
+}
+void DrawSaveIcon(HDC dc,int x,int y,COLORREF c){
+    HPEN p=CreatePen(PS_SOLID,2,c);HGDIOBJ old=SelectObject(dc,p);
+    Rectangle(dc,x+2,y+2,x+18,y+19);
+    Rectangle(dc,x+5,y+3,x+14,y+9);
+    Rectangle(dc,x+6,y+13,x+14,y+19);
+    SelectObject(dc,old);DeleteObject(p);
+}
+void DrawFolderIcon(HDC dc,int x,int y,COLORREF c){
+    HPEN p=CreatePen(PS_SOLID,2,c);HGDIOBJ old=SelectObject(dc,p);
+    MoveToEx(dc,x+1,y+6,nullptr);LineTo(dc,x+7,y+6);
+    LineTo(dc,x+9,y+9);LineTo(dc,x+20,y+9);LineTo(dc,x+20,y+20);
+    LineTo(dc,x+1,y+20);LineTo(dc,x+1,y+6);
+    SelectObject(dc,old);DeleteObject(p);
+}
+
+void DrawOwnerButton(const DRAWITEMSTRUCT* d){
+    int id=(int)d->CtlID;
+    bool down=(d->itemState&ODS_SELECTED)!=0;
+    bool disabled=(d->itemState&ODS_DISABLED)!=0;
+
+    COLORREF fill=C_PANEL2, border=C_BORDER, textColor=disabled?C_MUTED:C_TEXT, icon=C_MUTED;
+    if(id==IDC_SAVE){
+        fill=down?RGB(42,130,23):RGB(39,151,22);
+        border=RGB(77,205,44); icon=C_TEXT;
+    }else if(id==IDC_ADD){
+        fill=down?RGB(26,62,29):RGB(22,48,27);
+        border=RGB(46,117,46); icon=C_ACCENT;
+    }else if(id==IDC_REMOVE){
+        icon=C_DANGER;
+    }else if(id==IDC_BROWSE){
+        icon=C_TEXT;
+    }
+
+    RECT r=d->rcItem;
+    FillRound(d->hDC,r,fill,border,8);
+
+    wchar_t caption[128]{};
+    GetWindowTextW(d->hwndItem,caption,128);
+    SIZE sz{};SelectObject(d->hDC,gFont);GetTextExtentPoint32W(d->hDC,caption,(int)wcslen(caption),&sz);
+
+    int iconW=22;
+    int total=iconW+8+sz.cx;
+    int start=r.left+((r.right-r.left)-total)/2;
+    int cy=(r.top+r.bottom)/2;
+    if(id==IDC_SAVE) DrawSaveIcon(d->hDC,start,cy-10,icon);
+    else if(id==IDC_ADD) DrawPlusIcon(d->hDC,start+9,cy,icon);
+    else if(id==IDC_REMOVE) DrawTrashIcon(d->hDC,start,cy-10,icon);
+    else if(id==IDC_BROWSE) DrawFolderIcon(d->hDC,start,cy-10,icon);
+
+    SetBkMode(d->hDC,TRANSPARENT);SetTextColor(d->hDC,textColor);SelectObject(d->hDC,gFont);
+    TextOutW(d->hDC,start+iconW+8,cy-sz.cy/2,caption,(int)wcslen(caption));
+}
+
+void DrawValueBox(const DRAWITEMSTRUCT* d){
+    RECT r=d->rcItem;
+    FillRound(d->hDC,r,C_FIELD,C_BORDER,7);
+    wchar_t text[64]{};GetWindowTextW(d->hwndItem,text,64);
+    RECT tr=r;tr.right-=10;
+    SetBkMode(d->hDC,TRANSPARENT);SetTextColor(d->hDC,C_TEXT);SelectObject(d->hDC,gFont);
+    DrawTextW(d->hDC,text,-1,&tr,DT_RIGHT|DT_VCENTER|DT_SINGLELINE);
+}
+
+LRESULT CustomDrawSlider(NMCUSTOMDRAW* cd){
+    HWND h=cd->hdr.hwndFrom;
+    if(cd->dwDrawStage!=CDDS_PREPAINT) return CDRF_DODEFAULT;
+
+    RECT r{};GetClientRect(h,&r);
+    HDC dc=cd->hdc;
+    Fill(dc,r.left,r.top,r.right-r.left,r.bottom-r.top,C_PANEL);
+
+    int minv=(int)SendMessageW(h,TBM_GETRANGEMIN,0,0);
+    int maxv=(int)SendMessageW(h,TBM_GETRANGEMAX,0,0);
+    int pos=(int)SendMessageW(h,TBM_GETPOS,0,0);
+    double t=maxv==minv?0.0:(double)(pos-minv)/(double)(maxv-minv);
+
+    int x1=8,x2=std::max(9,r.right-8),cy=(r.top+r.bottom)/2;
+    int active=x1+(int)llround((x2-x1)*t);
+
+    RECT bg{x1,cy-2,x2,cy+2};FillRound(dc,bg,C_TRACK,C_TRACK,4);
+    if(active>x1){
+        RECT fg{x1,cy-2,active,cy+2};FillRound(dc,fg,C_ACCENT2,C_ACCENT2,4);
+    }
+
+    int rad=7;
+    HBRUSH b=CreateSolidBrush(C_ACCENT);
+    HPEN p=CreatePen(PS_SOLID,1,RGB(111,235,71));
+    HGDIOBJ ob=SelectObject(dc,b),op=SelectObject(dc,p);
+    Ellipse(dc,active-rad,cy-rad,active+rad+1,cy+rad+1);
+    SelectObject(dc,ob);SelectObject(dc,op);DeleteObject(b);DeleteObject(p);
+    return CDRF_SKIPDEFAULT;
+}
+
 void DrawLabel(HDC dc,const wchar_t*t,int x,int y,COLORREF c,HFONT f=nullptr){ SetBkMode(dc,TRANSPARENT);SetTextColor(dc,c);SelectObject(dc,f?f:gFont);TextOutW(dc,x,y,t,(int)wcslen(t)); }
 void Fill(HDC dc,int x,int y,int w,int h,COLORREF c){HBRUSH b=CreateSolidBrush(c);RECT r{x,y,x+w,y+h};FillRect(dc,&r,b);DeleteObject(b);} 
 void Paint(HWND w){
@@ -410,13 +558,17 @@ void Paint(HWND w){
 
     const int margin=18, top=76, leftW=285, gap=14;
     int rightX=margin+leftW+gap;
-    Fill(dc,margin,top,leftW,rc.bottom-top-24,C_PANEL);
-    Fill(dc,rightX,top,rc.right-rightX-margin,rc.bottom-top-24,C_PANEL);
+    RECT left{margin,top,margin+leftW,rc.bottom-24};
+    RECT right{rightX,top,rc.right-margin,rc.bottom-24};
+    FillRound(dc,left,C_PANEL,C_BORDER,10);
+    FillRound(dc,right,C_PANEL,C_BORDER,10);
 
     DrawLabel(dc,L"Game Profile Switcher",28,22,C_TEXT,gFontTitle);
     DrawLabel(dc,L"Automatic display color profiles for your games",28,49,C_MUTED);
-    Fill(dc,rc.right-92,19,64,30,C_PANEL2);
-    DrawLabel(dc,L"v0.4.0",rc.right-80,27,C_ACCENT,gFontBold);
+
+    RECT ver{rc.right-92,19,rc.right-28,49};
+    FillRound(dc,ver,C_PANEL2,C_BORDER,7);
+    DrawLabel(dc,L"v0.5.0",rc.right-80,27,C_ACCENT,gFontBold);
 
     DrawLabel(dc,L"GAME PROFILES",38,94,C_MUTED,gFontBold);
     DrawLabel(dc,L"PROFILE SETTINGS",rightX+22,94,C_MUTED,gFontBold);
@@ -436,33 +588,35 @@ void BuildControls(){
     int rightW=r.right-rightX-margin-22;
 
     HWND list=Add(L"LISTBOX",L"",LBS_NOTIFY|LBS_OWNERDRAWFIXED|WS_VSCROLL,34,124,leftW-32,r.bottom-290,IDC_LIST);
-    SendMessageW(list,LB_SETITEMHEIGHT,0,62);
+    SendMessageW(list,LB_SETITEMHEIGHT,0,66);
 
     Add(L"STATIC",L"Profile name",0,rightX,122,160,22,IDC_LBL_NAME);
-    Add(L"EDIT",L"",WS_BORDER|ES_AUTOHSCROLL,rightX,146,rightW,28,IDC_NAME);
+    HWND eName=Add(L"EDIT",L"",WS_BORDER|ES_AUTOHSCROLL,rightX,146,rightW,28,IDC_NAME);SetWindowTheme(eName,L"DarkMode_Explorer",nullptr);
     Add(L"STATIC",L"Game executable",0,rightX,185,160,22,IDC_LBL_EXE);
-    Add(L"EDIT",L"",WS_BORDER|ES_AUTOHSCROLL,rightX,209,rightW-100,28,IDC_EXE);
-    Add(L"BUTTON",L"Browse...",BS_PUSHBUTTON,rightX+rightW-90,206,90,34,IDC_BROWSE);
+    HWND eExe=Add(L"EDIT",L"",WS_BORDER|ES_AUTOHSCROLL,rightX,209,rightW-110,28,IDC_EXE);SetWindowTheme(eExe,L"DarkMode_Explorer",nullptr);
+    Add(L"BUTTON",L"Browse...",BS_OWNERDRAW,rightX+rightW-100,204,100,36,IDC_BROWSE);
     Add(L"BUTTON",L"",BS_AUTOCHECKBOX,rightX,247,20,22,IDC_ENABLED);
     Add(L"STATIC",L"Enable automatic profile",0,rightX+25,248,205,22,IDC_LBL_ENABLED);
 
     Add(L"STATIC",L"Display",0,rightX,278,160,22,IDC_LBL_DISPLAY);
-    Add(L"COMBOBOX",L"",CBS_DROPDOWNLIST|WS_VSCROLL,rightX,303,rightW,240,IDC_DISPLAY);
+    HWND display=Add(L"COMBOBOX",L"",CBS_DROPDOWNLIST|CBS_OWNERDRAWFIXED|CBS_HASSTRINGS|WS_VSCROLL,rightX,303,rightW,240,IDC_DISPLAY);
+    SendMessageW(display,CB_SETITEMHEIGHT,0,28);
+    SetWindowTheme(display,L"DarkMode_Explorer",nullptr);
 
     auto slider=[&](const wchar_t*t,int lid,int id,int vid,int y,int mn,int mx){
         Add(L"STATIC",t,0,rightX,y,190,22,lid);
-        Add(TRACKBAR_CLASSW,L"",TBS_HORZ|TBS_NOTICKS,rightX,y+27,rightW-8,28,id);
-        SendMessageW(H(id),TBM_SETRANGE,TRUE,MAKELONG(mn,mx));
-        Add(L"STATIC",L"",SS_RIGHT,rightX+rightW-72,y,64,22,vid);
+        HWND tr=Add(TRACKBAR_CLASSW,L"",TBS_HORZ|TBS_NOTICKS,rightX,y+27,rightW-92,28,id);
+        SendMessageW(tr,TBM_SETRANGE,TRUE,MAKELONG(mn,mx));
+        Add(L"STATIC",L"",SS_OWNERDRAW,rightX+rightW-76,y-2,76,28,vid);
     };
     slider(L"Digital Vibrance (%)",IDC_LBL_VIB,IDC_VIB,IDC_VALVIB,350,0,100);
     slider(L"Brightness",IDC_LBL_BRI,IDC_BRI,IDC_VALBRI,420,80,120);
     slider(L"Contrast",IDC_LBL_CON,IDC_CON,IDC_VALCON,490,80,120);
     slider(L"Gamma",IDC_LBL_GAM,IDC_GAM,IDC_VALGAM,560,30,280);
 
-    Add(L"BUTTON",L"Save profile",BS_PUSHBUTTON,rightX,640,118,38,IDC_SAVE);
-    Add(L"BUTTON",L"+  Add game",BS_PUSHBUTTON,34,r.bottom-172,120,38,IDC_ADD);
-    Add(L"BUTTON",L"Remove",BS_PUSHBUTTON,164,r.bottom-172,104,38,IDC_REMOVE);
+    Add(L"BUTTON",L"Save profile",BS_OWNERDRAW,rightX,640,260,42,IDC_SAVE);
+    Add(L"BUTTON",L"Add game",BS_OWNERDRAW,34,r.bottom-172,120,40,IDC_ADD);
+    Add(L"BUTTON",L"Remove",BS_OWNERDRAW,164,r.bottom-172,104,40,IDC_REMOVE);
 
     Add(L"BUTTON",L"",BS_AUTOCHECKBOX,rightX,r.bottom-66,20,22,IDC_STARTWIN);
     Add(L"STATIC",L"Start with Windows",0,rightX+24,r.bottom-65,135,22,0);
@@ -482,8 +636,8 @@ void ResizeControls(){
 
     MoveWindow(H(IDC_LIST),34,124,leftW-32,(int)std::max<LONG>(280L,r.bottom-290),TRUE);
     MoveWindow(H(IDC_NAME),rightX,146,rightW,28,TRUE);
-    MoveWindow(H(IDC_EXE),rightX,209,rightW-100,28,TRUE);
-    MoveWindow(H(IDC_BROWSE),rightX+rightW-90,206,90,34,TRUE);
+    MoveWindow(H(IDC_EXE),rightX,209,rightW-110,28,TRUE);
+    MoveWindow(H(IDC_BROWSE),rightX+rightW-100,204,100,36,TRUE);
     MoveWindow(H(IDC_ADD),34,r.bottom-172,120,38,TRUE);
     MoveWindow(H(IDC_REMOVE),164,r.bottom-172,104,38,TRUE);
     SetDesktopUi(IsDesktopSelected());
@@ -497,8 +651,39 @@ LRESULT CALLBACK Proc(HWND w,UINT m,WPARAM wp,LPARAM lp){switch(m){case WM_CREAT
     }
     ResizeControls();
     InvalidateRect(w,nullptr,TRUE);
-    return 0;case WM_PAINT:Paint(w);return 0;case WM_CTLCOLORSTATIC:{HDC dc=(HDC)wp;SetTextColor(dc,C_TEXT);SetBkColor(dc,C_PANEL);SetBkMode(dc,TRANSPARENT);return (LRESULT)gPanelBrush;}case WM_CTLCOLOREDIT:{HDC dc=(HDC)wp;SetTextColor(dc,C_TEXT);SetBkColor(dc,C_PANEL2);return (LRESULT)gPanel2Brush;}case WM_CTLCOLORBTN:{HDC dc=(HDC)wp;SetTextColor(dc,C_TEXT);SetBkColor(dc,C_PANEL);return (LRESULT)gPanelBrush;}case WM_DRAWITEM:{
+    return 0;case WM_PAINT:Paint(w);return 0;
+case WM_NOTIFY:{
+    auto* hdr=(NMHDR*)lp;
+    int id=GetDlgCtrlID(hdr->hwndFrom);
+    if(hdr->code==NM_CUSTOMDRAW && (id==IDC_VIB||id==IDC_BRI||id==IDC_CON||id==IDC_GAM))
+        return CustomDrawSlider((NMCUSTOMDRAW*)lp);
+    break;
+}
+case WM_CTLCOLORLISTBOX:{HDC dc=(HDC)wp;SetTextColor(dc,C_TEXT);SetBkColor(dc,C_PANEL);return (LRESULT)gPanelBrush;}
+case WM_CTLCOLORSTATIC:{HDC dc=(HDC)wp;SetTextColor(dc,C_TEXT);SetBkColor(dc,C_PANEL);SetBkMode(dc,TRANSPARENT);return (LRESULT)gPanelBrush;}case WM_CTLCOLOREDIT:{HDC dc=(HDC)wp;SetTextColor(dc,C_TEXT);SetBkColor(dc,C_FIELD);return (LRESULT)gFieldBrush;}case WM_CTLCOLORBTN:{HDC dc=(HDC)wp;SetTextColor(dc,C_TEXT);SetBkColor(dc,C_PANEL);return (LRESULT)gPanelBrush;}case WM_DRAWITEM:{
     auto*d=(DRAWITEMSTRUCT*)lp;
+
+    if(d->CtlID==IDC_DISPLAY){
+        Fill(d->hDC,d->rcItem.left,d->rcItem.top,d->rcItem.right-d->rcItem.left,d->rcItem.bottom-d->rcItem.top,
+             (d->itemState&ODS_SELECTED)?C_ACCENT_DARK:C_FIELD);
+        if(d->itemID!=(UINT)-1){
+            wchar_t txt[256]{};
+            SendMessageW(d->hwndItem,CB_GETLBTEXT,d->itemID,(LPARAM)txt);
+            RECT tr=d->rcItem;tr.left+=10;tr.right-=6;
+            SetBkMode(d->hDC,TRANSPARENT);SetTextColor(d->hDC,C_TEXT);SelectObject(d->hDC,gFont);
+            DrawTextW(d->hDC,txt,-1,&tr,DT_LEFT|DT_VCENTER|DT_SINGLELINE|DT_END_ELLIPSIS);
+        }
+        return TRUE;
+    }
+
+    if(d->CtlID==IDC_VALVIB||d->CtlID==IDC_VALBRI||d->CtlID==IDC_VALCON||d->CtlID==IDC_VALGAM){
+        DrawValueBox(d);return TRUE;
+    }
+
+    if(d->CtlID==IDC_SAVE||d->CtlID==IDC_ADD||d->CtlID==IDC_REMOVE||d->CtlID==IDC_BROWSE){
+        DrawOwnerButton(d);return TRUE;
+    }
+
     if(d->CtlID==IDC_LIST&&d->itemID!=(UINT)-1){
         bool selected=(d->itemState&ODS_SELECTED)!=0;
         // Draw the row ourselves so selected items match the dark/green visual language.
@@ -508,27 +693,30 @@ LRESULT CALLBACK Proc(HWND w,UINT m,WPARAM wp,LPARAM lp){switch(m){case WM_CREAT
 
         bool desktop=d->itemID==0;
         GameProfile*p=desktop?&gSettings.desktop:&gSettings.profiles[d->itemID-1];
-        int x=d->rcItem.left+12,y=d->rcItem.top+13;
+        int x=d->rcItem.left+12,y=d->rcItem.top+11;
 
         if(desktop){
-            DrawWindowsLogo(d->hDC,x+2,y+1,30);
+            DrawWindowsLogo(d->hDC,x+1,y+1,40);
         }else{
             HICON ic=LoadExeIcon(p->exePath);
-            if(ic){DrawIconEx(d->hDC,x,y,ic,34,34,0,nullptr,DI_NORMAL);DestroyIcon(ic);}
+            if(ic){DrawIconEx(d->hDC,x,y,ic,42,42,0,nullptr,DI_NORMAL);DestroyIcon(ic);}
             else{
                 HBRUSH b=CreateSolidBrush(C_ACCENT);HGDIOBJ old=SelectObject(d->hDC,b);
-                Ellipse(d->hDC,x+2,y+2,x+34,y+34);SelectObject(d->hDC,old);DeleteObject(b);
-                if(!p->name.empty()){wchar_t c[2]{p->name[0],0};DrawLabel(d->hDC,c,x+13,y+9,RGB(255,255,255),gFontBold);}
+                Ellipse(d->hDC,x+2,y+2,x+42,y+42);SelectObject(d->hDC,old);DeleteObject(b);
+                if(!p->name.empty()){wchar_t c[2]{p->name[0],0};DrawLabel(d->hDC,c,x+16,y+12,RGB(255,255,255),gFontBold);}
             }
         }
 
         const wchar_t* title=desktop?L"Windows":p->name.c_str();
-        DrawLabel(d->hDC,title,x+48,d->rcItem.top+10,C_TEXT,gFontBold);
+        DrawLabel(d->hDC,title,x+54,d->rcItem.top+11,C_TEXT,gFontBold);
         std::wstring sub=desktop?L"Default display profile":ProcessName(p->exePath);
-        DrawLabel(d->hDC,sub.c_str(),x+48,d->rcItem.top+33,C_MUTED);
+        DrawLabel(d->hDC,sub.c_str(),x+54,d->rcItem.top+35,C_MUTED);
+        Fill(d->hDC,d->rcItem.left+10,d->rcItem.bottom-1,d->rcItem.right-d->rcItem.left-20,1,C_BORDER);
         return TRUE;
     }
     break;
-}case WM_HSCROLL:UpdateSliderLabels();return 0;case WM_TIMER:CheckProcesses();return 0;case WM_COMMAND:{int id=LOWORD(wp);if(id==IDC_LIST&&HIWORD(wp)==LBN_SELCHANGE){LoadSelected();return 0;}switch(id){case IDC_BROWSE:{OPENFILENAMEW o{sizeof(o)};wchar_t f[MAX_PATH]{};o.hwndOwner=w;o.lpstrFilter=L"Executables (*.exe)\0*.exe\0All files\0*.*\0";o.lpstrFile=f;o.nMaxFile=MAX_PATH;o.Flags=OFN_FILEMUSTEXIST;if(GetOpenFileNameW(&o)){Txt(IDC_EXE,f);auto* p=SelectedProfile();if(p&&!IsDesktopSelected()){p->exePath=f;InvalidateRect(H(IDC_LIST),nullptr,TRUE);}}break;}case IDC_SAVE:SaveSelected();break;case IDC_ADD:gSettings.profiles.push_back({});gSelected=(int)gSettings.profiles.size();Save();RefreshList();LoadSelected();break;case IDC_REMOVE:if(gSelected>0&&gSelected<=(int)gSettings.profiles.size()){gSettings.profiles.erase(gSettings.profiles.begin()+(gSelected-1));gSelected=std::max<int>(0,gSelected-1);Save();RefreshList();LoadSelected();}break;case IDC_STARTWIN:gSettings.startWindows=SendMessageW(H(IDC_STARTWIN),BM_GETCHECK,0,0)==BST_CHECKED;SetStartup(gSettings.startWindows);Save();break;case IDC_STARTMIN:gSettings.startMinimized=SendMessageW(H(IDC_STARTMIN),BM_GETCHECK,0,0)==BST_CHECKED;Save();break;case ID_TRAY_OPEN:ShowMain();break;case ID_TRAY_RESTORE:RestoreDesktop();break;case ID_TRAY_PAUSE:gPaused=!gPaused;if(gPaused)RestoreDesktop();UpdateTrayPause();break;case ID_TRAY_EXIT:gReallyExit=true;DestroyWindow(w);break;}return 0;}case WM_CLOSE:if(!gReallyExit){ShowWindow(w,SW_HIDE);return 0;}break;case WM_TRAY:if(lp==WM_LBUTTONDBLCLK){ShowMain();return 0;}if(lp==WM_RBUTTONUP||lp==WM_CONTEXTMENU){POINT p;GetCursorPos(&p);SetForegroundWindow(w);TrackPopupMenu(gTrayMenu,TPM_RIGHTBUTTON,p.x,p.y,0,w,nullptr);return 0;}break;case WM_DESTROY:KillTimer(w,1);Shell_NotifyIconW(NIM_DELETE,&gNid);if(pUnload)pUnload();if(gNv)FreeLibrary(gNv);PostQuitMessage(0);return 0;}return DefWindowProcW(w,m,wp,lp);} 
+}case WM_HSCROLL:UpdateSliderLabels();if((HWND)lp)InvalidateRect((HWND)lp,nullptr,FALSE);return 0;case WM_TIMER:CheckProcesses();return 0;case WM_COMMAND:{int id=LOWORD(wp);if(id==IDC_LIST&&HIWORD(wp)==LBN_SELCHANGE){LoadSelected();return 0;}switch(id){case IDC_BROWSE:{OPENFILENAMEW o{sizeof(o)};wchar_t f[MAX_PATH]{};o.hwndOwner=w;o.lpstrFilter=L"Executables (*.exe)\0*.exe\0All files\0*.*\0";o.lpstrFile=f;o.nMaxFile=MAX_PATH;o.Flags=OFN_FILEMUSTEXIST;if(GetOpenFileNameW(&o)){Txt(IDC_EXE,f);auto* p=SelectedProfile();if(p&&!IsDesktopSelected()){p->exePath=f;InvalidateRect(H(IDC_LIST),nullptr,TRUE);}}break;}case IDC_SAVE:SaveSelected();break;case IDC_ADD:gSettings.profiles.push_back({});gSelected=(int)gSettings.profiles.size();Save();RefreshList();LoadSelected();break;case IDC_REMOVE:if(gSelected>0&&gSelected<=(int)gSettings.profiles.size()){gSettings.profiles.erase(gSettings.profiles.begin()+(gSelected-1));gSelected=std::max<int>(0,gSelected-1);Save();RefreshList();LoadSelected();}break;case IDC_STARTWIN:gSettings.startWindows=SendMessageW(H(IDC_STARTWIN),BM_GETCHECK,0,0)==BST_CHECKED;SetStartup(gSettings.startWindows);Save();break;case IDC_STARTMIN:gSettings.startMinimized=SendMessageW(H(IDC_STARTMIN),BM_GETCHECK,0,0)==BST_CHECKED;Save();break;case ID_TRAY_OPEN:ShowMain();break;case ID_TRAY_RESTORE:RestoreDesktop();break;case ID_TRAY_PAUSE:gPaused=!gPaused;if(gPaused)RestoreDesktop();UpdateTrayPause();break;case ID_TRAY_EXIT:gReallyExit=true;DestroyWindow(w);break;}return 0;}case WM_CLOSE:if(!gReallyExit){ShowWindow(w,SW_HIDE);return 0;}break;case WM_TRAY:if(lp==WM_LBUTTONDBLCLK){ShowMain();return 0;}if(lp==WM_RBUTTONUP||lp==WM_CONTEXTMENU){POINT p;GetCursorPos(&p);SetForegroundWindow(w);TrackPopupMenu(gTrayMenu,TPM_RIGHTBUTTON,p.x,p.y,0,w,nullptr);return 0;}break;case WM_DESTROY:KillTimer(w,1);Shell_NotifyIconW(NIM_DELETE,&gNid);if(pUnload)pUnload();if(gNv)FreeLibrary(gNv);PostQuitMessage(0);return 0;}return DefWindowProcW(w,m,wp,lp);} 
 
-int WINAPI wWinMain(HINSTANCE h,HINSTANCE,LPWSTR cmd,int){gInst=h;INITCOMMONCONTROLSEX ic{sizeof(ic),ICC_BAR_CLASSES|ICC_STANDARD_CLASSES};InitCommonControlsEx(&ic);Load();gSettings.desktop.name=L"Windows";gBackBrush=CreateSolidBrush(C_BACK);gPanelBrush=CreateSolidBrush(C_PANEL);gPanel2Brush=CreateSolidBrush(C_PANEL2);gFont=CreateFontW(-15,0,0,0,FW_NORMAL,0,0,0,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,DEFAULT_PITCH,L"Segoe UI");gFontBold=CreateFontW(-15,0,0,0,FW_SEMIBOLD,0,0,0,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,DEFAULT_PITCH,L"Segoe UI");gFontTitle=CreateFontW(-24,0,0,0,FW_BOLD,0,0,0,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,DEFAULT_PITCH,L"Segoe UI");gIcon=LoadIconW(h,MAKEINTRESOURCEW(IDI_APPICON));WNDCLASSEXW wc{sizeof(wc)};wc.style=CS_HREDRAW|CS_VREDRAW;wc.lpfnWndProc=Proc;wc.hInstance=h;wc.hIcon=gIcon;wc.hIconSm=gIcon;wc.hCursor=LoadCursor(nullptr,IDC_ARROW);wc.hbrBackground=gBackBrush;wc.lpszClassName=L"GameProfileSwitcherNative";RegisterClassExW(&wc);gWnd=CreateWindowExW(0,wc.lpszClassName,L"Game Profile Switcher v0.4.0",WS_OVERLAPPEDWINDOW,CW_USEDEFAULT,CW_USEDEFAULT,980,800,nullptr,nullptr,h,nullptr);SetWindowLongPtrW(gWnd,GWLP_USERDATA,0);gTrayMenu=CreatePopupMenu();AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_OPEN,L"Open Game Profile Switcher");AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_RESTORE,L"Restore Windows profile");AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_PAUSE,L"Pause automatic switching");AppendMenuW(gTrayMenu,MF_SEPARATOR,0,nullptr);AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_EXIT,L"Exit");gNid.cbSize=sizeof(gNid);gNid.hWnd=gWnd;gNid.uID=1;gNid.uFlags=NIF_MESSAGE|NIF_ICON|NIF_TIP;gNid.uCallbackMessage=WM_TRAY;gNid.hIcon=gIcon;wcscpy_s(gNid.szTip,L"Game Profile Switcher");Shell_NotifyIconW(NIM_ADD,&gNid);gStatusOk=InitNv();if(gStatusOk){if(auto* p=SelectedProfile())RefreshDisplayCombo(*p);Apply(gSettings.desktop);}gActive=gSettings.desktop.name;bool min=(wcsstr(cmd,L"--minimized")!=nullptr)||gSettings.startMinimized;ShowWindow(gWnd,min?SW_HIDE:SW_SHOW);UpdateWindow(gWnd);MSG msg;while(GetMessageW(&msg,nullptr,0,0)>0){TranslateMessage(&msg);DispatchMessageW(&msg);}DeleteObject(gFont);DeleteObject(gFontBold);DeleteObject(gFontTitle);DeleteObject(gBackBrush);DeleteObject(gPanelBrush);DeleteObject(gPanel2Brush);return 0;}
+int WINAPI wWinMain(HINSTANCE h,HINSTANCE,LPWSTR cmd,int){gInst=h;INITCOMMONCONTROLSEX ic{sizeof(ic),ICC_BAR_CLASSES|ICC_STANDARD_CLASSES};InitCommonControlsEx(&ic);Load();gSettings.desktop.name=L"Windows";gBackBrush=CreateSolidBrush(C_BACK);gPanelBrush=CreateSolidBrush(C_PANEL);gPanel2Brush=CreateSolidBrush(C_PANEL2);gFieldBrush=CreateSolidBrush(C_FIELD);gFont=CreateFontW(-15,0,0,0,FW_NORMAL,0,0,0,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,DEFAULT_PITCH,L"Segoe UI");gFontBold=CreateFontW(-15,0,0,0,FW_SEMIBOLD,0,0,0,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,DEFAULT_PITCH,L"Segoe UI");gFontTitle=CreateFontW(-24,0,0,0,FW_BOLD,0,0,0,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,DEFAULT_PITCH,L"Segoe UI");gIcon=LoadIconW(h,MAKEINTRESOURCEW(IDI_APPICON));WNDCLASSEXW wc{sizeof(wc)};wc.style=CS_HREDRAW|CS_VREDRAW;wc.lpfnWndProc=Proc;wc.hInstance=h;wc.hIcon=gIcon;wc.hIconSm=gIcon;wc.hCursor=LoadCursor(nullptr,IDC_ARROW);wc.hbrBackground=gBackBrush;wc.lpszClassName=L"GameProfileSwitcherNative";RegisterClassExW(&wc);gWnd=CreateWindowExW(0,wc.lpszClassName,L"Game Profile Switcher v0.5.0",WS_OVERLAPPEDWINDOW,CW_USEDEFAULT,CW_USEDEFAULT,980,800,nullptr,nullptr,h,nullptr);
+BOOL darkTitle=TRUE;DwmSetWindowAttribute(gWnd,20,&darkTitle,sizeof(darkTitle));
+SetWindowLongPtrW(gWnd,GWLP_USERDATA,0);gTrayMenu=CreatePopupMenu();AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_OPEN,L"Open Game Profile Switcher");AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_RESTORE,L"Restore Windows profile");AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_PAUSE,L"Pause automatic switching");AppendMenuW(gTrayMenu,MF_SEPARATOR,0,nullptr);AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_EXIT,L"Exit");gNid.cbSize=sizeof(gNid);gNid.hWnd=gWnd;gNid.uID=1;gNid.uFlags=NIF_MESSAGE|NIF_ICON|NIF_TIP;gNid.uCallbackMessage=WM_TRAY;gNid.hIcon=gIcon;wcscpy_s(gNid.szTip,L"Game Profile Switcher");Shell_NotifyIconW(NIM_ADD,&gNid);gStatusOk=InitNv();if(gStatusOk){if(auto* p=SelectedProfile())RefreshDisplayCombo(*p);Apply(gSettings.desktop);}gActive=gSettings.desktop.name;bool min=(wcsstr(cmd,L"--minimized")!=nullptr)||gSettings.startMinimized;ShowWindow(gWnd,min?SW_HIDE:SW_SHOW);UpdateWindow(gWnd);MSG msg;while(GetMessageW(&msg,nullptr,0,0)>0){TranslateMessage(&msg);DispatchMessageW(&msg);}DeleteObject(gFont);DeleteObject(gFontBold);DeleteObject(gFontTitle);DeleteObject(gBackBrush);DeleteObject(gPanelBrush);DeleteObject(gPanel2Brush);DeleteObject(gFieldBrush);return 0;}
