@@ -1,4 +1,4 @@
-name: Build GameProfileSwitcher Native
+name: Build NvProfileSwitcher Native
 
 on:
   workflow_dispatch:
@@ -21,18 +21,18 @@ jobs:
 
       - name: Build native x64
         shell: cmd
-        working-directory: GameProfileSwitcher
+        working-directory: NvProfileSwitcher
         run: |
           rc /nologo app.rc
-          cl /nologo /std:c++20 /O2 /EHsc /MT /DUNICODE /D_UNICODE /DNOMINMAX main.cpp app.res /Fe:GameProfileSwitcher.exe /link /SUBSYSTEM:WINDOWS /MACHINE:X64
+          cl /nologo /std:c++20 /O2 /EHsc /MT /DUNICODE /D_UNICODE /DNOMINMAX main.cpp app.res /Fe:NvProfileSwitcher.exe /link /SUBSYSTEM:WINDOWS /MACHINE:X64
 
       - name: Show binary size
         shell: powershell
         run: |
-          Get-Item .\GameProfileSwitcher\GameProfileSwitcher.exe | Select-Object Name,Length
+          Get-Item .\NvProfileSwitcher\NvProfileSwitcher.exe | Select-Object Name,Length
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: GameProfileSwitcher-native-win-x64
-          path: .\GameProfileSwitcher\GameProfileSwitcher.exe
+          name: NvProfileSwitcher-native-win-x64
+          path: .\NvProfileSwitcher\NvProfileSwitcher.exe
