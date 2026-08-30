@@ -308,13 +308,22 @@ void RefreshDisplayCombo(const GameProfile& p){
     HWND c=GetDlgItem(gWnd,IDC_DISPLAY);
     if(!c) return;
     SendMessageW(c,CB_RESETCONTENT,0,0);
+
+    // Always show the primary display first and select it by default.
     int primary=-1;
     for(size_t i=0;i<gDisplays.size();++i){
-        SendMessageW(c,CB_ADDSTRING,0,(LPARAM)gDisplays[i].label.c_str());
-        if(gDisplays[i].primary) primary=(int)i;
+        if(gDisplays[i].primary){
+            primary=(int)i;
+            SendMessageW(c,CB_ADDSTRING,0,(LPARAM)gDisplays[i].label.c_str());
+            break;
+        }
     }
-    int selected=primary>=0?primary:(gDisplays.empty()?-1:0);
-    if(selected>=0) SendMessageW(c,CB_SETCURSEL,selected,0);
+    for(size_t i=0;i<gDisplays.size();++i){
+        if((int)i==primary) continue;
+        SendMessageW(c,CB_ADDSTRING,0,(LPARAM)gDisplays[i].label.c_str());
+    }
+
+    if(!gDisplays.empty()) SendMessageW(c,CB_SETCURSEL,0,0);
 }
 
 bool InitNv(){
