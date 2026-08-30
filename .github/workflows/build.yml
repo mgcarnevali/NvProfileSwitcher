@@ -36,7 +36,7 @@ jobs:
         run: |
           Get-Item .\NvProfileSwitcher\NvProfileSwitcher.exe | Select-Object Name,Length
 
-      - name: Create portable package
+      - name: Create portable folder
         shell: powershell
         run: |
           New-Item -ItemType Directory -Path .\Release\NvProfileSwitcher -Force | Out-Null
@@ -45,16 +45,19 @@ jobs:
             .\NvProfileSwitcher\NvProfileSwitcher.exe `
             .\Release\NvProfileSwitcher\NvProfileSwitcher.exe
 
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: NvProfileSwitcher
+          path: .\Release\NvProfileSwitcher
+          if-no-files-found: error
+
       - name: Create versioned ZIP
+        if: startsWith(github.ref, 'refs/tags/v')
         shell: powershell
         run: |
-          if ("${{ github.ref_type }}" -eq "tag") {
-              $version = "${{ github.ref_name }}"
-              $zipName = "NvProfileSwitcher-$version.zip"
-          }
-          else {
-              $zipName = "NvProfileSwitcher.zip"
-          }
+          $version = "${{ github.ref_name }}"
+          $zipName = "NvProfileSwitcher-$version.zip"
 
           Compress-Archive `
             -Path .\Release\NvProfileSwitcher `
@@ -62,13 +65,6 @@ jobs:
             -Force
 
           "ZIP_NAME=$zipName" | Out-File -FilePath $env:GITHUB_ENV -Append
-
-      - name: Upload build artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: NvProfileSwitcher
-          path: .\${{ env.ZIP_NAME }}
-          if-no-files-found: error
 
       - name: Attach ZIP to GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
