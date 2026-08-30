@@ -1,85 +1,128 @@
 # NvProfileSwitcher
 
-Lightweight native Windows utility that automatically applies per-game NVIDIA display color profiles based on the application currently in the foreground.
+**Automatic per-game NVIDIA display color profiles for Windows.**
 
-When a configured game becomes active, NvProfileSwitcher applies its display profile. When you switch back to Windows or another application, the Windows profile is automatically restored.
+NvProfileSwitcher is a lightweight native Windows utility that automatically
+switches NVIDIA display color settings based on the application currently in
+the foreground.
+
+Configure your normal Windows colors once, create individual profiles for your
+games, and NvProfileSwitcher handles the switching automatically.
+
+When a configured game becomes active, its color profile is applied. As soon
+as you switch back to Windows, your browser, Discord, or another application,
+your Windows profile is automatically restored.
+
+> NvProfileSwitcher is not affiliated with, endorsed by, or sponsored by
+> NVIDIA Corporation. NVIDIA is a trademark of NVIDIA Corporation.
 
 ## Features
 
-- Per-game profiles based on executable (`.exe`).
-- Automatic foreground application detection.
-- Automatically restores the Windows profile when leaving a configured game.
-- NVIDIA Digital Vibrance control through NVAPI.
-- Brightness, Contrast and Gamma control through the NVIDIA display pipeline.
-- Per-profile monitor selection.
-- Multi-monitor support.
-- Individual game executable icons.
-- Windows profile for normal desktop use.
-- Start with Windows option.
-- Start minimized to system tray option.
-- Minimize to tray.
-- Pause/resume automatic profile switching from the tray.
-- Manual Windows profile restore from the tray.
-- Lightweight native C++ application.
-- No .NET runtime required.
-- No installation required.
+- Automatic per-game profile switching
+- Automatic Windows profile restoration
+- Profiles matched by game executable (`.exe`)
+- Brightness control
+- Contrast control
+- Gamma control
+- Digital Vibrance control
+- Hue control
+- Per-display profiles
+- Multi-monitor support
+- Separate Windows color settings for each configured display
+- Individual game executable icons
+- Enable or disable individual game profiles
+- Start automatically with Windows
+- Start minimized to the system tray
+- Built-in update checker
+- Lightweight native C++ application
+- Portable — no installation required
+- No .NET runtime required
 
-## Requirements
+## Screenshots
 
-- Windows 10 or Windows 11.
-- NVIDIA GPU.
-- NVIDIA display driver with NVAPI support.
+<!-- Add NvProfileSwitcher screenshots here -->
 
-## How it works
+## Installation
 
-NvProfileSwitcher monitors the foreground application.
+Download the latest version from the **Releases** section.
 
-If the foreground executable matches an enabled game profile, that profile is applied to the selected display.
+Extract:
 
-When the foreground application no longer matches a configured game, the Windows profile is automatically restored.
+`NvProfileSwitcher-vX.X.X.zip`
 
-This means switching between a game and the desktop, browser, Discord, or any other application automatically switches between the game and Windows display profiles.
+and run:
 
-## Profile settings
+`NvProfileSwitcher.exe`
 
-Each profile can configure:
+No installer or additional runtime is required.
 
-- Display
-- Digital Vibrance
-- Brightness
-- Contrast
-- Gamma
+### Requirements
 
-Profiles can be enabled or disabled individually.
+- Windows 10 or Windows 11 (x64)
+- NVIDIA GPU
+- NVIDIA display driver with NVAPI support
 
 ## Usage
 
 1. Launch `NvProfileSwitcher.exe`.
-2. Configure the **Windows** profile with your normal desktop color settings.
+2. Select **Windows** and configure your normal desktop color settings.
 3. Click **Add game**.
-4. Browse to the game's executable.
-5. Select the display where the game runs.
-6. Configure Digital Vibrance, Brightness, Contrast and Gamma.
+4. Select the game's executable.
+5. Choose the display where the game runs.
+6. Configure the desired color settings.
 7. Click **Save profile**.
-8. Launch the game.
 
-NvProfileSwitcher will automatically apply the game profile when the game is in the foreground and restore the Windows profile when you switch away from it.
+NvProfileSwitcher will now detect when that game owns the foreground window
+and automatically apply its profile.
 
-> If you use another application that controls NVIDIA Digital Vibrance or gamma settings, such as vibranceGUI, close it before using NvProfileSwitcher to avoid both applications changing the same display settings.
+Switch away from the game and your Windows profile is restored automatically.
+
+## Color controls
+
+Each profile can independently configure:
+
+| Setting | Range |
+| --- | ---: |
+| Brightness | 80–120 |
+| Contrast | 80–120 |
+| Gamma | 0.30–2.80 |
+| Digital Vibrance | 0–100% |
+| Hue | 0–359° |
+
+The controls are applied directly through the NVIDIA display pipeline / NVAPI.
+
+## Multi-monitor support
+
+NvProfileSwitcher detects available NVIDIA displays and allows a profile to
+target a specific monitor.
+
+Windows settings can also be stored separately for each configured display,
+allowing every monitor to return to its own desktop color profile when you
+leave a game.
 
 ## System tray
 
-NvProfileSwitcher can run entirely from the Windows system tray.
+NvProfileSwitcher can run silently from the Windows system tray.
 
 The tray menu provides:
 
 - Open NvProfileSwitcher
-- Restore Windows profile
-- Pause automatic switching
-- Resume automatic switching
+- About NvProfileSwitcher
 - Exit
 
-Minimizing the main window sends NvProfileSwitcher to the system tray.
+Minimizing the application sends it to the tray.
+
+If **Start with Windows** is enabled, NvProfileSwitcher can start automatically
+and remain minimized while handling profile switching in the background.
+
+## Update checker
+
+NvProfileSwitcher checks GitHub for new releases when the application starts.
+
+If a newer version is available, a notification provides a direct link to the
+latest GitHub release.
+
+No automatic installation or background updater is used.
 
 ## Configuration
 
@@ -89,34 +132,62 @@ Profiles and application settings are stored in:
 
 The configuration file is created automatically.
 
-## Build
+## How it works
 
-NvProfileSwitcher is built as a native x64 Windows application using MSVC.
+NvProfileSwitcher monitors the application that currently owns the foreground
+window.
 
-The GitHub Actions workflow automatically builds the executable on pushes to the `main` branch.
+When its executable matches an enabled game profile, the corresponding NVIDIA
+color settings are applied to the selected display.
 
-The native build uses:
+When the foreground application no longer matches a configured game,
+NvProfileSwitcher restores the saved Windows profiles.
+
+Digital Vibrance and Hue are controlled through NVIDIA NVAPI.
+
+Brightness, Contrast and Gamma are applied using the NVIDIA display pipeline
+gamma correction LUT.
+
+NvProfileSwitcher communicates directly with `nvapi64.dll` and does not need
+the NVIDIA App to remain open.
+
+> If another application is also controlling NVIDIA color settings, such as
+> vibranceGUI, close it before using NvProfileSwitcher to prevent both
+> applications from modifying the same display settings.
+
+## Building
+
+NvProfileSwitcher is built as a native x64 Windows application using:
 
 - C++20
 - MSVC x64
-- Static C/C++ runtime (`/MT`)
 - Windows Win32 API
 - NVIDIA NVAPI
+- Static C/C++ runtime (`/MT`)
 
-No .NET SDK or runtime is required.
+GitHub Actions automatically produces development builds from `main` and
+versioned builds from release tags.
 
-## Technical details
+Development builds use:
 
-Digital Vibrance is controlled directly through NVIDIA NVAPI.
+`dev-<commit>`
 
-Brightness, Contrast and Gamma are applied through NVIDIA's display pipeline using a gamma correction LUT.
+Official releases use semantic versions such as:
 
-NvProfileSwitcher communicates directly with `nvapi64.dll` and does not require the NVIDIA App to be open.
+`v1.0.0`
 
-The NVIDIA App sliders may not visually update when NvProfileSwitcher changes display values because NvProfileSwitcher applies the settings directly through NVAPI rather than controlling the NVIDIA App interface.
+## Support
 
-Foreground application detection uses lightweight polling to determine which executable currently owns the foreground window.
+If you find NvProfileSwitcher useful and would like to support its development:
+
+☕ **Buy me a coffee on Ko-fi**
+
+https://ko-fi.com/mgcarnevali
 
 ## License
 
-License information will be added before the first public release.
+Copyright © 2026 Maximiliano Carnevali.
+
+## About
+
+**NvProfileSwitcher** — Automatic per-game NVIDIA display color profiles for Windows.
