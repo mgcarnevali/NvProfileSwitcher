@@ -40,7 +40,17 @@ your Windows profile is automatically restored.
 
 ## Screenshots
 
-<!-- Add NvProfileSwitcher screenshots here -->
+### Game Profile
+
+![NvProfileSwitcher Game Profile](docs/screenshots/game-profile.png)
+
+### Windows Profile
+
+![NvProfileSwitcher Windows Profile](docs/screenshots/windows-profile.png)
+
+### System Tray
+
+![NvProfileSwitcher System Tray](docs/screenshots/system-tray.png)
 
 ## Installation
 
