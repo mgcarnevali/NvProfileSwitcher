@@ -34,24 +34,32 @@ jobs:
       - name: Show binary size
         shell: powershell
         run: |
-          Get-Item .\NvProfileSwitcher\NvProfileSwitcher.exe | Select-Object Name,Length
+          Get-Item .\NvProfileSwitcher\NvProfileSwitcher.exe |
+            Select-Object Name,Length
 
       - name: Create portable folder
         shell: powershell
         run: |
-          New-Item -ItemType Directory -Path .\Release\NvProfileSwitcher -Force | Out-Null
+          New-Item `
+            -ItemType Directory `
+            -Path .\Release\NvProfileSwitcher `
+            -Force | Out-Null
 
           Copy-Item `
             .\NvProfileSwitcher\NvProfileSwitcher.exe `
             .\Release\NvProfileSwitcher\NvProfileSwitcher.exe
 
+      # GitHub automatically packages this folder as an artifact ZIP.
+      # Upload Release instead of Release\NvProfileSwitcher so the
+      # NvProfileSwitcher folder itself is preserved inside the ZIP.
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
           name: NvProfileSwitcher
-          path: .\Release\NvProfileSwitcher
+          path: .\Release
           if-no-files-found: error
 
+      # Only tags/releases need our own versioned ZIP.
       - name: Create versioned ZIP
         if: startsWith(github.ref, 'refs/tags/v')
         shell: powershell
@@ -64,7 +72,8 @@ jobs:
             -DestinationPath ".\$zipName" `
             -Force
 
-          "ZIP_NAME=$zipName" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "ZIP_NAME=$zipName" |
+            Out-File -FilePath $env:GITHUB_ENV -Append
 
       - name: Attach ZIP to GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
