@@ -12,6 +12,12 @@ and this project follows [Semantic Versioning](https://semver.org/).
 - Added a manual **Check for updates** option to the system tray menu.
 - Added feedback when NvProfileSwitcher is already up to date or the update check fails.
 
+### Changed
+
+- Simplified the game profile list by removing redundant secondary text.
+- Reduced profile row height for a cleaner and more compact interface.
+- Vertically centered profile names and icons in the profile list.
+
 ## 1.0.0 — 2026-08-30
 
 First public stable release.
