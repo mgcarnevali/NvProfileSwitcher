@@ -5,6 +5,13 @@ All notable changes to NvProfileSwitcher will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project follows [Semantic Versioning](https://semver.org/).
 
+## 1.1.0 — 2026-08-30
+
+### Added
+
+- Added a manual **Check for updates** option to the system tray menu.
+- Added feedback when NvProfileSwitcher is already up to date or the update check fails.
+
 ## 1.0.0 — 2026-08-30
 
 First public stable release.
