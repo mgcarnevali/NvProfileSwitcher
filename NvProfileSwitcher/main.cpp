@@ -800,7 +800,7 @@ void BuildControls(){
     int rightW=r.right-rightX-margin-22;
 
     HWND list=Add(L"LISTBOX",L"",LBS_NOTIFY|LBS_OWNERDRAWFIXED|WS_VSCROLL,34,124,leftW-32,r.bottom-308,IDC_LIST);
-    SendMessageW(list,LB_SETITEMHEIGHT,0,66);
+    SendMessageW(list,LB_SETITEMHEIGHT,0,56);
 
     Add(L"STATIC",L"Profile name",0,rightX,122,160,22,IDC_LBL_NAME);
     HWND eName=Add(L"EDIT",L"",WS_BORDER|ES_AUTOHSCROLL,rightX,146,rightW,28,IDC_NAME);SetWindowTheme(eName,L"DarkMode_Explorer",nullptr);
@@ -1327,24 +1327,28 @@ case WM_CTLCOLORSTATIC:{HDC dc=(HDC)wp;SetTextColor(dc,C_TEXT);SetBkColor(dc,C_P
 
         bool desktop=d->itemID==0;
         GameProfile*p=desktop?&gSettings.desktop:&gSettings.profiles[d->itemID-1];
-        int x=d->rcItem.left+12,y=d->rcItem.top+11;
+        const int rowH=d->rcItem.bottom-d->rcItem.top;
+        const int iconSize=40;
+        int x=d->rcItem.left+12;
+        int y=d->rcItem.top+(rowH-iconSize)/2;
 
         if(desktop){
-            DrawWindowsLogo(d->hDC,x+1,y+1,40);
+            DrawWindowsLogo(d->hDC,x+1,y,iconSize);
         }else{
             HICON ic=LoadExeIcon(p->exePath);
-            if(ic){DrawIconEx(d->hDC,x,y,ic,42,42,0,nullptr,DI_NORMAL);DestroyIcon(ic);}
+            if(ic){DrawIconEx(d->hDC,x,y,ic,iconSize,iconSize,0,nullptr,DI_NORMAL);DestroyIcon(ic);}
             else{
                 HBRUSH b=CreateSolidBrush(C_ACCENT);HGDIOBJ old=SelectObject(d->hDC,b);
-                Ellipse(d->hDC,x+2,y+2,x+42,y+42);SelectObject(d->hDC,old);DeleteObject(b);
-                if(!p->name.empty()){wchar_t c[2]{p->name[0],0};DrawLabel(d->hDC,c,x+16,y+12,RGB(255,255,255),gFontBold);}
+                Ellipse(d->hDC,x+1,y+1,x+iconSize+1,y+iconSize+1);SelectObject(d->hDC,old);DeleteObject(b);
+                if(!p->name.empty()){wchar_t c[2]{p->name[0],0};DrawLabel(d->hDC,c,x+14,y+11,RGB(255,255,255),gFontBold);}
             }
         }
 
         const wchar_t* title=desktop?L"Windows":p->name.c_str();
-        DrawLabel(d->hDC,title,x+54,d->rcItem.top+11,C_TEXT,gFontBold);
-        std::wstring sub=desktop?L"Default display profile":ProcessName(p->exePath);
-        DrawLabel(d->hDC,sub.c_str(),x+54,d->rcItem.top+35,C_MUTED);
+        SIZE titleSize{};
+        SelectObject(d->hDC,gFontBold);
+        GetTextExtentPoint32W(d->hDC,title,(int)wcslen(title),&titleSize);
+        DrawLabel(d->hDC,title,x+54,d->rcItem.top+(rowH-titleSize.cy)/2,C_TEXT,gFontBold);
         Fill(d->hDC,d->rcItem.left+10,d->rcItem.bottom-1,d->rcItem.right-d->rcItem.left-20,1,C_BORDER);
         return TRUE;
     }
