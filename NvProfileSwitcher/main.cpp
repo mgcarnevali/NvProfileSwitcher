@@ -122,10 +122,6 @@ GameProfile ParseProfile(const std::string&o){
     p.gamma=FieldN(o,"Gamma",1.0);
     p.enabled=FieldB(o,"Enabled",true);
 
-    // v0.3.14 and older stored Brightness/Contrast normalized as 0..1.
-    // Convert those existing profiles once in memory to NVIDIA App's 80..120 scale.
-    if(p.brightness>=0.0 && p.brightness<=1.0) p.brightness=80.0+p.brightness*40.0;
-    if(p.contrast>=0.0 && p.contrast<=1.0) p.contrast=80.0+p.contrast*40.0;
     return p;
 }
 GameProfile* DesktopProfileForDisplay(const std::wstring& displayName){
