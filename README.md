@@ -186,6 +186,8 @@ https://ko-fi.com/mgcarnevali
 
 ## License
 
+NvProfileSwitcher is licensed under the [MIT License](LICENSE).
+
 Copyright © 2026 Maximiliano Carnevali.
 
 ## About
