@@ -145,6 +145,14 @@ GameProfile DesktopTemplate(){
     p.enabled=true;
     return p;
 }
+std::wstring WindowsProfileJsonName(const std::wstring& displayName){
+    size_t pos=displayName.rfind(L"DISPLAY");
+    if(pos!=std::wstring::npos){
+        std::wstring number=displayName.substr(pos+7);
+        if(!number.empty()) return L"Display "+number;
+    }
+    return L"Display";
+}
 void Save(){
     std::ofstream f(AppDataFile(),std::ios::binary|std::ios::trunc);
     auto dump=[&](const GameProfile&p,int ind){
@@ -161,13 +169,15 @@ void Save(){
          <<sp<<"  \"Enabled\": "<<(p.enabled?"true":"false")<<"\n"
          <<sp<<"}";
     };
-    f<<"{\n  \"WindowsProfiles\": [\n";
+    f<<"{\n  \"Windows Profiles\": [\n";
     for(size_t i=0;i<gSettings.desktopProfiles.size();++i){
-        dump(gSettings.desktopProfiles[i],4);
+        GameProfile jsonProfile=gSettings.desktopProfiles[i];
+        jsonProfile.name=WindowsProfileJsonName(jsonProfile.displayName);
+        dump(jsonProfile,4);
         if(i+1<gSettings.desktopProfiles.size())f<<",";
         f<<"\n";
     }
-    f<<"  ],\n  \"Profiles\": [\n";
+    f<<"  ],\n  \"Games Profiles\": [\n";
     for(size_t i=0;i<gSettings.profiles.size();++i){
         dump(gSettings.profiles[i],4);
         if(i+1<gSettings.profiles.size())f<<",";
@@ -182,7 +192,7 @@ void Load(){
     gSettings.startWindows=FieldB(s,"StartWithWindows",false);
     gSettings.startMinimized=FieldB(s,"StartMinimized",false);
 
-    size_t wp=s.find("\"WindowsProfiles\"");
+    size_t wp=s.find("\"Windows Profiles\"");
     if(wp!=std::string::npos){
         size_t a=s.find('[',wp), b=s.find(']',a);
         if(a!=std::string::npos&&b!=std::string::npos){
@@ -198,7 +208,7 @@ void Load(){
         }
     }
 
-    size_t pr=s.find("\"Profiles\"");
+    size_t pr=s.find("\"Games Profiles\"");
     if(pr!=std::string::npos){
         size_t a=s.find('[',pr), b=s.find(']',a);
         if(a!=std::string::npos&&b!=std::string::npos){
@@ -783,7 +793,7 @@ void BuildControls(){
     int rightX=rightPanelX+22;
     int rightW=r.right-rightX-margin-22;
 
-    HWND list=Add(L"LISTBOX",L"",LBS_NOTIFY|LBS_OWNERDRAWFIXED|WS_VSCROLL,34,124,leftW-32,r.bottom-290,IDC_LIST);
+    HWND list=Add(L"LISTBOX",L"",LBS_NOTIFY|LBS_OWNERDRAWFIXED|WS_VSCROLL,34,124,leftW-32,r.bottom-308,IDC_LIST);
     SendMessageW(list,LB_SETITEMHEIGHT,0,66);
 
     Add(L"STATIC",L"Profile name",0,rightX,122,160,22,IDC_LBL_NAME);
@@ -831,7 +841,7 @@ void ResizeControls(){
     int rightX=rightPanelX+22;
     int rightW=r.right-rightX-margin-22;
 
-    MoveWindow(H(IDC_LIST),34,124,leftW-32,(int)std::max<LONG>(280L,r.bottom-290),TRUE);
+    MoveWindow(H(IDC_LIST),34,124,leftW-32,(int)std::max<LONG>(280L,r.bottom-308),TRUE);
     MoveWindow(H(IDC_NAME),rightX,146,rightW,28,TRUE);
     MoveWindow(H(IDC_EXE),rightX,209,rightW-110,28,TRUE);
     MoveWindow(H(IDC_BROWSE),rightX+rightW-100,204,100,36,TRUE);
