@@ -50,7 +50,7 @@ constexpr COLORREF C_TEXT=RGB(241,244,247), C_MUTED=RGB(151,161,171), C_ACCENT=R
 constexpr COLORREF C_TRACK=RGB(61,67,73), C_WINBLUE=RGB(0,120,215);
 constexpr UINT WM_TRAY=WM_APP+1;
 constexpr UINT WM_UPDATE_AVAILABLE=WM_APP+2;
-constexpr wchar_t APP_VERSION[]=L"0.6.18";
+constexpr wchar_t APP_VERSION[]=L"0.6.19";
 constexpr wchar_t APP_URL[]=L"https://github.com/mgcarnevali/NvProfileSwitcher";
 constexpr wchar_t SUPPORT_URL[]=L"https://ko-fi.com/mgcarnevali";
 constexpr wchar_t UPDATE_HOST[]=L"api.github.com";
@@ -497,12 +497,12 @@ void SetDesktopUi(bool desktop){
     ShowWindow(H(IDC_REMOVE),desktop?SW_HIDE:SW_SHOW);
 
     const int yDisplay=desktop?132:278;
-    const int yBri=desktop?185:330;
-    const int yCon=desktop?245:390;
-    const int yGam=desktop?305:450;
-    const int yVib=desktop?365:510;
-    const int yHue=desktop?425:570;
-    const int ySave=desktop?505:650;
+    const int yBri=desktop?195:340;
+    const int yCon=desktop?255:400;
+    const int yGam=desktop?315:460;
+    const int yVib=desktop?375:520;
+    const int yHue=desktop?435:580;
+    const int ySave=desktop?515:660;
 
     MoveWindow(H(IDC_LBL_DISPLAY),rightX,yDisplay,160,22,TRUE);
     MoveWindow(H(IDC_DISPLAY),rightX,yDisplay+25,rightW,32,TRUE);
@@ -815,13 +815,13 @@ void BuildControls(){
         SendMessageW(tr,TBM_SETRANGE,TRUE,MAKELONG(mn,mx));
         Add(L"STATIC",L"",SS_OWNERDRAW,rightX+rightW-76,y-2,76,28,vid);
     };
-    slider(L"Brightness",IDC_LBL_BRI,IDC_BRI,IDC_VALBRI,330,80,120);
-    slider(L"Contrast",IDC_LBL_CON,IDC_CON,IDC_VALCON,390,80,120);
-    slider(L"Gamma",IDC_LBL_GAM,IDC_GAM,IDC_VALGAM,450,30,280);
-    slider(L"Digital Vibrance (%)",IDC_LBL_VIB,IDC_VIB,IDC_VALVIB,510,0,100);
-    slider(L"Hue (\x00B0)",IDC_LBL_HUE,IDC_HUE,IDC_VALHUE,570,0,359);
+    slider(L"Brightness",IDC_LBL_BRI,IDC_BRI,IDC_VALBRI,340,80,120);
+    slider(L"Contrast",IDC_LBL_CON,IDC_CON,IDC_VALCON,400,80,120);
+    slider(L"Gamma",IDC_LBL_GAM,IDC_GAM,IDC_VALGAM,460,30,280);
+    slider(L"Digital Vibrance (%)",IDC_LBL_VIB,IDC_VIB,IDC_VALVIB,520,0,100);
+    slider(L"Hue (\x00B0)",IDC_LBL_HUE,IDC_HUE,IDC_VALHUE,580,0,359);
 
-    Add(L"BUTTON",L"Save profile",BS_OWNERDRAW,rightX,650,150,38,IDC_SAVE);
+    Add(L"BUTTON",L"Save profile",BS_OWNERDRAW,rightX,660,150,38,IDC_SAVE);
     Add(L"BUTTON",L"Add game",BS_OWNERDRAW,34,r.bottom-172,118,38,IDC_ADD);
     Add(L"BUTTON",L"Remove",BS_OWNERDRAW,164,r.bottom-172,104,38,IDC_REMOVE);
 
