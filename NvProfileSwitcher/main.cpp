@@ -357,8 +357,6 @@ int DvcRawFromPercent(int percent,const DVCINFOEX& d){
     return (int)llround(d.defaultLevel-t*(d.defaultLevel-d.minLevel));
 }
 
-// NVIDIA display-pipeline LUT, matching the native curve used by
-// NvColorProfiles 1.2.3 / NvAPI_DISP_SetTargetGammaCorrection.
 bool SetNvGamma(unsigned int displayId,double bri,double con,double gam){
     if(!pSetTargetGamma||!displayId)return false;
     NV_GAMMA_CORRECTION_EX data{};
