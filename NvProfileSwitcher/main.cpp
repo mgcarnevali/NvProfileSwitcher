@@ -782,7 +782,7 @@ void Paint(HWND w){
     int versionY=ver.top+((ver.bottom-ver.top)-versionSize.cy)/2;
     DrawLabel(dc,versionBadge.c_str(),versionX,versionY,C_ACCENT,gFontBold);
 
-    DrawLabel(dc,L"GAME PROFILES",38,94,C_MUTED,gFontBold);
+    DrawLabel(dc,L"PROFILES",38,94,C_MUTED,gFontBold);
     DrawLabel(dc,L"PROFILE SETTINGS",rightX+22,94,C_MUTED,gFontBold);
 
     if(!gStatusOk && !gStatus.empty()){
@@ -1349,7 +1349,7 @@ case WM_CTLCOLORSTATIC:{HDC dc=(HDC)wp;SetTextColor(dc,C_TEXT);SetBkColor(dc,C_P
         SelectObject(d->hDC,gFontBold);
         GetTextExtentPoint32W(d->hDC,title,(int)wcslen(title),&titleSize);
         DrawLabel(d->hDC,title,x+54,d->rcItem.top+(rowH-titleSize.cy)/2,C_TEXT,gFontBold);
-        Fill(d->hDC,d->rcItem.left+10,d->rcItem.bottom-1,d->rcItem.right-d->rcItem.left-20,1,C_BORDER);
+        Fill(d->hDC,d->rcItem.left,d->rcItem.bottom-1,d->rcItem.right-d->rcItem.left,1,C_BORDER);
         return TRUE;
     }
     break;
