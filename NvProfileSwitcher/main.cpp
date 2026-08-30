@@ -153,11 +153,11 @@ void Save(){
          <<sp<<"  \"Name\": \""<<Escape(p.name)<<"\",\n"
          <<sp<<"  \"ExePath\": \""<<Escape(p.exePath)<<"\",\n"
          <<sp<<"  \"DisplayName\": \""<<Escape(p.displayName)<<"\",\n"
-         <<sp<<"  \"DigitalVibrance\": "<<p.vibrance<<",\n"
-         <<sp<<"  \"Hue\": "<<p.hue<<",\n"
          <<sp<<"  \"Brightness\": "<<p.brightness<<",\n"
          <<sp<<"  \"Contrast\": "<<p.contrast<<",\n"
          <<sp<<"  \"Gamma\": "<<p.gamma<<",\n"
+         <<sp<<"  \"DigitalVibrance\": "<<p.vibrance<<",\n"
+         <<sp<<"  \"Hue\": "<<p.hue<<",\n"
          <<sp<<"  \"Enabled\": "<<(p.enabled?"true":"false")<<"\n"
          <<sp<<"}";
     };
