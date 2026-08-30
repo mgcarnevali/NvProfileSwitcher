@@ -464,7 +464,7 @@ HWND Add(const wchar_t*cls,const wchar_t*txt,DWORD style,int x,int y,int w,int h
 void RefreshList(){ HWND l=H(IDC_LIST); SendMessageW(l,LB_RESETCONTENT,0,0); SendMessageW(l,LB_ADDSTRING,0,(LPARAM)gSettings.desktop.name.c_str()); for(auto&p:gSettings.profiles)SendMessageW(l,LB_ADDSTRING,0,(LPARAM)p.name.c_str()); int maxSel=(int)gSettings.profiles.size(); gSelected=std::clamp(gSelected,0,maxSel); SendMessageW(l,LB_SETCURSEL,gSelected,0); }
 void UpdateSliderLabels(){
     Txt(IDC_VALVIB,std::to_wstring((int)SendMessageW(H(IDC_VIB),TBM_GETPOS,0,0))+L"%");
-    Txt(IDC_VALHUE,std::to_wstring((int)SendMessageW(H(IDC_HUE),TBM_GETPOS,0,0))+L"°");
+    Txt(IDC_VALHUE,std::to_wstring((int)SendMessageW(H(IDC_HUE),TBM_GETPOS,0,0))+L"\x00B0");
     Txt(IDC_VALBRI,std::to_wstring((int)SendMessageW(H(IDC_BRI),TBM_GETPOS,0,0)));
     Txt(IDC_VALCON,std::to_wstring((int)SendMessageW(H(IDC_CON),TBM_GETPOS,0,0)));
     int gp=(int)SendMessageW(H(IDC_GAM),TBM_GETPOS,0,0);
@@ -492,11 +492,11 @@ void SetDesktopUi(bool desktop){
     ShowWindow(H(IDC_REMOVE),desktop?SW_HIDE:SW_SHOW);
 
     const int yDisplay=desktop?132:278;
-    const int yVib=desktop?185:330;
-    const int yHue=desktop?245:390;
-    const int yBri=desktop?305:450;
-    const int yCon=desktop?365:510;
-    const int yGam=desktop?425:570;
+    const int yBri=desktop?185:330;
+    const int yCon=desktop?245:390;
+    const int yGam=desktop?305:450;
+    const int yVib=desktop?365:510;
+    const int yHue=desktop?425:570;
     const int ySave=desktop?505:650;
 
     MoveWindow(H(IDC_LBL_DISPLAY),rightX,yDisplay,160,22,TRUE);
@@ -504,11 +504,11 @@ void SetDesktopUi(bool desktop){
 
     struct SPos{int lbl,track,val,y;};
     for(auto sp:std::vector<SPos>{
-        {IDC_LBL_VIB,IDC_VIB,IDC_VALVIB,yVib},
-        {IDC_LBL_HUE,IDC_HUE,IDC_VALHUE,yHue},
         {IDC_LBL_BRI,IDC_BRI,IDC_VALBRI,yBri},
         {IDC_LBL_CON,IDC_CON,IDC_VALCON,yCon},
-        {IDC_LBL_GAM,IDC_GAM,IDC_VALGAM,yGam}
+        {IDC_LBL_GAM,IDC_GAM,IDC_VALGAM,yGam},
+        {IDC_LBL_VIB,IDC_VIB,IDC_VALVIB,yVib},
+        {IDC_LBL_HUE,IDC_HUE,IDC_VALHUE,yHue}
     }){
         MoveWindow(H(sp.lbl),rightX,sp.y,190,22,TRUE);
         MoveWindow(H(sp.track),rightX,sp.y+27,rightW-92,28,TRUE);
@@ -805,11 +805,11 @@ void BuildControls(){
         SendMessageW(tr,TBM_SETRANGE,TRUE,MAKELONG(mn,mx));
         Add(L"STATIC",L"",SS_OWNERDRAW,rightX+rightW-76,y-2,76,28,vid);
     };
-    slider(L"Digital Vibrance (%)",IDC_LBL_VIB,IDC_VIB,IDC_VALVIB,330,0,100);
-    slider(L"Hue",IDC_LBL_HUE,IDC_HUE,IDC_VALHUE,390,0,359);
-    slider(L"Brightness",IDC_LBL_BRI,IDC_BRI,IDC_VALBRI,450,80,120);
-    slider(L"Contrast",IDC_LBL_CON,IDC_CON,IDC_VALCON,510,80,120);
-    slider(L"Gamma",IDC_LBL_GAM,IDC_GAM,IDC_VALGAM,570,30,280);
+    slider(L"Brightness",IDC_LBL_BRI,IDC_BRI,IDC_VALBRI,330,80,120);
+    slider(L"Contrast",IDC_LBL_CON,IDC_CON,IDC_VALCON,390,80,120);
+    slider(L"Gamma",IDC_LBL_GAM,IDC_GAM,IDC_VALGAM,450,30,280);
+    slider(L"Digital Vibrance (%)",IDC_LBL_VIB,IDC_VIB,IDC_VALVIB,510,0,100);
+    slider(L"Hue (\x00B0)",IDC_LBL_HUE,IDC_HUE,IDC_VALHUE,570,0,359);
 
     Add(L"BUTTON",L"Save profile",BS_OWNERDRAW,rightX,650,150,38,IDC_SAVE);
     Add(L"BUTTON",L"Add game",BS_OWNERDRAW,34,r.bottom-172,118,38,IDC_ADD);
