@@ -268,6 +268,12 @@ void EnumerateNvDisplays(){
     if(gDisplays.empty() && gDisplay && gDisplayId){
         gDisplays.push_back({L"",L"Primary NVIDIA display",gDisplay,gDisplayId,true});
     }
+
+    // Keep the primary display first so combo indices always match gDisplays.
+    std::stable_sort(gDisplays.begin(),gDisplays.end(),
+        [](const DisplayTarget& a,const DisplayTarget& b){
+            return a.primary && !b.primary;
+        });
 }
 
 bool Apply(const GameProfile& p);
@@ -308,21 +314,8 @@ void RefreshDisplayCombo(const GameProfile& p){
     HWND c=GetDlgItem(gWnd,IDC_DISPLAY);
     if(!c) return;
     SendMessageW(c,CB_RESETCONTENT,0,0);
-
-    // Always show the primary display first and select it by default.
-    int primary=-1;
-    for(size_t i=0;i<gDisplays.size();++i){
-        if(gDisplays[i].primary){
-            primary=(int)i;
-            SendMessageW(c,CB_ADDSTRING,0,(LPARAM)gDisplays[i].label.c_str());
-            break;
-        }
-    }
-    for(size_t i=0;i<gDisplays.size();++i){
-        if((int)i==primary) continue;
-        SendMessageW(c,CB_ADDSTRING,0,(LPARAM)gDisplays[i].label.c_str());
-    }
-
+    for(const auto& d:gDisplays)
+        SendMessageW(c,CB_ADDSTRING,0,(LPARAM)d.label.c_str());
     if(!gDisplays.empty()) SendMessageW(c,CB_SETCURSEL,0,0);
 }
 
