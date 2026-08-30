@@ -308,14 +308,12 @@ void RefreshDisplayCombo(const GameProfile& p){
     HWND c=GetDlgItem(gWnd,IDC_DISPLAY);
     if(!c) return;
     SendMessageW(c,CB_RESETCONTENT,0,0);
-    int selected=-1, primary=-1;
+    int primary=-1;
     for(size_t i=0;i<gDisplays.size();++i){
         SendMessageW(c,CB_ADDSTRING,0,(LPARAM)gDisplays[i].label.c_str());
         if(gDisplays[i].primary) primary=(int)i;
-        if(!p.displayName.empty() && _wcsicmp(gDisplays[i].gdiName.c_str(),p.displayName.c_str())==0)
-            selected=(int)i;
     }
-    if(selected<0) selected=primary>=0?primary:(gDisplays.empty()?-1:0);
+    int selected=primary>=0?primary:(gDisplays.empty()?-1:0);
     if(selected>=0) SendMessageW(c,CB_SETCURSEL,selected,0);
 }
 
