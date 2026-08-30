@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <cmath>
 #include "resource.h"
+#include "version.h"
 
 #pragma comment(lib, "comctl32.lib")
 #pragma comment(lib, "shell32.lib")
@@ -50,7 +51,7 @@ constexpr COLORREF C_TEXT=RGB(241,244,247), C_MUTED=RGB(151,161,171), C_ACCENT=R
 constexpr COLORREF C_TRACK=RGB(61,67,73), C_WINBLUE=RGB(0,120,215);
 constexpr UINT WM_TRAY=WM_APP+1;
 constexpr UINT WM_UPDATE_AVAILABLE=WM_APP+2;
-constexpr wchar_t APP_VERSION[]=L"0.6.19";
+constexpr wchar_t APP_VERSION[]=NVPS_VERSION_WSTR;
 constexpr wchar_t APP_URL[]=L"https://github.com/mgcarnevali/NvProfileSwitcher";
 constexpr wchar_t SUPPORT_URL[]=L"https://ko-fi.com/mgcarnevali";
 constexpr wchar_t UPDATE_HOST[]=L"api.github.com";
@@ -765,13 +766,20 @@ void Paint(HWND w){
     DrawLabel(dc,L"NvProfileSwitcher",28,22,C_TEXT,gFontTitle);
     DrawLabel(dc,L"Automatic per-game NVIDIA display color profiles for Windows",28,49,C_MUTED);
 
-    RECT ver{rc.right-92,19,rc.right-28,49};
-    FillRound(dc,ver,C_PANEL2,C_BORDER,7);
-    std::wstring versionBadge=L"v";
+    std::wstring versionBadge;
+#if NVPS_DEV_BUILD
+    versionBadge=APP_VERSION;
+#else
+    versionBadge=L"v";
     versionBadge+=APP_VERSION;
+#endif
     SIZE versionSize{};
     SelectObject(dc,gFontBold);
     GetTextExtentPoint32W(dc,versionBadge.c_str(),(int)versionBadge.size(),&versionSize);
+    const int versionPad=14;
+    const int versionWidth=std::max(64,versionSize.cx+versionPad*2);
+    RECT ver{rc.right-28-versionWidth,19,rc.right-28,49};
+    FillRound(dc,ver,C_PANEL2,C_BORDER,7);
     int versionX=ver.left+((ver.right-ver.left)-versionSize.cx)/2;
     int versionY=ver.top+((ver.bottom-ver.top)-versionSize.cy)/2;
     DrawLabel(dc,versionBadge.c_str(),versionX,versionY,C_ACCENT,gFontBold);
