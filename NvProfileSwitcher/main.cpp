@@ -50,7 +50,7 @@ constexpr COLORREF C_TEXT=RGB(241,244,247), C_MUTED=RGB(151,161,171), C_ACCENT=R
 constexpr COLORREF C_TRACK=RGB(61,67,73), C_WINBLUE=RGB(0,120,215);
 constexpr UINT WM_TRAY=WM_APP+1;
 constexpr UINT WM_UPDATE_AVAILABLE=WM_APP+2;
-constexpr wchar_t APP_VERSION[]=L"0.6.17";
+constexpr wchar_t APP_VERSION[]=L"0.6.18";
 constexpr wchar_t APP_URL[]=L"https://github.com/mgcarnevali/NvProfileSwitcher";
 constexpr wchar_t SUPPORT_URL[]=L"https://ko-fi.com/mgcarnevali";
 constexpr wchar_t UPDATE_HOST[]=L"api.github.com";
@@ -769,7 +769,12 @@ void Paint(HWND w){
     FillRound(dc,ver,C_PANEL2,C_BORDER,7);
     std::wstring versionBadge=L"v";
     versionBadge+=APP_VERSION;
-    DrawLabel(dc,versionBadge.c_str(),rc.right-80,27,C_ACCENT,gFontBold);
+    SIZE versionSize{};
+    SelectObject(dc,gFontBold);
+    GetTextExtentPoint32W(dc,versionBadge.c_str(),(int)versionBadge.size(),&versionSize);
+    int versionX=ver.left+((ver.right-ver.left)-versionSize.cx)/2;
+    int versionY=ver.top+((ver.bottom-ver.top)-versionSize.cy)/2;
+    DrawLabel(dc,versionBadge.c_str(),versionX,versionY,C_ACCENT,gFontBold);
 
     DrawLabel(dc,L"GAME PROFILES",38,94,C_MUTED,gFontBold);
     DrawLabel(dc,L"PROFILE SETTINGS",rightX+22,94,C_MUTED,gFontBold);
