@@ -33,6 +33,8 @@ your Windows profile is automatically restored.
 - Enable or disable individual game profiles
 - Start automatically with Windows
 - Start minimized to the system tray
+- Optional minimize-to-tray behavior
+- Single-instance support
 - Built-in update checker
 - Lightweight native C++ application
 - Portable — no installation required
@@ -56,15 +58,29 @@ your Windows profile is automatically restored.
 
 Download the latest version from the **Releases** section.
 
-Extract:
+Before extracting the archive, Windows may mark the downloaded file as coming
+from the Internet. To avoid Windows blocking the executable:
 
-`NvProfileSwitcher-vX.X.X.zip`
-
-and run:
-
-`NvProfileSwitcher.exe`
+1. Right-click `NvProfileSwitcher-vX.X.X.zip`.
+2. Select **Properties**.
+3. Under the **General** tab, check **Unblock** if the option is available.
+4. Click **Apply** and **OK**.
+5. Extract the ZIP and run `NvProfileSwitcher.exe`.
 
 No installer or additional runtime is required.
+
+### Windows SmartScreen
+
+NvProfileSwitcher is currently distributed as an unsigned executable. Because
+of this, Microsoft Defender SmartScreen may display a warning when launching
+the application for the first time.
+
+This warning does not necessarily indicate that NvProfileSwitcher contains
+malware. Unsigned applications with limited download reputation can trigger
+SmartScreen until they establish sufficient reputation.
+
+Always download NvProfileSwitcher from the official GitHub repository or its
+Releases page.
 
 ### Requirements
 
@@ -103,12 +119,15 @@ The controls are applied directly through the NVIDIA display pipeline / NVAPI.
 
 ## Multi-monitor support
 
-NvProfileSwitcher detects available NVIDIA displays and allows a profile to
-target a specific monitor.
+NvProfileSwitcher detects available NVIDIA displays and allows Windows and game
+profiles to store independent color settings for each monitor.
 
-Windows settings can also be stored separately for each configured display,
-allowing every monitor to return to its own desktop color profile when you
-leave a game.
+Selecting a different display shows the values saved specifically for that
+monitor.
+
+When a configured game becomes active, NvProfileSwitcher applies the saved game
+settings to the corresponding displays. When you leave the game, each monitor
+returns to its own saved Windows color profile.
 
 ## System tray
 
@@ -117,17 +136,26 @@ NvProfileSwitcher can run silently from the Windows system tray.
 The tray menu provides:
 
 - Open NvProfileSwitcher
+- Check for updates
 - About NvProfileSwitcher
 - Exit
 
-Minimizing the application sends it to the tray.
+The **Minimize to tray** option controls the behavior of the minimize button.
 
-If **Start with Windows** is enabled, NvProfileSwitcher can start automatically
-and remain minimized while handling profile switching in the background.
+When enabled, minimizing NvProfileSwitcher hides it in the system tray.
+When disabled, the application minimizes normally to the Windows taskbar.
+
+The **Start with Windows** option allows NvProfileSwitcher to launch
+automatically when you sign in to Windows.
+
+The **Start minimized to tray** option allows it to start directly in the
+system tray while handling profile switching in the background.
 
 ## Update checker
 
 NvProfileSwitcher checks GitHub for new releases when the application starts.
+
+You can also manually check for updates from the system tray menu.
 
 If a newer version is available, a notification provides a direct link to the
 latest GitHub release.
@@ -148,10 +176,10 @@ NvProfileSwitcher monitors the application that currently owns the foreground
 window.
 
 When its executable matches an enabled game profile, the corresponding NVIDIA
-color settings are applied to the selected display.
+color settings are applied to the configured displays.
 
 When the foreground application no longer matches a configured game,
-NvProfileSwitcher restores the saved Windows profiles.
+NvProfileSwitcher restores the saved Windows profiles for each display.
 
 Digital Vibrance and Hue are controlled through NVIDIA NVAPI.
 
