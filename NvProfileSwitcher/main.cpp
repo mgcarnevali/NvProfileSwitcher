@@ -227,82 +227,48 @@ std::string NvDisplayNameA(const std::wstring& gdi){
     return W2U(n);
 }
 
-struct MonitorEnumEntry {
-    std::wstring gdiName;
-    bool primary{};
-};
-
-BOOL CALLBACK CollectMonitorProc(HMONITOR hMonitor,HDC,LPRECT,LPARAM data){
-    auto* monitors=reinterpret_cast<std::vector<MonitorEnumEntry>*>(data);
-    MONITORINFOEXW mi{};
-    mi.cbSize=sizeof(mi);
-    if(GetMonitorInfoW(hMonitor,&mi)){
-        monitors->push_back({
-            mi.szDevice,
-            (mi.dwFlags&MONITORINFOF_PRIMARY)!=0
-        });
-    }
-    return TRUE;
-}
-
 void EnumerateNvDisplays(){
     gDisplays.clear();
     if(!pGetAssociatedDisplayHandle||!pGetDisplayIdByName) return;
 
-    // Enumerate the actual desktop monitors first.  The previous code used
-    // EnumDisplayDevices(nullptr, i, ...), whose entries are display-device /
-    // adapter records and can produce the wrong association when multiple
-    // monitors are attached to the same NVIDIA adapter.
-    //
-    // MONITORINFOEX::szDevice gives the real GDI monitor name
-    // (\\.\DISPLAY1, \\.\DISPLAY2, ...).  We use THAT SAME name to obtain both
-    // the NvDisplayHandle (DVC/Hue) and the displayId (gamma), keeping all three
-    // identifiers bound to the same physical Windows monitor.
-    std::vector<MonitorEnumEntry> monitors;
-    EnumDisplayMonitors(nullptr,nullptr,CollectMonitorProc,(LPARAM)&monitors);
+    for(DWORD i=0;;++i){
+        DISPLAY_DEVICEW dd{};
+        dd.cb=sizeof(dd);
+        if(!EnumDisplayDevicesW(nullptr,i,&dd,0)) break;
+        if(!(dd.StateFlags&DISPLAY_DEVICE_ACTIVE) || (dd.StateFlags&DISPLAY_DEVICE_MIRRORING_DRIVER)) continue;
 
-    for(const auto& m:monitors){
-        const std::wstring& gdi=m.gdiName;
+        std::wstring gdi=dd.DeviceName;
         std::string nvName=NvDisplayNameA(gdi);
         std::string gdiUtf8=W2U(gdi);
 
         void* handle=nullptr;
         unsigned int id=0;
-
-        int hs=pGetAssociatedDisplayHandle(gdiUtf8.c_str(),&handle);
-        if(hs!=0 || !handle)
-            hs=pGetAssociatedDisplayHandle(nvName.c_str(),&handle);
-
-        int is=pGetDisplayIdByName(gdiUtf8.c_str(),&id);
-        if(is!=0 || !id)
-            is=pGetDisplayIdByName(nvName.c_str(),&id);
-
-        // Not an NVIDIA-driven monitor (for example an iGPU output).
+        int hs=pGetAssociatedDisplayHandle(nvName.c_str(),&handle);
+        if(hs!=0) hs=pGetAssociatedDisplayHandle(gdiUtf8.c_str(),&handle);
+        int is=pGetDisplayIdByName(nvName.c_str(),&id);
+        if(is!=0) is=pGetDisplayIdByName(gdiUtf8.c_str(),&id);
         if(hs!=0 || is!=0 || !handle || !id) continue;
 
         DISPLAY_DEVICEW mon{};
         mon.cb=sizeof(mon);
         std::wstring friendly;
-        if(EnumDisplayDevicesW(gdi.c_str(),0,&mon,0) && mon.DeviceString[0])
+        if(EnumDisplayDevicesW(dd.DeviceName,0,&mon,0) && mon.DeviceString[0])
             friendly=mon.DeviceString;
+        if(friendly.empty() && dd.DeviceString[0]) friendly=dd.DeviceString;
         if(friendly.empty()) friendly=L"NVIDIA display";
 
-        std::wstring label=friendly;
-        if(m.primary) label+=L" (Primary)";
+        bool primary=(dd.StateFlags&DISPLAY_DEVICE_PRIMARY_DEVICE)!=0;
 
-        gDisplays.push_back({gdi,label,handle,id,m.primary});
+        std::wstring label=friendly;
+        if(primary) label+=L" (Primary)";
+
+        gDisplays.push_back({gdi,label,handle,id,primary});
     }
 
     if(gDisplays.empty() && gDisplay && gDisplayId){
         gDisplays.push_back({L"",L"Primary NVIDIA display",gDisplay,gDisplayId,true});
     }
 
-    // Primary first.  The combo is populated from this vector in the same order,
-    // so a combo index always refers to the exact same DisplayTarget.
-    std::stable_sort(gDisplays.begin(),gDisplays.end(),
-        [](const DisplayTarget& a,const DisplayTarget& b){
-            return a.primary && !b.primary;
-        });
 }
 
 bool Apply(const GameProfile& p);
@@ -343,9 +309,15 @@ void RefreshDisplayCombo(const GameProfile& p){
     HWND c=GetDlgItem(gWnd,IDC_DISPLAY);
     if(!c) return;
     SendMessageW(c,CB_RESETCONTENT,0,0);
-    for(const auto& d:gDisplays)
-        SendMessageW(c,CB_ADDSTRING,0,(LPARAM)d.label.c_str());
-    if(!gDisplays.empty()) SendMessageW(c,CB_SETCURSEL,0,0);
+    int selected=-1, primary=-1;
+    for(size_t i=0;i<gDisplays.size();++i){
+        SendMessageW(c,CB_ADDSTRING,0,(LPARAM)gDisplays[i].label.c_str());
+        if(gDisplays[i].primary) primary=(int)i;
+        if(!p.displayName.empty() && _wcsicmp(gDisplays[i].gdiName.c_str(),p.displayName.c_str())==0)
+            selected=(int)i;
+    }
+    if(selected<0) selected=primary>=0?primary:(gDisplays.empty()?-1:0);
+    if(selected>=0) SendMessageW(c,CB_SETCURSEL,selected,0);
 }
 
 bool InitNv(){
