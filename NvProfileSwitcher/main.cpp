@@ -539,12 +539,23 @@ void LoadSelected(){
 
     GameProfile* p=nullptr;
     if(desktop){
-        GameProfile seed=DesktopTemplate();
-        if(!gSettings.desktopProfiles.empty()) seed=gSettings.desktopProfiles.front();
-        RefreshDisplayCombo(seed);
-        int ds=(int)SendMessageW(H(IDC_DISPLAY),CB_GETCURSEL,0,0);
-        if(ds>=0&&ds<(int)gDisplays.size()) p=EnsureDesktopProfile(gDisplays[ds].gdiName);
-        else p=&gSettings.desktop;
+        // Windows must always open on the real primary monitor.
+        // Do not seed the combo from desktopProfiles.front(), because that is
+        // merely the first saved profile and may belong to another display.
+        int primary=-1;
+        for(size_t di=0;di<gDisplays.size();++di){
+            if(gDisplays[di].primary){ primary=(int)di; break; }
+        }
+        if(primary<0 && !gDisplays.empty()) primary=0;
+
+        if(primary>=0){
+            p=EnsureDesktopProfile(gDisplays[primary].gdiName);
+            RefreshDisplayCombo(*p);
+            SendMessageW(H(IDC_DISPLAY),CB_SETCURSEL,primary,0);
+        }else{
+            p=&gSettings.desktop;
+            RefreshDisplayCombo(*p);
+        }
     }else{
         p=SelectedProfile();
         if(!p)return;
