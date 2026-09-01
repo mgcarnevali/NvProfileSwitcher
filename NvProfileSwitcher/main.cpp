@@ -227,49 +227,78 @@ std::string NvDisplayNameA(const std::wstring& gdi){
     return W2U(n);
 }
 
+struct MonitorEnumEntry {
+    std::wstring gdiName;
+    bool primary{};
+};
+
+BOOL CALLBACK CollectMonitorProc(HMONITOR hMonitor,HDC,LPRECT,LPARAM data){
+    auto* monitors=reinterpret_cast<std::vector<MonitorEnumEntry>*>(data);
+    MONITORINFOEXW mi{};
+    mi.cbSize=sizeof(mi);
+    if(GetMonitorInfoW(hMonitor,&mi)){
+        monitors->push_back({
+            mi.szDevice,
+            (mi.dwFlags&MONITORINFOF_PRIMARY)!=0
+        });
+    }
+    return TRUE;
+}
+
 void EnumerateNvDisplays(){
     gDisplays.clear();
     if(!pGetAssociatedDisplayHandle||!pGetDisplayIdByName) return;
 
-    for(DWORD i=0;;++i){
-        DISPLAY_DEVICEW dd{};
-        dd.cb=sizeof(dd);
-        if(!EnumDisplayDevicesW(nullptr,i,&dd,0)) break;
-        if(!(dd.StateFlags&DISPLAY_DEVICE_ACTIVE) || (dd.StateFlags&DISPLAY_DEVICE_MIRRORING_DRIVER)) continue;
+    // Enumerate the actual desktop monitors first.  The previous code used
+    // EnumDisplayDevices(nullptr, i, ...), whose entries are display-device /
+    // adapter records and can produce the wrong association when multiple
+    // monitors are attached to the same NVIDIA adapter.
+    //
+    // MONITORINFOEX::szDevice gives the real GDI monitor name
+    // (\\.\DISPLAY1, \\.\DISPLAY2, ...).  We use THAT SAME name to obtain both
+    // the NvDisplayHandle (DVC/Hue) and the displayId (gamma), keeping all three
+    // identifiers bound to the same physical Windows monitor.
+    std::vector<MonitorEnumEntry> monitors;
+    EnumDisplayMonitors(nullptr,nullptr,CollectMonitorProc,(LPARAM)&monitors);
 
-        std::wstring gdi=dd.DeviceName;
+    for(const auto& m:monitors){
+        const std::wstring& gdi=m.gdiName;
         std::string nvName=NvDisplayNameA(gdi);
         std::string gdiUtf8=W2U(gdi);
 
         void* handle=nullptr;
         unsigned int id=0;
-        int hs=pGetAssociatedDisplayHandle(nvName.c_str(),&handle);
-        if(hs!=0) hs=pGetAssociatedDisplayHandle(gdiUtf8.c_str(),&handle);
-        int is=pGetDisplayIdByName(nvName.c_str(),&id);
-        if(is!=0) is=pGetDisplayIdByName(gdiUtf8.c_str(),&id);
+
+        int hs=pGetAssociatedDisplayHandle(gdiUtf8.c_str(),&handle);
+        if(hs!=0 || !handle)
+            hs=pGetAssociatedDisplayHandle(nvName.c_str(),&handle);
+
+        int is=pGetDisplayIdByName(gdiUtf8.c_str(),&id);
+        if(is!=0 || !id)
+            is=pGetDisplayIdByName(nvName.c_str(),&id);
+
+        // Not an NVIDIA-driven monitor (for example an iGPU output).
         if(hs!=0 || is!=0 || !handle || !id) continue;
 
         DISPLAY_DEVICEW mon{};
         mon.cb=sizeof(mon);
         std::wstring friendly;
-        if(EnumDisplayDevicesW(dd.DeviceName,0,&mon,0) && mon.DeviceString[0])
+        if(EnumDisplayDevicesW(gdi.c_str(),0,&mon,0) && mon.DeviceString[0])
             friendly=mon.DeviceString;
-        if(friendly.empty() && dd.DeviceString[0]) friendly=dd.DeviceString;
         if(friendly.empty()) friendly=L"NVIDIA display";
 
-        bool primary=(dd.StateFlags&DISPLAY_DEVICE_PRIMARY_DEVICE)!=0;
-
         std::wstring label=friendly;
-        if(primary) label+=L" (Primary)";
+        if(m.primary) label+=L" (Primary)";
 
-        gDisplays.push_back({gdi,label,handle,id,primary});
+        gDisplays.push_back({gdi,label,handle,id,m.primary});
     }
 
     if(gDisplays.empty() && gDisplay && gDisplayId){
         gDisplays.push_back({L"",L"Primary NVIDIA display",gDisplay,gDisplayId,true});
     }
 
-    // Keep the primary display first so combo indices always match gDisplays.
+    // Primary first.  The combo is populated from this vector in the same order,
+    // so a combo index always refers to the exact same DisplayTarget.
     std::stable_sort(gDisplays.begin(),gDisplays.end(),
         [](const DisplayTarget& a,const DisplayTarget& b){
             return a.primary && !b.primary;
