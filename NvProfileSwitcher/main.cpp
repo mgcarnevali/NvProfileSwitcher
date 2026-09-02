@@ -1093,28 +1093,37 @@ void DrawLabel(HDC dc,const wchar_t*t,int x,int y,COLORREF c,HFONT f=nullptr){ S
 void Fill(HDC dc,int x,int y,int w,int h,COLORREF c){HBRUSH b=CreateSolidBrush(c);RECT r{x,y,x+w,y+h};FillRect(dc,&r,b);DeleteObject(b);} 
 
 
-void DrawPrototypeProfileIcon(HDC dc,int x,int y){
+void DrawProfilesSectionIcon(HDC dc,int x,int y){
+    HPEN p=CreatePen(PS_SOLID,2,C_ACCENT);
+    HGDIOBJ oldPen=SelectObject(dc,p);
+    HGDIOBJ oldBrush=SelectObject(dc,GetStockObject(NULL_BRUSH));
+
+    // Two overlapping profile cards, like the original prototype heading icon.
+    RoundRect(dc,x+5,y,x+22,y+15,3,3);
+    RoundRect(dc,x,y+5,x+17,y+20,3,3);
+
+    SelectObject(dc,oldBrush);
+    SelectObject(dc,oldPen);
+    DeleteObject(p);
+}
+
+void DrawProfileSettingsSectionIcon(HDC dc,int x,int y){
     HPEN p=CreatePen(PS_SOLID,2,C_ACCENT);
     HGDIOBJ oldPen=SelectObject(dc,p);
 
+    const int knobX[3]={7,16,11};
     for(int i=0;i<3;i++){
         int yy=y+i*8;
-
         MoveToEx(dc,x,yy,nullptr);
         LineTo(dc,x+22,yy);
 
-        int dotX=x+6+i*5;
         HBRUSH b=CreateSolidBrush(C_ACCENT);
-        HPEN dp=CreatePen(PS_SOLID,1,C_ACCENT);
         HGDIOBJ oldBrush=SelectObject(dc,b);
-        HGDIOBJ oldDotPen=SelectObject(dc,dp);
-
+        HGDIOBJ oldPen2=SelectObject(dc,p);
         const int r=3;
-        Ellipse(dc,dotX-r,yy-r,dotX+r+1,yy+r+1);
-
-        SelectObject(dc,oldDotPen);
+        Ellipse(dc,x+knobX[i]-r,yy-r,x+knobX[i]+r+1,yy+r+1);
+        SelectObject(dc,oldPen2);
         SelectObject(dc,oldBrush);
-        DeleteObject(dp);
         DeleteObject(b);
     }
 
@@ -1220,11 +1229,10 @@ void Paint(HWND w){
     int versionY=ver.top+((ver.bottom-ver.top)-versionSize.cy)/2;
     DrawLabel(dc,versionBadge.c_str(),versionX,versionY,C_ACCENT,gFontBold);
 
-    // Original prototype ProfileIcon() adapted to this compact layout.
-    DrawPrototypeProfileIcon(dc,38,95);
+    DrawProfilesSectionIcon(dc,38,94);
     DrawLabel(dc,L"PROFILES",68,94,C_ACCENT,gFontBold);
 
-    DrawPrototypeProfileIcon(dc,rightX+22,95);
+    DrawProfileSettingsSectionIcon(dc,rightX+22,95);
     DrawLabel(dc,L"PROFILE SETTINGS",rightX+52,94,C_ACCENT,gFontBold);
 
     // Original slider icons extracted from the prototype artwork.
