@@ -1047,7 +1047,7 @@ void BuildControls(){
     int rightX=rightPanelX+22;
     int rightW=r.right-rightX-margin-22;
 
-    HWND list=Add(L"LISTBOX",L"",LBS_NOTIFY|LBS_OWNERDRAWFIXED|WS_VSCROLL,34,124,leftW-32,r.bottom-308,IDC_LIST);
+    HWND list=Add(L"LISTBOX",L"",LBS_NOTIFY|LBS_OWNERDRAWFIXED|WS_VSCROLL,34,124,leftW-32,r.bottom-308,IDC_LIST);SetWindowTheme(list,L"DarkMode_Explorer",nullptr);
     SendMessageW(list,LB_SETITEMHEIGHT,0,56);
 
     Add(L"STATIC",L"Profile name",0,rightX,122,160,22,IDC_LBL_NAME);
