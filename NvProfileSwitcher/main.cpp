@@ -71,7 +71,7 @@ enum {IDC_LIST=1001,IDC_NAME,IDC_EXE,IDC_BROWSE,IDC_ENABLED,IDC_DISPLAY,IDC_LBL_
 enum {ID_TRAY_OPEN=2001,ID_TRAY_CHECK_UPDATE,ID_TRAY_ABOUT,ID_TRAY_EXIT};
 
 HINSTANCE gInst{}; HWND gWnd{}; HFONT gFont{},gFontBold{},gFontTitle{},gIconFont{}; HBRUSH gBackBrush{},gPanelBrush{},gPanel2Brush{},gFieldBrush{}; HICON gIcon{};
-Settings gSettings; int gSelected=-1; bool gReallyExit=false; std::wstring gActive=L"Windows", gStatus=L"Not initialized"; bool gStatusOk=false;
+Settings gSettings; int gSelected=-1; bool gReallyExit=false; std::wstring gActive=L"Windows", gStatus=L"Not initialized", gDriverVersion=L"--"; bool gStatusOk=false;
 NOTIFYICONDATAW gNid{}; HMENU gTrayMenu{};
 
 using NvQueryInterface=void* (__cdecl*)(unsigned int);
@@ -88,7 +88,7 @@ struct NV_GAMMA_CORRECTION_EX {
     unsigned int unknown;
 };
 #pragma pack(pop)
-using NvGetPrimaryDisplayId=int (__cdecl*)(unsigned int*);
+using NvGetPrimaryDisplayId=int (__cdecl*)(unsigned int*); using NvGetDisplayDriverVersion=int (__cdecl*)(unsigned int*,wchar_t*);
 using NvSetTargetGamma=int (__cdecl*)(unsigned int,NV_GAMMA_CORRECTION_EX*);
 using NvGetAssociatedDisplayHandle=int (__cdecl*)(const char*,void**);
 using NvGetDisplayIdByName=int (__cdecl*)(const char*,unsigned int*);
@@ -503,11 +503,23 @@ bool InitNv(){
     pSetTargetGamma=(NvSetTargetGamma)q(0x7082A053);
     pGetAssociatedDisplayHandle=(NvGetAssociatedDisplayHandle)q(0x35C29134);
     pGetDisplayIdByName=(NvGetDisplayIdByName)q(0xAE457190);
+    auto getDriverVersion=(NvGetDisplayDriverVersion)q(0xF951A4D1);
     if(!init||!en||!pGetDvc||!pSetDvc||!pGetHue||!pSetHue||!pGetPrimaryDisplayId||!pSetTargetGamma||init()!=0||en(0,&gDisplay)!=0||pGetPrimaryDisplayId(&gDisplayId)!=0){
         gStatus=L"Could not initialize NVIDIA display";
         return false;
     }
     EnumerateNvDisplays();
+    if(getDriverVersion){
+        unsigned int version=0;
+        wchar_t branch[64]{};
+        if(getDriverVersion(&version,branch)==0 && version>0){
+            unsigned int major=version/100;
+            unsigned int minor=version%100;
+            wchar_t buf[32]{};
+            swprintf_s(buf,L"%u.%02u",major,minor);
+            gDriverVersion=buf;
+        }
+    }
     gStatus=L"Ready";
     return true;
 }
@@ -1010,11 +1022,22 @@ void Paint(HWND w){
     DrawLabel(dc,L"PROFILES",38,94,C_MUTED,gFontBold);
     DrawLabel(dc,L"PROFILE SETTINGS",rightX+22,94,C_MUTED,gFontBold);
 
-    if(!gStatusOk && !gStatus.empty()){
-        SIZE z{};SelectObject(dc,gFont);
-        GetTextExtentPoint32W(dc,gStatus.c_str(),(int)gStatus.size(),&z);
-        DrawLabel(dc,gStatus.c_str(),rc.right-z.cx-28,rc.bottom-22,C_DANGER);
-    }
+    // Compact NVIDIA status footer.
+    const int footerY=rc.bottom-22;
+    DrawLabel(dc,L"NVIDIA API:",28,footerY,C_TEXT,gFontBold);
+    SIZE apiLabel{};SelectObject(dc,gFontBold);
+    GetTextExtentPoint32W(dc,L"NVIDIA API:",11,&apiLabel);
+    const wchar_t* apiState=gStatusOk?L"Available":L"Unavailable";
+    COLORREF apiColor=gStatusOk?C_ACCENT:C_DANGER;
+    DrawLabel(dc,apiState,28+apiLabel.cx+8,footerY,apiColor,gFontBold);
+
+    SIZE stateSize{};SelectObject(dc,gFontBold);
+    GetTextExtentPoint32W(dc,apiState,(int)wcslen(apiState),&stateSize);
+    int driverX=28+apiLabel.cx+8+stateSize.cx+22;
+    DrawLabel(dc,L"Driver:",driverX,footerY,C_TEXT,gFontBold);
+    SIZE driverLabel{};GetTextExtentPoint32W(dc,L"Driver:",7,&driverLabel);
+    DrawLabel(dc,gDriverVersion.c_str(),driverX+driverLabel.cx+8,footerY,C_MUTED,gFont);
+
     EndPaint(w,&ps);
 }
 void BuildControls(){
