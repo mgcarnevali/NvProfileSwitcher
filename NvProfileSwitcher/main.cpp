@@ -1146,17 +1146,17 @@ void DrawDisplayPrototypeIcon(HDC dc,int x,int y){
     HGDIOBJ oldPen=SelectObject(dc,framePen);
     HGDIOBJ oldBrush=SelectObject(dc,frameBrush);
 
-    // Outer gray monitor frame.
-    Rectangle(dc,x,y,x+24,y+17);
+    // Thin gray bezel like the prototype.
+    Rectangle(dc,x,y,x+23,y+16);
 
-    // White display area, leaving a visible gray bezel on every side.
+    // White screen, leaving only a 1 px gray frame.
     SelectObject(dc,screenBrush);
-    Rectangle(dc,x+2,y+2,x+22,y+14);
+    Rectangle(dc,x+1,y+1,x+22,y+14);
 
-    // Gray stand and base.
+    // Thin gray stand and base.
     SelectObject(dc,frameBrush);
-    Rectangle(dc,x+11,y+17,x+14,y+21);
-    Rectangle(dc,x+7,y+21,x+18,y+23);
+    Rectangle(dc,x+11,y+16,x+13,y+20);
+    Rectangle(dc,x+7,y+20,x+17,y+21);
 
     SelectObject(dc,oldBrush);
     SelectObject(dc,oldPen);
