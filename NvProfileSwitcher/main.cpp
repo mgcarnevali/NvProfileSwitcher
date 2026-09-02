@@ -1600,7 +1600,7 @@ mainTitle+=APP_VERSION;
 mainTitle+=L"v";
 mainTitle+=APP_VERSION;
 #endif
-gWnd=CreateWindowExW(0,wc.lpszClassName,mainTitle.c_str(),WS_OVERLAPPED|WS_CAPTION|WS_SYSMENU|WS_MINIMIZEBOX,CW_USEDEFAULT,CW_USEDEFAULT,963,712,nullptr,nullptr,h,nullptr);
+gWnd=CreateWindowExW(0,wc.lpszClassName,mainTitle.c_str(),WS_OVERLAPPED|WS_CAPTION|WS_SYSMENU|WS_MINIMIZEBOX,CW_USEDEFAULT,CW_USEDEFAULT,963,820,nullptr,nullptr,h,nullptr);
 BOOL darkTitle=TRUE;DwmSetWindowAttribute(gWnd,20,&darkTitle,sizeof(darkTitle));
 
 // Center the main window on the primary monitor.
