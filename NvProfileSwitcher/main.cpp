@@ -953,14 +953,29 @@ void DrawSliderIconForId(HDC dc,int id,int x,int y){
 void DrawFooterLink(const DRAWITEMSTRUCT* d){
     bool down=(d->itemState&ODS_SELECTED)!=0;
     RECT r=d->rcItem;
-    Fill(d->hDC,r.left,r.top,r.right-r.left,r.bottom-r.top,C_BACK);
+
+    HBRUSH bg=CreateSolidBrush(C_BACK);
+    FillRect(d->hDC,&r,bg);
+    DeleteObject(bg);
+
     const wchar_t* label=d->CtlID==IDC_FOOT_GITHUB?L"GitHub":(d->CtlID==IDC_FOOT_SUPPORT?L"Support me":L"About");
-    SIZE z{};SelectObject(d->hDC,gFontBold);GetTextExtentPoint32W(d->hDC,label,(int)wcslen(label),&z);
-    COLORREF c=down?C_TEXT:C_MUTED;
-    DrawLabel(d->hDC,label,r.left+(r.right-r.left-z.cx)/2,r.top+(r.bottom-r.top-z.cy)/2,c,gFontBold);
-    HPEN p=CreatePen(PS_SOLID,1,down?C_ACCENT:C_BORDER);HGDIOBJ old=SelectObject(d->hDC,p);
-    MoveToEx(d->hDC,r.left+8,r.bottom-2,nullptr);LineTo(d->hDC,r.right-8,r.bottom-2);
-    SelectObject(d->hDC,old);DeleteObject(p);
+    SIZE z{};
+    HFONT oldFont=(HFONT)SelectObject(d->hDC,gFontBold);
+    GetTextExtentPoint32W(d->hDC,label,(int)wcslen(label),&z);
+    SetBkMode(d->hDC,TRANSPARENT);
+    SetTextColor(d->hDC,down?C_TEXT:C_MUTED);
+    TextOutW(d->hDC,
+        r.left+(r.right-r.left-z.cx)/2,
+        r.top+(r.bottom-r.top-z.cy)/2,
+        label,(int)wcslen(label));
+    SelectObject(d->hDC,oldFont);
+
+    HPEN p=CreatePen(PS_SOLID,1,down?C_ACCENT:C_BORDER);
+    HGDIOBJ oldPen=SelectObject(d->hDC,p);
+    MoveToEx(d->hDC,r.left+8,r.bottom-2,nullptr);
+    LineTo(d->hDC,r.right-8,r.bottom-2);
+    SelectObject(d->hDC,oldPen);
+    DeleteObject(p);
 }
 
 void DrawOwnerButton(const DRAWITEMSTRUCT* d){
