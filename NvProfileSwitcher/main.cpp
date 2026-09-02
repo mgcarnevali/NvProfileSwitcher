@@ -88,7 +88,7 @@ struct NV_GAMMA_CORRECTION_EX {
     unsigned int unknown;
 };
 #pragma pack(pop)
-using NvGetPrimaryDisplayId=int (__cdecl*)(unsigned int*); using NvGetDisplayDriverVersion=int (__cdecl*)(unsigned int*,wchar_t*);
+using NvGetPrimaryDisplayId=int (__cdecl*)(unsigned int*); using NvGetDriverAndBranchVersion=int (__cdecl*)(unsigned int*,char*);
 using NvSetTargetGamma=int (__cdecl*)(unsigned int,NV_GAMMA_CORRECTION_EX*);
 using NvGetAssociatedDisplayHandle=int (__cdecl*)(const char*,void**);
 using NvGetDisplayIdByName=int (__cdecl*)(const char*,unsigned int*);
@@ -503,7 +503,7 @@ bool InitNv(){
     pSetTargetGamma=(NvSetTargetGamma)q(0x7082A053);
     pGetAssociatedDisplayHandle=(NvGetAssociatedDisplayHandle)q(0x35C29134);
     pGetDisplayIdByName=(NvGetDisplayIdByName)q(0xAE457190);
-    auto getDriverVersion=(NvGetDisplayDriverVersion)q(0xF951A4D1);
+    auto getDriverVersion=(NvGetDriverAndBranchVersion)q(0x2926AAAD);
     if(!init||!en||!pGetDvc||!pSetDvc||!pGetHue||!pSetHue||!pGetPrimaryDisplayId||!pSetTargetGamma||init()!=0||en(0,&gDisplay)!=0||pGetPrimaryDisplayId(&gDisplayId)!=0){
         gStatus=L"Could not initialize NVIDIA display";
         return false;
@@ -511,7 +511,7 @@ bool InitNv(){
     EnumerateNvDisplays();
     if(getDriverVersion){
         unsigned int version=0;
-        wchar_t branch[64]{};
+        char branch[64]{};
         if(getDriverVersion(&version,branch)==0 && version>0){
             unsigned int major=version/100;
             unsigned int minor=version%100;
