@@ -71,7 +71,7 @@ constexpr wchar_t APP_URL[]=L"https://github.com/mgcarnevali/NvProfileSwitcher";
 constexpr wchar_t SUPPORT_URL[]=L"https://ko-fi.com/mgcarnevali";
 constexpr wchar_t UPDATE_HOST[]=L"api.github.com";
 constexpr wchar_t UPDATE_PATH[]=L"/repos/mgcarnevali/NvProfileSwitcher/releases/latest";
-enum {IDC_LIST=1001,IDC_NAME,IDC_EXE,IDC_BROWSE,IDC_ENABLED,IDC_DISPLAY,IDC_LBL_DISPLAY,IDC_VIB,IDC_HUE,IDC_BRI,IDC_CON,IDC_GAM,IDC_SAVE,IDC_APPLY,IDC_ADD,IDC_REMOVE,IDC_RESTORE,IDC_STARTWIN,IDC_STARTMIN,IDC_VALVIB,IDC_VALHUE,IDC_VALBRI,IDC_VALCON,IDC_VALGAM,IDC_LBL_NAME,IDC_LBL_EXE,IDC_LBL_ENABLED,IDC_LBL_VIB,IDC_LBL_HUE,IDC_LBL_BRI,IDC_LBL_CON,IDC_LBL_GAM,IDC_MINTRAY,IDC_CHECKUPDATES};
+enum {IDC_LIST=1001,IDC_NAME,IDC_EXE,IDC_BROWSE,IDC_ENABLED,IDC_DISPLAY,IDC_LBL_DISPLAY,IDC_VIB,IDC_HUE,IDC_BRI,IDC_CON,IDC_GAM,IDC_SAVE,IDC_APPLY,IDC_ADD,IDC_REMOVE,IDC_RESTORE,IDC_STARTWIN,IDC_STARTMIN,IDC_VALVIB,IDC_VALHUE,IDC_VALBRI,IDC_VALCON,IDC_VALGAM,IDC_LBL_NAME,IDC_LBL_EXE,IDC_LBL_ENABLED,IDC_LBL_VIB,IDC_LBL_HUE,IDC_LBL_BRI,IDC_LBL_CON,IDC_LBL_GAM,IDC_MINTRAY,IDC_CHECKUPDATES,IDC_FOOT_GITHUB,IDC_FOOT_SUPPORT,IDC_FOOT_ABOUT};
 enum {ID_TRAY_OPEN=2001,ID_TRAY_CHECK_UPDATE,ID_TRAY_ABOUT,ID_TRAY_EXIT};
 
 HINSTANCE gInst{}; HWND gWnd{}; HFONT gFont{},gFontBold{},gFontTitle{},gIconFont{}; HBRUSH gBackBrush{},gPanelBrush{},gPanel2Brush{},gFieldBrush{}; HICON gIcon{};
@@ -1090,6 +1090,44 @@ void DrawSliderIcon(HDC dc,Gdiplus::Image* image,int x,int y){
 
 void DrawLabel(HDC dc,const wchar_t*t,int x,int y,COLORREF c,HFONT f=nullptr){ SetBkMode(dc,TRANSPARENT);SetTextColor(dc,c);SelectObject(dc,f?f:gFont);TextOutW(dc,x,y,t,(int)wcslen(t)); }
 void Fill(HDC dc,int x,int y,int w,int h,COLORREF c){HBRUSH b=CreateSolidBrush(c);RECT r{x,y,x+w,y+h};FillRect(dc,&r,b);DeleteObject(b);} 
+
+void DrawDriverIcon(HDC dc,int x,int y,COLORREF c){
+    HPEN pen=CreatePen(PS_SOLID,1,c);
+    HGDIOBJ oldPen=SelectObject(dc,pen);
+    HBRUSH oldBrush=(HBRUSH)SelectObject(dc,GetStockObject(HOLLOW_BRUSH));
+
+    Rectangle(dc,x,y,x+16,y+11);
+    MoveToEx(dc,x+5,y+13,nullptr);LineTo(dc,x+11,y+13);
+    MoveToEx(dc,x+8,y+11,nullptr);LineTo(dc,x+8,y+14);
+
+    SelectObject(dc,oldBrush);
+    SelectObject(dc,oldPen);
+    DeleteObject(pen);
+}
+
+void DrawFooterLink(const DRAWITEMSTRUCT* d){
+    const wchar_t* text=d->CtlID==IDC_FOOT_GITHUB?L"GitHub":
+                       d->CtlID==IDC_FOOT_SUPPORT?L"Support me":L"About";
+    bool down=(d->itemState&ODS_SELECTED)!=0;
+    RECT r=d->rcItem;
+
+    HBRUSH bg=CreateSolidBrush(C_BACK);
+    FillRect(d->hDC,&r,bg);
+    DeleteObject(bg);
+
+    HFONT oldFont=(HFONT)SelectObject(d->hDC,gFontBold);
+    SetBkMode(d->hDC,TRANSPARENT);
+    SetTextColor(d->hDC,down?C_ACCENT:C_MUTED);
+
+    SIZE s{};
+    GetTextExtentPoint32W(d->hDC,text,(int)wcslen(text),&s);
+    TextOutW(d->hDC,
+             r.left+((r.right-r.left)-s.cx)/2,
+             r.top+((r.bottom-r.top)-s.cy)/2,
+             text,(int)wcslen(text));
+    SelectObject(d->hDC,oldFont);
+}
+
 void Paint(HWND w){
     PAINTSTRUCT ps;HDC dc=BeginPaint(w,&ps);RECT rc;GetClientRect(w,&rc);
     FillRect(dc,&rc,gBackBrush);
@@ -1139,21 +1177,44 @@ void Paint(HWND w){
     DrawSliderIcon(dc,gSliderVibrance,iconX,iconVib-2);
     DrawSliderIcon(dc,gSliderHue,iconX,iconHue-2);
 
-    // Compact NVIDIA status footer.
-    const int footerY=rc.bottom-22;
-    DrawLabel(dc,L"NVIDIA API:",28,footerY,C_TEXT,gFontBold);
+    // Prototype-inspired compact footer: status + driver on the left,
+    // navigation links on the right.
+    const int footerTop=rc.bottom-24;
+    const int footerY=rc.bottom-20;
+    Fill(dc,28,footerTop,rc.right-56,1,C_BORDER);
+
+    // NVIDIA API status.
+    const int dotX=30, dotY=footerY+4;
+    HBRUSH statusBrush=CreateSolidBrush(gStatusOk?C_ACCENT:C_DANGER);
+    HGDIOBJ oldBrush=SelectObject(dc,statusBrush);
+    Ellipse(dc,dotX,dotY,dotX+8,dotY+8);
+    SelectObject(dc,oldBrush);
+    DeleteObject(statusBrush);
+
+    DrawLabel(dc,L"NVIDIA API",44,footerY,C_MUTED,gFontBold);
     SIZE apiLabel{};SelectObject(dc,gFontBold);
-    GetTextExtentPoint32W(dc,L"NVIDIA API:",11,&apiLabel);
+    GetTextExtentPoint32W(dc,L"NVIDIA API",10,&apiLabel);
+
     const wchar_t* apiState=gStatusOk?L"Available":L"Unavailable";
     COLORREF apiColor=gStatusOk?C_ACCENT:C_DANGER;
-    DrawLabel(dc,apiState,28+apiLabel.cx+8,footerY,apiColor,gFontBold);
+    const int apiStateX=44+apiLabel.cx+8;
+    DrawLabel(dc,apiState,apiStateX,footerY,apiColor,gFontBold);
 
     SIZE stateSize{};SelectObject(dc,gFontBold);
     GetTextExtentPoint32W(dc,apiState,(int)wcslen(apiState),&stateSize);
-    int driverX=28+apiLabel.cx+8+stateSize.cx+22;
-    DrawLabel(dc,L"Driver:",driverX,footerY,C_TEXT,gFontBold);
-    SIZE driverLabel{};GetTextExtentPoint32W(dc,L"Driver:",7,&driverLabel);
-    DrawLabel(dc,gDriverVersion.c_str(),driverX+driverLabel.cx+8,footerY,C_MUTED,gFont);
+
+    // Divider and driver info with a small monitor icon.
+    int dividerX=apiStateX+stateSize.cx+16;
+    Fill(dc,dividerX,footerY+1,1,14,C_BORDER);
+
+    int driverIconX=dividerX+14;
+    DrawDriverIcon(dc,driverIconX,footerY+1,C_MUTED);
+
+    int driverTextX=driverIconX+23;
+    DrawLabel(dc,L"Driver",driverTextX,footerY,C_MUTED,gFontBold);
+    SIZE driverLabel{};SelectObject(dc,gFontBold);
+    GetTextExtentPoint32W(dc,L"Driver",6,&driverLabel);
+    DrawLabel(dc,gDriverVersion.c_str(),driverTextX+driverLabel.cx+8,footerY,C_TEXT,gFont);
 
     EndPaint(w,&ps);
 }
@@ -1210,6 +1271,10 @@ void BuildControls(){
     SendMessageW(H(IDC_STARTMIN),BM_SETCHECK,gSettings.startMinimized?BST_CHECKED:BST_UNCHECKED,0);
     SendMessageW(H(IDC_MINTRAY),BM_SETCHECK,gSettings.minimizeToTray?BST_CHECKED:BST_UNCHECKED,0);
     SendMessageW(H(IDC_CHECKUPDATES),BM_SETCHECK,gSettings.checkUpdates?BST_CHECKED:BST_UNCHECKED,0);
+
+    Add(L"BUTTON",L"GitHub",BS_OWNERDRAW,r.right-250,r.bottom-23,64,20,IDC_FOOT_GITHUB);
+    Add(L"BUTTON",L"Support me",BS_OWNERDRAW,r.right-181,r.bottom-23,84,20,IDC_FOOT_SUPPORT);
+    Add(L"BUTTON",L"About",BS_OWNERDRAW,r.right-92,r.bottom-23,58,20,IDC_FOOT_ABOUT);
 }
 
 void ResizeControls(){
@@ -1225,6 +1290,9 @@ void ResizeControls(){
     MoveWindow(H(IDC_BROWSE),rightX+rightW-100,204,100,36,TRUE);
     MoveWindow(H(IDC_ADD),34,r.bottom-172,120,38,TRUE);
     MoveWindow(H(IDC_REMOVE),164,r.bottom-172,104,38,TRUE);
+    MoveWindow(H(IDC_FOOT_GITHUB),r.right-250,r.bottom-23,64,20,TRUE);
+    MoveWindow(H(IDC_FOOT_SUPPORT),r.right-181,r.bottom-23,84,20,TRUE);
+    MoveWindow(H(IDC_FOOT_ABOUT),r.right-92,r.bottom-23,58,20,TRUE);
     SetDesktopUi(IsDesktopSelected());
 }
 
@@ -1666,6 +1734,15 @@ case WM_NOTIFY:{
         return CustomDrawSlider((NMCUSTOMDRAW*)lp);
     break;
 }
+case WM_SETCURSOR:{
+    HWND target=(HWND)wp;
+    int cid=GetDlgCtrlID(target);
+    if(cid==IDC_FOOT_GITHUB||cid==IDC_FOOT_SUPPORT||cid==IDC_FOOT_ABOUT){
+        SetCursor(LoadCursor(nullptr,IDC_HAND));
+        return TRUE;
+    }
+    break;
+}
 case WM_CTLCOLORLISTBOX:{HDC dc=(HDC)wp;SetTextColor(dc,C_TEXT);SetBkColor(dc,C_PANEL);return (LRESULT)gPanelBrush;}
 case WM_CTLCOLORSTATIC:{HDC dc=(HDC)wp;SetTextColor(dc,C_TEXT);SetBkColor(dc,C_PANEL);SetBkMode(dc,TRANSPARENT);return (LRESULT)gPanelBrush;}case WM_CTLCOLOREDIT:{HDC dc=(HDC)wp;SetTextColor(dc,C_TEXT);SetBkColor(dc,C_FIELD);return (LRESULT)gFieldBrush;}case WM_CTLCOLORBTN:{HDC dc=(HDC)wp;SetTextColor(dc,C_TEXT);SetBkColor(dc,C_PANEL);return (LRESULT)gPanelBrush;}case WM_DRAWITEM:{
     auto*d=(DRAWITEMSTRUCT*)lp;
@@ -1689,6 +1766,9 @@ case WM_CTLCOLORSTATIC:{HDC dc=(HDC)wp;SetTextColor(dc,C_TEXT);SetBkColor(dc,C_P
 
     if(d->CtlID==IDC_SAVE||d->CtlID==IDC_ADD||d->CtlID==IDC_REMOVE||d->CtlID==IDC_BROWSE){
         DrawOwnerButton(d);return TRUE;
+    }
+    if(d->CtlID==IDC_FOOT_GITHUB||d->CtlID==IDC_FOOT_SUPPORT||d->CtlID==IDC_FOOT_ABOUT){
+        DrawFooterLink(d);return TRUE;
     }
 
     if(d->CtlID==IDC_LIST&&d->itemID!=(UINT)-1){
@@ -1726,7 +1806,10 @@ case WM_CTLCOLORSTATIC:{HDC dc=(HDC)wp;SetTextColor(dc,C_TEXT);SetBkColor(dc,C_P
         return TRUE;
     }
     break;
-}case WM_HSCROLL:UpdateSliderLabels();if((HWND)lp)InvalidateRect((HWND)lp,nullptr,FALSE);return 0;case WM_TIMER:CheckProcesses();return 0;case WM_COMMAND:{int id=LOWORD(wp);if(id==IDC_LIST&&HIWORD(wp)==LBN_SELCHANGE){LoadSelected();return 0;}if(id==IDC_DISPLAY&&HIWORD(wp)==CBN_SELCHANGE){int ds=(int)SendMessageW(H(IDC_DISPLAY),CB_GETCURSEL,0,0);if(ds>=0&&ds<(int)gDisplays.size()){if(IsDesktopSelected()){auto*p=EnsureDesktopProfile(gDisplays[ds].gdiName);LoadValuesToSliders(ValuesFromFlatProfile(*p));}else{auto*p=SelectedProfile();if(p){p->displayName=gDisplays[ds].gdiName;LoadValuesToSliders(*EnsureGameValuesForDisplay(*p,p->displayName));}}}return 0;}switch(id){case IDC_BROWSE:{OPENFILENAMEW o{sizeof(o)};wchar_t f[MAX_PATH]{};o.hwndOwner=w;o.lpstrFilter=L"Executables (*.exe)\0*.exe\0All files\0*.*\0";o.lpstrFile=f;o.nMaxFile=MAX_PATH;o.Flags=OFN_FILEMUSTEXIST;if(GetOpenFileNameW(&o)){Txt(IDC_EXE,f);auto* p=SelectedProfile();if(p&&!IsDesktopSelected()){p->exePath=f;InvalidateRect(H(IDC_LIST),nullptr,TRUE);}}break;}case IDC_SAVE:SaveSelected();break;case IDC_ADD:{GameProfile np{};if(!gDisplays.empty()){int pi=0;for(size_t di=0;di<gDisplays.size();++di)if(gDisplays[di].primary){pi=(int)di;break;}np.displayName=gDisplays[pi].gdiName;for(const auto&d:gDisplays)np.displayProfiles.push_back(ValuesFromDesktop(d.gdiName));}gSettings.profiles.push_back(np);gSelected=(int)gSettings.profiles.size();Save();RefreshList();LoadSelected();break;}case IDC_REMOVE:if(gSelected>0&&gSelected<=(int)gSettings.profiles.size()){gSettings.profiles.erase(gSettings.profiles.begin()+(gSelected-1));gSelected=std::max<int>(0,gSelected-1);Save();RefreshList();LoadSelected();}break;case IDC_STARTWIN:gSettings.startWindows=SendMessageW(H(IDC_STARTWIN),BM_GETCHECK,0,0)==BST_CHECKED;SetStartup(gSettings.startWindows);Save();break;case IDC_STARTMIN:gSettings.startMinimized=SendMessageW(H(IDC_STARTMIN),BM_GETCHECK,0,0)==BST_CHECKED;Save();break;case IDC_MINTRAY:gSettings.minimizeToTray=SendMessageW(H(IDC_MINTRAY),BM_GETCHECK,0,0)==BST_CHECKED;Save();break;case IDC_CHECKUPDATES:gSettings.checkUpdates=SendMessageW(H(IDC_CHECKUPDATES),BM_GETCHECK,0,0)==BST_CHECKED;Save();break;case ID_TRAY_OPEN:ShowMain();break;case ID_TRAY_CHECK_UPDATE:{if(HANDLE h=CreateThread(nullptr,0,UpdateCheckThread,(LPVOID)1,0,nullptr))CloseHandle(h);break;}case ID_TRAY_ABOUT:ShowAbout();break;case ID_TRAY_EXIT:gReallyExit=true;DestroyWindow(w);break;}return 0;}case WM_CLOSE:
+}case WM_HSCROLL:UpdateSliderLabels();if((HWND)lp)InvalidateRect((HWND)lp,nullptr,FALSE);return 0;case WM_TIMER:CheckProcesses();return 0;case WM_COMMAND:{int id=LOWORD(wp);if(id==IDC_LIST&&HIWORD(wp)==LBN_SELCHANGE){LoadSelected();return 0;}if(id==IDC_DISPLAY&&HIWORD(wp)==CBN_SELCHANGE){int ds=(int)SendMessageW(H(IDC_DISPLAY),CB_GETCURSEL,0,0);if(ds>=0&&ds<(int)gDisplays.size()){if(IsDesktopSelected()){auto*p=EnsureDesktopProfile(gDisplays[ds].gdiName);LoadValuesToSliders(ValuesFromFlatProfile(*p));}else{auto*p=SelectedProfile();if(p){p->displayName=gDisplays[ds].gdiName;LoadValuesToSliders(*EnsureGameValuesForDisplay(*p,p->displayName));}}}return 0;}switch(id){case IDC_BROWSE:{OPENFILENAMEW o{sizeof(o)};wchar_t f[MAX_PATH]{};o.hwndOwner=w;o.lpstrFilter=L"Executables (*.exe)\0*.exe\0All files\0*.*\0";o.lpstrFile=f;o.nMaxFile=MAX_PATH;o.Flags=OFN_FILEMUSTEXIST;if(GetOpenFileNameW(&o)){Txt(IDC_EXE,f);auto* p=SelectedProfile();if(p&&!IsDesktopSelected()){p->exePath=f;InvalidateRect(H(IDC_LIST),nullptr,TRUE);}}break;}case IDC_SAVE:SaveSelected();break;case IDC_ADD:{GameProfile np{};if(!gDisplays.empty()){int pi=0;for(size_t di=0;di<gDisplays.size();++di)if(gDisplays[di].primary){pi=(int)di;break;}np.displayName=gDisplays[pi].gdiName;for(const auto&d:gDisplays)np.displayProfiles.push_back(ValuesFromDesktop(d.gdiName));}gSettings.profiles.push_back(np);gSelected=(int)gSettings.profiles.size();Save();RefreshList();LoadSelected();break;}case IDC_REMOVE:if(gSelected>0&&gSelected<=(int)gSettings.profiles.size()){gSettings.profiles.erase(gSettings.profiles.begin()+(gSelected-1));gSelected=std::max<int>(0,gSelected-1);Save();RefreshList();LoadSelected();}break;case IDC_STARTWIN:gSettings.startWindows=SendMessageW(H(IDC_STARTWIN),BM_GETCHECK,0,0)==BST_CHECKED;SetStartup(gSettings.startWindows);Save();break;case IDC_STARTMIN:gSettings.startMinimized=SendMessageW(H(IDC_STARTMIN),BM_GETCHECK,0,0)==BST_CHECKED;Save();break;case IDC_MINTRAY:gSettings.minimizeToTray=SendMessageW(H(IDC_MINTRAY),BM_GETCHECK,0,0)==BST_CHECKED;Save();break;case IDC_CHECKUPDATES:gSettings.checkUpdates=SendMessageW(H(IDC_CHECKUPDATES),BM_GETCHECK,0,0)==BST_CHECKED;Save();break;case IDC_FOOT_GITHUB:ShellExecuteW(w,L"open",APP_URL,nullptr,nullptr,SW_SHOWNORMAL);break;
+case IDC_FOOT_SUPPORT:ShellExecuteW(w,L"open",SUPPORT_URL,nullptr,nullptr,SW_SHOWNORMAL);break;
+case IDC_FOOT_ABOUT:ShowAbout();break;
+case ID_TRAY_OPEN:ShowMain();break;case ID_TRAY_CHECK_UPDATE:{if(HANDLE h=CreateThread(nullptr,0,UpdateCheckThread,(LPVOID)1,0,nullptr))CloseHandle(h);break;}case ID_TRAY_ABOUT:ShowAbout();break;case ID_TRAY_EXIT:gReallyExit=true;DestroyWindow(w);break;}return 0;}case WM_CLOSE:
     gReallyExit=true;
     DestroyWindow(w);
     return 0;case WM_TRAY:if(lp==WM_LBUTTONDBLCLK){ShowMain();return 0;}if(lp==WM_RBUTTONUP||lp==WM_CONTEXTMENU){POINT p;GetCursorPos(&p);SetForegroundWindow(w);TrackPopupMenu(gTrayMenu,TPM_RIGHTBUTTON,p.x,p.y,0,w,nullptr);return 0;}break;case WM_DESTROY:KillTimer(w,1);Shell_NotifyIconW(NIM_DELETE,&gNid);if(pUnload)pUnload();if(gNv)FreeLibrary(gNv);PostQuitMessage(0);return 0;}return DefWindowProcW(w,m,wp,lp);} 
