@@ -1501,7 +1501,7 @@ void ShowMain(){
     SetForegroundWindow(gWnd);
     BringWindowToTop(gWnd);
 } void RestoreDesktop(){RestoreAllDesktopProfiles();gActive=L"Windows";InvalidateRect(gWnd,nullptr,FALSE);}
-LRESULT CALLBACK Proc(HWND w,UINT m,WPARAM wp,LPARAM lp){switch(m){case WM_GETMINMAXINFO:{auto* mmi=(MINMAXINFO*)lp;mmi->ptMinTrackSize.x=920;mmi->ptMinTrackSize.y=660;mmi->ptMaxTrackSize.x=1400;mmi->ptMaxTrackSize.y=900;mmi->ptMaxSize.x=1400;mmi->ptMaxSize.y=900;return 0;}case WM_SHOW_EXISTING_INSTANCE:ShowMain();return 0;case WM_UPDATE_AVAILABLE:ShowUpdateAvailable((UpdateInfo*)lp);return 0;case WM_CREATE:gWnd=w;BuildControls();RefreshList();LoadSelected();SetTimer(w,1,250,nullptr);return 0;case WM_SIZE:
+LRESULT CALLBACK Proc(HWND w,UINT m,WPARAM wp,LPARAM lp){switch(m){case WM_GETMINMAXINFO:{auto* mmi=(MINMAXINFO*)lp;mmi->ptMinTrackSize.x=920;mmi->ptMinTrackSize.y=660;mmi->ptMaxTrackSize.x=1100;mmi->ptMaxTrackSize.y=720;mmi->ptMaxSize.x=1100;mmi->ptMaxSize.y=720;return 0;}case WM_SHOW_EXISTING_INSTANCE:ShowMain();return 0;case WM_UPDATE_AVAILABLE:ShowUpdateAvailable((UpdateInfo*)lp);return 0;case WM_CREATE:gWnd=w;BuildControls();RefreshList();LoadSelected();SetTimer(w,1,250,nullptr);return 0;case WM_SIZE:
     if(wp==SIZE_MINIMIZED){
         if(gSettings.minimizeToTray)
             ShowWindow(w,SW_HIDE);
