@@ -1146,17 +1146,23 @@ void DrawDisplayPrototypeIcon(HDC dc,int x,int y){
     HGDIOBJ oldPen=SelectObject(dc,framePen);
     HGDIOBJ oldBrush=SelectObject(dc,frameBrush);
 
-    // Thin gray bezel like the prototype.
-    Rectangle(dc,x,y,x+23,y+16);
-
-    // White screen, leaving only a 1 px gray frame.
-    SelectObject(dc,screenBrush);
-    Rectangle(dc,x+1,y+1,x+22,y+14);
-
-    // Thin gray stand and base.
+    // Prototype proportions: smaller/thinner bezel and a larger white screen.
+    // Draw the bezel as a solid 1 px shell so GDI Rectangle's inclusive edge
+    // doesn't visually turn it into a ~2 px border.
     SelectObject(dc,frameBrush);
-    Rectangle(dc,x+11,y+16,x+13,y+20);
-    Rectangle(dc,x+7,y+20,x+17,y+21);
+    PatBlt(dc,x,y,22,1,PATCOPY);          // top
+    PatBlt(dc,x,y+1,1,14,PATCOPY);        // left
+    PatBlt(dc,x+21,y+1,1,14,PATCOPY);     // right
+    PatBlt(dc,x,y+15,22,1,PATCOPY);       // bottom
+
+    // White screen.
+    SelectObject(dc,screenBrush);
+    PatBlt(dc,x+1,y+1,20,14,PATCOPY);
+
+    // Very thin stand/base, matching the reference.
+    SelectObject(dc,frameBrush);
+    PatBlt(dc,x+10,y+16,2,4,PATCOPY);
+    PatBlt(dc,x+6,y+20,10,1,PATCOPY);
 
     SelectObject(dc,oldBrush);
     SelectObject(dc,oldPen);
