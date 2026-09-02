@@ -1134,20 +1134,23 @@ void DrawProfileSettingsPrototypeIcon(HDC dc,int x,int y){
 }
 
 void DrawDisplayPrototypeIcon(HDC dc,int x,int y){
-    // Prototype: simple white monitor.
+    // Prototype-style monitor: outlined screen + two-line stand, not a filled block.
     COLORREF c=RGB(235,238,240);
-    HPEN p=CreatePen(PS_SOLID,1,c);
-    HBRUSH b=CreateSolidBrush(c);
+    HPEN p=CreatePen(PS_SOLID,2,c);
     HGDIOBJ oldPen=SelectObject(dc,p);
-    HGDIOBJ oldBrush=SelectObject(dc,b);
+    HGDIOBJ oldBrush=SelectObject(dc,GetStockObject(NULL_BRUSH));
 
-    Rectangle(dc,x,y,x+21,y+14);
-    Rectangle(dc,x+9,y+14,x+12,y+18);
-    Rectangle(dc,x+5,y+18,x+16,y+20);
+    // Screen outline.
+    Rectangle(dc,x,y,x+22,y+14);
+
+    // Stand: vertical stem and separate base line.
+    MoveToEx(dc,x+11,y+14,nullptr);
+    LineTo(dc,x+11,y+18);
+    MoveToEx(dc,x+6,y+19,nullptr);
+    LineTo(dc,x+17,y+19);
 
     SelectObject(dc,oldBrush);
     SelectObject(dc,oldPen);
-    DeleteObject(b);
     DeleteObject(p);
 }
 
@@ -1336,6 +1339,7 @@ void BuildControls(){
     Add(L"STATIC",L"Enable automatic profile",0,rightX+25,248,205,22,IDC_LBL_ENABLED);
 
     Add(L"STATIC",L"DISPLAY",0,rightX+31,278,129,22,IDC_LBL_DISPLAY);
+    SendMessageW(H(IDC_LBL_DISPLAY),WM_SETFONT,(WPARAM)gFontBold,TRUE);
     HWND display=Add(L"COMBOBOX",L"",CBS_DROPDOWNLIST|CBS_OWNERDRAWFIXED|CBS_HASSTRINGS|WS_VSCROLL,rightX,303,rightW,240,IDC_DISPLAY);
     SendMessageW(display,CB_SETITEMHEIGHT,0,28);
     SetWindowTheme(display,L"DarkMode_Explorer",nullptr);
