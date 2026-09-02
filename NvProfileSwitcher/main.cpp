@@ -1360,7 +1360,8 @@ void BuildControls(){
     SetWindowTheme(display,L"DarkMode_Explorer",nullptr);
 
     auto slider=[&](const wchar_t*t,int lid,int id,int vid,int y,int mn,int mx){
-        Add(L"STATIC",t,0,rightX+29,y-2,161,22,lid);
+        HWND lbl=Add(L"STATIC",t,0,rightX+29,y-2,161,22,lid);
+        SendMessageW(lbl,WM_SETFONT,(WPARAM)gFontBold,TRUE);
         HWND tr=Add(TRACKBAR_CLASSW,L"",TBS_HORZ|TBS_NOTICKS,rightX,y+27,rightW-92,28,id);
         SendMessageW(tr,TBM_SETRANGE,TRUE,MAKELONG(mn,mx));
         Add(L"STATIC",L"",SS_OWNERDRAW,rightX+rightW-76,y-2,76,28,vid);
