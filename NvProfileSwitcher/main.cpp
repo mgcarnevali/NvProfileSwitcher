@@ -704,7 +704,7 @@ void SetDesktopUi(bool desktop){
     const int yHue=desktop?435:580;
     const int ySave=desktop?513:644;
 
-    MoveWindow(H(IDC_LBL_DISPLAY),rightX,yDisplay,160,22,TRUE);
+    MoveWindow(H(IDC_LBL_DISPLAY),rightX+31,yDisplay,129,22,TRUE);
     MoveWindow(H(IDC_DISPLAY),rightX,yDisplay+25,rightW,32,TRUE);
 
     struct SPos{int lbl,track,val,y;};
@@ -1093,41 +1093,61 @@ void DrawLabel(HDC dc,const wchar_t*t,int x,int y,COLORREF c,HFONT f=nullptr){ S
 void Fill(HDC dc,int x,int y,int w,int h,COLORREF c){HBRUSH b=CreateSolidBrush(c);RECT r{x,y,x+w,y+h};FillRect(dc,&r,b);DeleteObject(b);} 
 
 
-void DrawProfilesSectionIcon(HDC dc,int x,int y){
-    HPEN p=CreatePen(PS_SOLID,2,C_ACCENT);
+void DrawProfilesPrototypeIcon(HDC dc,int x,int y){
+    // Prototype: two overlapping cards, rear white and front green.
+    HPEN p=CreatePen(PS_SOLID,1,C_ACCENT);
+    HBRUSH white=CreateSolidBrush(RGB(245,245,245));
+    HBRUSH green=CreateSolidBrush(C_ACCENT);
     HGDIOBJ oldPen=SelectObject(dc,p);
-    HGDIOBJ oldBrush=SelectObject(dc,GetStockObject(NULL_BRUSH));
+    HGDIOBJ oldBrush=SelectObject(dc,white);
 
-    // Two overlapping profile cards, like the original prototype heading icon.
-    RoundRect(dc,x+5,y,x+22,y+15,3,3);
-    RoundRect(dc,x,y+5,x+17,y+20,3,3);
+    Rectangle(dc,x+1,y+1,x+16,y+12);
+    SelectObject(dc,green);
+    Rectangle(dc,x+7,y+6,x+23,y+17);
 
     SelectObject(dc,oldBrush);
     SelectObject(dc,oldPen);
+    DeleteObject(green);
+    DeleteObject(white);
     DeleteObject(p);
 }
 
-void DrawProfileSettingsSectionIcon(HDC dc,int x,int y){
-    HPEN p=CreatePen(PS_SOLID,2,C_ACCENT);
+void DrawProfileSettingsPrototypeIcon(HDC dc,int x,int y){
+    // Prototype: three thin adjustment lines with tiny square handles.
+    HPEN p=CreatePen(PS_SOLID,1,C_ACCENT);
+    HBRUSH b=CreateSolidBrush(C_ACCENT);
     HGDIOBJ oldPen=SelectObject(dc,p);
+    HGDIOBJ oldBrush=SelectObject(dc,b);
 
-    const int knobX[3]={7,16,11};
+    const int ys[3]={y+2,y+8,y+14};
+    const int ks[3]={x+8,x+15,x+11};
     for(int i=0;i<3;i++){
-        int yy=y+i*8;
-        MoveToEx(dc,x,yy,nullptr);
-        LineTo(dc,x+22,yy);
-
-        HBRUSH b=CreateSolidBrush(C_ACCENT);
-        HGDIOBJ oldBrush=SelectObject(dc,b);
-        HGDIOBJ oldPen2=SelectObject(dc,p);
-        const int r=3;
-        Ellipse(dc,x+knobX[i]-r,yy-r,x+knobX[i]+r+1,yy+r+1);
-        SelectObject(dc,oldPen2);
-        SelectObject(dc,oldBrush);
-        DeleteObject(b);
+        MoveToEx(dc,x,ys[i],nullptr);
+        LineTo(dc,x+22,ys[i]);
+        Rectangle(dc,ks[i]-2,ys[i]-2,ks[i]+3,ys[i]+3);
     }
 
+    SelectObject(dc,oldBrush);
     SelectObject(dc,oldPen);
+    DeleteObject(b);
+    DeleteObject(p);
+}
+
+void DrawDisplayPrototypeIcon(HDC dc,int x,int y){
+    // Prototype: simple white monitor.
+    COLORREF c=RGB(235,238,240);
+    HPEN p=CreatePen(PS_SOLID,1,c);
+    HBRUSH b=CreateSolidBrush(c);
+    HGDIOBJ oldPen=SelectObject(dc,p);
+    HGDIOBJ oldBrush=SelectObject(dc,b);
+
+    Rectangle(dc,x,y,x+21,y+14);
+    Rectangle(dc,x+9,y+14,x+12,y+18);
+    Rectangle(dc,x+5,y+18,x+16,y+20);
+
+    SelectObject(dc,oldBrush);
+    SelectObject(dc,oldPen);
+    DeleteObject(b);
     DeleteObject(p);
 }
 
@@ -1229,11 +1249,18 @@ void Paint(HWND w){
     int versionY=ver.top+((ver.bottom-ver.top)-versionSize.cy)/2;
     DrawLabel(dc,versionBadge.c_str(),versionX,versionY,C_ACCENT,gFontBold);
 
-    DrawProfilesSectionIcon(dc,38,94);
+    DrawProfilesPrototypeIcon(dc,38,91);
     DrawLabel(dc,L"PROFILES",68,94,C_ACCENT,gFontBold);
 
-    DrawProfileSettingsSectionIcon(dc,rightX+22,95);
+    DrawProfileSettingsPrototypeIcon(dc,rightX+22,93);
     DrawLabel(dc,L"PROFILE SETTINGS",rightX+52,94,C_ACCENT,gFontBold);
+
+    // DISPLAY monitor icon follows the selected profile's compact layout.
+    {
+        const bool desktopDisplay=IsDesktopSelected();
+        const int displayY=desktopDisplay?132:278;
+        DrawDisplayPrototypeIcon(dc,rightX+22,displayY);
+    }
 
     // Original slider icons extracted from the prototype artwork.
     const int iconX=rightX+22;
@@ -1308,7 +1335,7 @@ void BuildControls(){
     Add(L"BUTTON",L"",BS_AUTOCHECKBOX,rightX,247,20,22,IDC_ENABLED);
     Add(L"STATIC",L"Enable automatic profile",0,rightX+25,248,205,22,IDC_LBL_ENABLED);
 
-    Add(L"STATIC",L"Display",0,rightX,278,160,22,IDC_LBL_DISPLAY);
+    Add(L"STATIC",L"DISPLAY",0,rightX+31,278,129,22,IDC_LBL_DISPLAY);
     HWND display=Add(L"COMBOBOX",L"",CBS_DROPDOWNLIST|CBS_OWNERDRAWFIXED|CBS_HASSTRINGS|WS_VSCROLL,rightX,303,rightW,240,IDC_DISPLAY);
     SendMessageW(display,CB_SETITEMHEIGHT,0,28);
     SetWindowTheme(display,L"DarkMode_Explorer",nullptr);
