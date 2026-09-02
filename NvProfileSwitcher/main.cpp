@@ -1106,6 +1106,35 @@ void DrawDriverIcon(HDC dc,int x,int y,COLORREF c){
     DeleteObject(pen);
 }
 
+
+LRESULT CALLBACK FooterLinkSubclassProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp,
+                                       UINT_PTR subclassId,DWORD_PTR refData){
+    switch(msg){
+    case WM_MOUSEMOVE:{
+        if(gFooterHover!=hwnd){
+            HWND oldHover=gFooterHover;
+            gFooterHover=hwnd;
+            if(oldHover) InvalidateRect(oldHover,nullptr,TRUE);
+            InvalidateRect(hwnd,nullptr,TRUE);
+        }
+        TRACKMOUSEEVENT tme{sizeof(tme),TME_LEAVE,hwnd,0};
+        TrackMouseEvent(&tme);
+        break;
+    }
+    case WM_MOUSELEAVE:
+        if(gFooterHover==hwnd){
+            gFooterHover=nullptr;
+            InvalidateRect(hwnd,nullptr,TRUE);
+        }
+        break;
+    case WM_NCDESTROY:
+        if(gFooterHover==hwnd) gFooterHover=nullptr;
+        RemoveWindowSubclass(hwnd,FooterLinkSubclassProc,subclassId);
+        break;
+    }
+    return DefSubclassProc(hwnd,msg,wp,lp);
+}
+
 void DrawFooterLink(const DRAWITEMSTRUCT* d){
     const wchar_t* text=d->CtlID==IDC_FOOT_GITHUB?L"GitHub":
                        d->CtlID==IDC_FOOT_SUPPORT?L"Support me":L"About";
@@ -1116,7 +1145,7 @@ void DrawFooterLink(const DRAWITEMSTRUCT* d){
     FillRect(d->hDC,&r,bg);
     DeleteObject(bg);
 
-    HFONT oldFont=(HFONT)SelectObject(d->hDC,gFontBold);
+    HFONT oldFont=(HFONT)SelectObject(d->hDC,gFont);
     SetBkMode(d->hDC,TRANSPARENT);
     SetTextColor(d->hDC,((down||(d->hwndItem==gFooterHover))?C_ACCENT:C_MUTED));
 
@@ -1185,23 +1214,23 @@ void Paint(HWND w){
     Fill(dc,28,footerTop,rc.right-56,1,C_BORDER);
 
     // NVIDIA API status.
-    const int dotX=30, dotY=footerY+4;
+    const int dotX=30, dotY=footerY+6;
     HBRUSH statusBrush=CreateSolidBrush(gStatusOk?C_ACCENT:C_DANGER);
     HGDIOBJ oldBrush=SelectObject(dc,statusBrush);
     Ellipse(dc,dotX,dotY,dotX+8,dotY+8);
     SelectObject(dc,oldBrush);
     DeleteObject(statusBrush);
 
-    DrawLabel(dc,L"NVIDIA API",44,footerY,C_MUTED,gFontBold);
-    SIZE apiLabel{};SelectObject(dc,gFontBold);
+    DrawLabel(dc,L"NVIDIA API",44,footerY,C_MUTED,gFont);
+    SIZE apiLabel{};SelectObject(dc,gFont);
     GetTextExtentPoint32W(dc,L"NVIDIA API",10,&apiLabel);
 
     const wchar_t* apiState=gStatusOk?L"Available":L"Unavailable";
     COLORREF apiColor=gStatusOk?C_ACCENT:C_DANGER;
     const int apiStateX=44+apiLabel.cx+8;
-    DrawLabel(dc,apiState,apiStateX,footerY,apiColor,gFontBold);
+    DrawLabel(dc,apiState,apiStateX,footerY,apiColor,gFont);
 
-    SIZE stateSize{};SelectObject(dc,gFontBold);
+    SIZE stateSize{};SelectObject(dc,gFont);
     GetTextExtentPoint32W(dc,apiState,(int)wcslen(apiState),&stateSize);
 
     // Divider and driver info with a small monitor icon.
@@ -1212,8 +1241,8 @@ void Paint(HWND w){
     DrawDriverIcon(dc,driverIconX,footerY+3,C_MUTED);
 
     int driverTextX=driverIconX+23;
-    DrawLabel(dc,L"Driver",driverTextX,footerY,C_MUTED,gFontBold);
-    SIZE driverLabel{};SelectObject(dc,gFontBold);
+    DrawLabel(dc,L"Driver",driverTextX,footerY,C_MUTED,gFont);
+    SIZE driverLabel{};SelectObject(dc,gFont);
     GetTextExtentPoint32W(dc,L"Driver",6,&driverLabel);
     DrawLabel(dc,gDriverVersion.c_str(),driverTextX+driverLabel.cx+8,footerY,C_TEXT,gFont);
 
@@ -1273,9 +1302,12 @@ void BuildControls(){
     SendMessageW(H(IDC_MINTRAY),BM_SETCHECK,gSettings.minimizeToTray?BST_CHECKED:BST_UNCHECKED,0);
     SendMessageW(H(IDC_CHECKUPDATES),BM_SETCHECK,gSettings.checkUpdates?BST_CHECKED:BST_UNCHECKED,0);
 
-    Add(L"BUTTON",L"GitHub",BS_OWNERDRAW,r.right-284,r.bottom-23,66,20,IDC_FOOT_GITHUB);
-    Add(L"BUTTON",L"Support me",BS_OWNERDRAW,r.right-212,r.bottom-23,98,20,IDC_FOOT_SUPPORT);
-    Add(L"BUTTON",L"About",BS_OWNERDRAW,r.right-108,r.bottom-23,64,20,IDC_FOOT_ABOUT);
+    HWND footGitHub=Add(L"BUTTON",L"GitHub",BS_OWNERDRAW,r.right-284,r.bottom-23,66,20,IDC_FOOT_GITHUB);
+    HWND footSupport=Add(L"BUTTON",L"Support me",BS_OWNERDRAW,r.right-212,r.bottom-23,98,20,IDC_FOOT_SUPPORT);
+    HWND footAbout=Add(L"BUTTON",L"About",BS_OWNERDRAW,r.right-108,r.bottom-23,64,20,IDC_FOOT_ABOUT);
+    SetWindowSubclass(footGitHub,FooterLinkSubclassProc,1,0);
+    SetWindowSubclass(footSupport,FooterLinkSubclassProc,1,0);
+    SetWindowSubclass(footAbout,FooterLinkSubclassProc,1,0);
 }
 
 void ResizeControls(){
@@ -1733,31 +1765,6 @@ case WM_NOTIFY:{
     int id=GetDlgCtrlID(hdr->hwndFrom);
     if(hdr->code==NM_CUSTOMDRAW && (id==IDC_VIB||id==IDC_HUE||id==IDC_BRI||id==IDC_CON||id==IDC_GAM))
         return CustomDrawSlider((NMCUSTOMDRAW*)lp);
-    break;
-}
-case WM_MOUSEMOVE:{
-    HWND target=ChildWindowFromPoint(w,POINT{(short)LOWORD(lp),(short)HIWORD(lp)});
-    int cid=target?GetDlgCtrlID(target):0;
-    bool isFooter=cid==IDC_FOOT_GITHUB||cid==IDC_FOOT_SUPPORT||cid==IDC_FOOT_ABOUT;
-    HWND next=isFooter?target:nullptr;
-    if(next!=gFooterHover){
-        HWND oldHover=gFooterHover;
-        gFooterHover=next;
-        if(oldHover)InvalidateRect(oldHover,nullptr,TRUE);
-        if(gFooterHover){
-            InvalidateRect(gFooterHover,nullptr,TRUE);
-            TRACKMOUSEEVENT tme{sizeof(tme),TME_LEAVE,w,0};
-            TrackMouseEvent(&tme);
-        }
-    }
-    break;
-}
-case WM_MOUSELEAVE:{
-    if(gFooterHover){
-        HWND oldHover=gFooterHover;
-        gFooterHover=nullptr;
-        InvalidateRect(oldHover,nullptr,TRUE);
-    }
     break;
 }
 case WM_SETCURSOR:{
