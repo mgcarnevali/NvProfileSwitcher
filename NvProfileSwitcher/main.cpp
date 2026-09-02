@@ -1117,7 +1117,7 @@ void DrawFooterLink(const DRAWITEMSTRUCT* d){
 
     HFONT oldFont=(HFONT)SelectObject(d->hDC,gFontBold);
     SetBkMode(d->hDC,TRANSPARENT);
-    SetTextColor(d->hDC,down?C_ACCENT:C_MUTED);
+    SetTextColor(d->hDC,(down||d->hwndItem==gFooterHover)?C_ACCENT:C_MUTED);
 
     SIZE s{};
     GetTextExtentPoint32W(d->hDC,text,(int)wcslen(text),&s);
@@ -1208,7 +1208,7 @@ void Paint(HWND w){
     Fill(dc,dividerX,footerY+1,1,14,C_BORDER);
 
     int driverIconX=dividerX+14;
-    DrawDriverIcon(dc,driverIconX,footerY+1,C_MUTED);
+    DrawDriverIcon(dc,driverIconX,footerY+3,C_MUTED);
 
     int driverTextX=driverIconX+23;
     DrawLabel(dc,L"Driver",driverTextX,footerY,C_MUTED,gFontBold);
@@ -1272,9 +1272,9 @@ void BuildControls(){
     SendMessageW(H(IDC_MINTRAY),BM_SETCHECK,gSettings.minimizeToTray?BST_CHECKED:BST_UNCHECKED,0);
     SendMessageW(H(IDC_CHECKUPDATES),BM_SETCHECK,gSettings.checkUpdates?BST_CHECKED:BST_UNCHECKED,0);
 
-    Add(L"BUTTON",L"GitHub",BS_OWNERDRAW,r.right-250,r.bottom-23,64,20,IDC_FOOT_GITHUB);
-    Add(L"BUTTON",L"Support me",BS_OWNERDRAW,r.right-181,r.bottom-23,84,20,IDC_FOOT_SUPPORT);
-    Add(L"BUTTON",L"About",BS_OWNERDRAW,r.right-92,r.bottom-23,58,20,IDC_FOOT_ABOUT);
+    Add(L"BUTTON",L"GitHub",BS_OWNERDRAW,r.right-284,r.bottom-23,66,20,IDC_FOOT_GITHUB);
+    Add(L"BUTTON",L"Support me",BS_OWNERDRAW,r.right-212,r.bottom-23,98,20,IDC_FOOT_SUPPORT);
+    Add(L"BUTTON",L"About",BS_OWNERDRAW,r.right-108,r.bottom-23,64,20,IDC_FOOT_ABOUT);
 }
 
 void ResizeControls(){
@@ -1290,9 +1290,9 @@ void ResizeControls(){
     MoveWindow(H(IDC_BROWSE),rightX+rightW-100,204,100,36,TRUE);
     MoveWindow(H(IDC_ADD),34,r.bottom-172,120,38,TRUE);
     MoveWindow(H(IDC_REMOVE),164,r.bottom-172,104,38,TRUE);
-    MoveWindow(H(IDC_FOOT_GITHUB),r.right-250,r.bottom-23,64,20,TRUE);
-    MoveWindow(H(IDC_FOOT_SUPPORT),r.right-181,r.bottom-23,84,20,TRUE);
-    MoveWindow(H(IDC_FOOT_ABOUT),r.right-92,r.bottom-23,58,20,TRUE);
+    MoveWindow(H(IDC_FOOT_GITHUB),r.right-284,r.bottom-23,66,20,TRUE);
+    MoveWindow(H(IDC_FOOT_SUPPORT),r.right-212,r.bottom-23,98,20,TRUE);
+    MoveWindow(H(IDC_FOOT_ABOUT),r.right-108,r.bottom-23,64,20,TRUE);
     SetDesktopUi(IsDesktopSelected());
 }
 
@@ -1732,6 +1732,31 @@ case WM_NOTIFY:{
     int id=GetDlgCtrlID(hdr->hwndFrom);
     if(hdr->code==NM_CUSTOMDRAW && (id==IDC_VIB||id==IDC_HUE||id==IDC_BRI||id==IDC_CON||id==IDC_GAM))
         return CustomDrawSlider((NMCUSTOMDRAW*)lp);
+    break;
+}
+case WM_MOUSEMOVE:{
+    HWND target=ChildWindowFromPoint(w,POINT{GET_X_LPARAM(lp),GET_Y_LPARAM(lp)});
+    int cid=target?GetDlgCtrlID(target):0;
+    bool isFooter=cid==IDC_FOOT_GITHUB||cid==IDC_FOOT_SUPPORT||cid==IDC_FOOT_ABOUT;
+    HWND next=isFooter?target:nullptr;
+    if(next!=gFooterHover){
+        HWND oldHover=gFooterHover;
+        gFooterHover=next;
+        if(oldHover)InvalidateRect(oldHover,nullptr,TRUE);
+        if(gFooterHover){
+            InvalidateRect(gFooterHover,nullptr,TRUE);
+            TRACKMOUSEEVENT tme{sizeof(tme),TME_LEAVE,w,0};
+            TrackMouseEvent(&tme);
+        }
+    }
+    break;
+}
+case WM_MOUSELEAVE:{
+    if(gFooterHover){
+        HWND oldHover=gFooterHover;
+        gFooterHover=nullptr;
+        InvalidateRect(oldHover,nullptr,TRUE);
+    }
     break;
 }
 case WM_SETCURSOR:{
