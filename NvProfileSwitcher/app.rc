@@ -9,6 +9,9 @@ IDR_SLIDER_CONTRAST RCDATA "slider-contrast.png"
 IDR_SLIDER_GAMMA RCDATA "slider-gamma.png"
 IDR_SLIDER_VIBRANCE RCDATA "slider-vibrance.png"
 IDR_SLIDER_HUE RCDATA "slider-hue.png"
+IDR_SECTION_PROFILES RCDATA "section-profiles.png"
+IDR_SECTION_PROFILE_SETTINGS RCDATA "section-profile-settings.png"
+IDR_SECTION_APP_SETTINGS RCDATA "section-app-settings.png"
 
 1 VERSIONINFO
  FILEVERSION NVPS_VERSION_FILE
