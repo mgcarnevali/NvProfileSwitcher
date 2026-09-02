@@ -956,7 +956,7 @@ void DrawValueBox(const DRAWITEMSTRUCT* d){
     FillRound(d->hDC,r,C_FIELD,C_BORDER,7);
     wchar_t text[64]{};GetWindowTextW(d->hwndItem,text,64);
     RECT tr=r;tr.right-=10;
-    SetBkMode(d->hDC,TRANSPARENT);SetTextColor(d->hDC,C_TEXT);SelectObject(d->hDC,gFont);
+    SetBkMode(d->hDC,TRANSPARENT);SetTextColor(d->hDC,C_TEXT);SelectObject(d->hDC,gFontBold);
     DrawTextW(d->hDC,text,-1,&tr,DT_RIGHT|DT_VCENTER|DT_SINGLELINE);
 }
 
