@@ -1134,24 +1134,35 @@ void DrawProfileSettingsPrototypeIcon(HDC dc,int x,int y){
 }
 
 void DrawDisplayPrototypeIcon(HDC dc,int x,int y){
-    // Prototype-style monitor: outlined screen + two-line stand, not a filled block.
-    COLORREF c=RGB(235,238,240);
-    HPEN p=CreatePen(PS_SOLID,2,c);
-    HGDIOBJ oldPen=SelectObject(dc,p);
-    HGDIOBJ oldBrush=SelectObject(dc,GetStockObject(NULL_BRUSH));
+    // Match prototype: gray bezel/frame with a solid white screen,
+    // then a gray stem and base underneath.
+    const COLORREF frame=RGB(145,151,154);
+    const COLORREF screen=RGB(245,245,245);
 
-    // Screen outline.
-    Rectangle(dc,x,y,x+22,y+14);
+    HPEN framePen=CreatePen(PS_SOLID,1,frame);
+    HBRUSH frameBrush=CreateSolidBrush(frame);
+    HBRUSH screenBrush=CreateSolidBrush(screen);
 
-    // Stand: vertical stem and separate base line.
-    MoveToEx(dc,x+11,y+14,nullptr);
-    LineTo(dc,x+11,y+18);
-    MoveToEx(dc,x+6,y+19,nullptr);
-    LineTo(dc,x+17,y+19);
+    HGDIOBJ oldPen=SelectObject(dc,framePen);
+    HGDIOBJ oldBrush=SelectObject(dc,frameBrush);
+
+    // Outer gray monitor frame.
+    Rectangle(dc,x,y,x+24,y+17);
+
+    // White display area, leaving a visible gray bezel on every side.
+    SelectObject(dc,screenBrush);
+    Rectangle(dc,x+2,y+2,x+22,y+14);
+
+    // Gray stand and base.
+    SelectObject(dc,frameBrush);
+    Rectangle(dc,x+11,y+17,x+14,y+21);
+    Rectangle(dc,x+7,y+21,x+18,y+23);
 
     SelectObject(dc,oldBrush);
     SelectObject(dc,oldPen);
-    DeleteObject(p);
+    DeleteObject(screenBrush);
+    DeleteObject(frameBrush);
+    DeleteObject(framePen);
 }
 
 void DrawDriverIcon(HDC dc,int x,int y,COLORREF c){
