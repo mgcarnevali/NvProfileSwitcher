@@ -1094,43 +1094,41 @@ void Fill(HDC dc,int x,int y,int w,int h,COLORREF c){HBRUSH b=CreateSolidBrush(c
 
 
 void DrawProfilesPrototypeIcon(HDC dc,int x,int y){
-    // Prototype: two overlapping cards, rear white and front green.
-    HPEN p=CreatePen(PS_SOLID,1,C_ACCENT);
-    HBRUSH white=CreateSolidBrush(RGB(245,245,245));
-    HBRUSH green=CreateSolidBrush(C_ACCENT);
-    HGDIOBJ oldPen=SelectObject(dc,p);
-    HGDIOBJ oldBrush=SelectObject(dc,white);
+    // Prototype: two overlapping WHITE cards with a thin green outline.
+    // The old version incorrectly filled the front card green.
+    Gdiplus::Graphics g(dc);
+    g.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
 
-    Rectangle(dc,x+1,y+1,x+16,y+12);
-    SelectObject(dc,green);
-    Rectangle(dc,x+7,y+6,x+23,y+17);
+    Gdiplus::Color accent(255,GetRValue(C_ACCENT),GetGValue(C_ACCENT),GetBValue(C_ACCENT));
+    Gdiplus::Color white(255,245,245,245);
+    Gdiplus::Pen outline(accent,1.0f);
+    Gdiplus::SolidBrush fill(white);
 
-    SelectObject(dc,oldBrush);
-    SelectObject(dc,oldPen);
-    DeleteObject(green);
-    DeleteObject(white);
-    DeleteObject(p);
+    // Rear card: slightly up/left.
+    g.FillRectangle(&fill,(Gdiplus::REAL)x+1,(Gdiplus::REAL)y+1,15.0f,10.0f);
+    g.DrawRectangle(&outline,(Gdiplus::REAL)x+1,(Gdiplus::REAL)y+1,15.0f,10.0f);
+
+    // Front card: offset down/right, also white like the prototype.
+    g.FillRectangle(&fill,(Gdiplus::REAL)x+7,(Gdiplus::REAL)y+6,16.0f,11.0f);
+    g.DrawRectangle(&outline,(Gdiplus::REAL)x+7,(Gdiplus::REAL)y+6,16.0f,11.0f);
 }
 
 void DrawProfileSettingsPrototypeIcon(HDC dc,int x,int y){
-    // Prototype: three thin adjustment lines with tiny square handles.
-    HPEN p=CreatePen(PS_SOLID,1,C_ACCENT);
-    HBRUSH b=CreateSolidBrush(C_ACCENT);
-    HGDIOBJ oldPen=SelectObject(dc,p);
-    HGDIOBJ oldBrush=SelectObject(dc,b);
+    // Prototype: very thin anti-aliased lines with small round adjustment knobs.
+    Gdiplus::Graphics g(dc);
+    g.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
 
-    const int ys[3]={y+2,y+8,y+14};
-    const int ks[3]={x+8,x+15,x+11};
+    Gdiplus::Color accent(255,GetRValue(C_ACCENT),GetGValue(C_ACCENT),GetBValue(C_ACCENT));
+    Gdiplus::Pen line(accent,1.25f);
+    Gdiplus::SolidBrush knob(accent);
+
+    const Gdiplus::REAL ys[3]={(Gdiplus::REAL)y+2.5f,(Gdiplus::REAL)y+8.5f,(Gdiplus::REAL)y+14.5f};
+    const Gdiplus::REAL xs[3]={(Gdiplus::REAL)x+7.0f,(Gdiplus::REAL)x+15.0f,(Gdiplus::REAL)x+11.0f};
+
     for(int i=0;i<3;i++){
-        MoveToEx(dc,x,ys[i],nullptr);
-        LineTo(dc,x+22,ys[i]);
-        Rectangle(dc,ks[i]-2,ys[i]-2,ks[i]+3,ys[i]+3);
+        g.DrawLine(&line,(Gdiplus::REAL)x,ys[i],(Gdiplus::REAL)x+22.0f,ys[i]);
+        g.FillEllipse(&knob,xs[i]-2.25f,ys[i]-2.25f,4.5f,4.5f);
     }
-
-    SelectObject(dc,oldBrush);
-    SelectObject(dc,oldPen);
-    DeleteObject(b);
-    DeleteObject(p);
 }
 
 void DrawDisplayPrototypeIcon(HDC dc,int x,int y){
