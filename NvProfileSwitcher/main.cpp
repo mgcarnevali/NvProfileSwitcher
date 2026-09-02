@@ -1052,7 +1052,7 @@ void BuildControls(){
     slider(L"Digital Vibrance (%)",IDC_LBL_VIB,IDC_VIB,IDC_VALVIB,520,0,100);
     slider(L"Hue (\x00B0)",IDC_LBL_HUE,IDC_HUE,IDC_VALHUE,580,0,359);
 
-    Add(L"BUTTON",L"Save profile",BS_OWNERDRAW,rightX,660,150,38,IDC_SAVE);
+    Add(L"BUTTON",L"Save profile",BS_OWNERDRAW,rightX,657,150,38,IDC_SAVE);
     Add(L"BUTTON",L"Add game",BS_OWNERDRAW,34,r.bottom-172,118,38,IDC_ADD);
     Add(L"BUTTON",L"Remove",BS_OWNERDRAW,164,r.bottom-172,104,38,IDC_REMOVE);
 
