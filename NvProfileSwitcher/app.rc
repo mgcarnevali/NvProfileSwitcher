@@ -3,6 +3,7 @@
 #include "version.h"
 
 IDI_APPICON ICON "NvProfileSwitcher.ico"
+IDR_HEADER_PNG RCDATA "NvProfileSwitcher-header.png"
 
 1 VERSIONINFO
  FILEVERSION NVPS_VERSION_FILE
