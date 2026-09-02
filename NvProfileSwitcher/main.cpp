@@ -79,6 +79,7 @@ ULONG_PTR gGdiPlusToken{}; Gdiplus::Image* gHeaderImage{};
 Gdiplus::Image *gSliderBrightness{},*gSliderContrast{},*gSliderGamma{},*gSliderVibrance{},*gSliderHue{};
 Settings gSettings; int gSelected=-1; bool gReallyExit=false; std::wstring gActive=L"Windows", gStatus=L"Not initialized", gDriverVersion=L"--"; bool gStatusOk=false;
 NOTIFYICONDATAW gNid{}; HMENU gTrayMenu{};
+HWND gFooterHover{};
 
 using NvQueryInterface=void* (__cdecl*)(unsigned int);
 using NvInit=int (__cdecl*)(); using NvUnload=int (__cdecl*)(); using NvEnumDisplay=int (__cdecl*)(int,void**);
@@ -1117,7 +1118,7 @@ void DrawFooterLink(const DRAWITEMSTRUCT* d){
 
     HFONT oldFont=(HFONT)SelectObject(d->hDC,gFontBold);
     SetBkMode(d->hDC,TRANSPARENT);
-    SetTextColor(d->hDC,(down||d->hwndItem==gFooterHover)?C_ACCENT:C_MUTED);
+    SetTextColor(d->hDC,((down||(d->hwndItem==gFooterHover))?C_ACCENT:C_MUTED));
 
     SIZE s{};
     GetTextExtentPoint32W(d->hDC,text,(int)wcslen(text),&s);
@@ -1735,7 +1736,7 @@ case WM_NOTIFY:{
     break;
 }
 case WM_MOUSEMOVE:{
-    HWND target=ChildWindowFromPoint(w,POINT{GET_X_LPARAM(lp),GET_Y_LPARAM(lp)});
+    HWND target=ChildWindowFromPoint(w,POINT{(short)LOWORD(lp),(short)HIWORD(lp)});
     int cid=target?GetDlgCtrlID(target):0;
     bool isFooter=cid==IDC_FOOT_GITHUB||cid==IDC_FOOT_SUPPORT||cid==IDC_FOOT_ABOUT;
     HWND next=isFooter?target:nullptr;
