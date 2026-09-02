@@ -52,7 +52,7 @@ struct Settings {
     GameProfile desktop{L"Windows",L"",L"",50,0,100.0,100.0,1.00,true}; // default values for new Windows monitor profiles
     std::vector<GameProfile> desktopProfiles;
     std::vector<GameProfile> profiles;
-    bool startWindows=false, startMinimized=false, minimizeToTray=false;
+    bool startWindows=false, startMinimized=false, minimizeToTray=false, checkUpdates=true;
 };
 
 constexpr COLORREF C_BACK=RGB(10,13,16), C_PANEL=RGB(18,22,26), C_PANEL2=RGB(24,29,34), C_FIELD=RGB(20,24,28), C_BORDER=RGB(45,52,59);
@@ -67,7 +67,7 @@ constexpr wchar_t APP_URL[]=L"https://github.com/mgcarnevali/NvProfileSwitcher";
 constexpr wchar_t SUPPORT_URL[]=L"https://ko-fi.com/mgcarnevali";
 constexpr wchar_t UPDATE_HOST[]=L"api.github.com";
 constexpr wchar_t UPDATE_PATH[]=L"/repos/mgcarnevali/NvProfileSwitcher/releases/latest";
-enum {IDC_LIST=1001,IDC_NAME,IDC_EXE,IDC_BROWSE,IDC_ENABLED,IDC_DISPLAY,IDC_LBL_DISPLAY,IDC_VIB,IDC_HUE,IDC_BRI,IDC_CON,IDC_GAM,IDC_SAVE,IDC_APPLY,IDC_ADD,IDC_REMOVE,IDC_RESTORE,IDC_STARTWIN,IDC_STARTMIN,IDC_VALVIB,IDC_VALHUE,IDC_VALBRI,IDC_VALCON,IDC_VALGAM,IDC_LBL_NAME,IDC_LBL_EXE,IDC_LBL_ENABLED,IDC_LBL_VIB,IDC_LBL_HUE,IDC_LBL_BRI,IDC_LBL_CON,IDC_LBL_GAM,IDC_MINTRAY};
+enum {IDC_LIST=1001,IDC_NAME,IDC_EXE,IDC_BROWSE,IDC_ENABLED,IDC_DISPLAY,IDC_LBL_DISPLAY,IDC_VIB,IDC_HUE,IDC_BRI,IDC_CON,IDC_GAM,IDC_SAVE,IDC_APPLY,IDC_ADD,IDC_REMOVE,IDC_RESTORE,IDC_STARTWIN,IDC_STARTMIN,IDC_VALVIB,IDC_VALHUE,IDC_VALBRI,IDC_VALCON,IDC_VALGAM,IDC_LBL_NAME,IDC_LBL_EXE,IDC_LBL_ENABLED,IDC_LBL_VIB,IDC_LBL_HUE,IDC_LBL_BRI,IDC_LBL_CON,IDC_LBL_GAM,IDC_MINTRAY,IDC_CHECKUPDATES};
 enum {ID_TRAY_OPEN=2001,ID_TRAY_CHECK_UPDATE,ID_TRAY_ABOUT,ID_TRAY_EXIT};
 
 HINSTANCE gInst{}; HWND gWnd{}; HFONT gFont{},gFontBold{},gFontTitle{},gIconFont{}; HBRUSH gBackBrush{},gPanelBrush{},gPanel2Brush{},gFieldBrush{}; HICON gIcon{};
@@ -317,7 +317,7 @@ void Save(){
 
     f<<"  ],\n  \"StartWithWindows\": "<<(gSettings.startWindows?"true":"false")
      <<",\n  \"StartMinimized\": "<<(gSettings.startMinimized?"true":"false")
-     <<",\n  \"MinimizeToTray\": "<<(gSettings.minimizeToTray?"true":"false")<<"\n}\n";
+     <<",\n  \"MinimizeToTray\": "<<(gSettings.minimizeToTray?"true":"false")<<",\n  \"CheckForUpdates\": "<<(gSettings.checkUpdates?"true":"false")<<"\n}\n";
 }
 void Load(){
     std::string s=ReadAll(AppDataFile());
@@ -325,6 +325,7 @@ void Load(){
     gSettings.startWindows=FieldB(s,"StartWithWindows",false);
     gSettings.startMinimized=FieldB(s,"StartMinimized",false);
     gSettings.minimizeToTray=FieldB(s,"MinimizeToTray",false);
+    gSettings.checkUpdates=FieldB(s,"CheckForUpdates",true);
 
     size_t wp=s.find("\"Windows Profiles\"");
     if(wp!=std::string::npos){
@@ -704,11 +705,13 @@ void SetDesktopUi(bool desktop){
 
     // Global startup options stay at the bottom of the right panel.
     MoveWindow(H(IDC_STARTWIN),rightX,r.bottom-66,20,22,TRUE);
-    MoveWindow(GetWindow(H(IDC_STARTWIN),GW_HWNDNEXT),rightX+24,r.bottom-65,135,22,TRUE);
-    MoveWindow(H(IDC_STARTMIN),rightX+175,r.bottom-66,20,22,TRUE);
-    MoveWindow(GetWindow(H(IDC_STARTMIN),GW_HWNDNEXT),rightX+199,r.bottom-65,175,22,TRUE);
-    MoveWindow(H(IDC_MINTRAY),rightX+395,r.bottom-66,20,22,TRUE);
-    MoveWindow(GetWindow(H(IDC_MINTRAY),GW_HWNDNEXT),rightX+419,r.bottom-65,135,22,TRUE);
+    MoveWindow(GetWindow(H(IDC_STARTWIN),GW_HWNDNEXT),rightX+22,r.bottom-65,118,22,TRUE);
+    MoveWindow(H(IDC_STARTMIN),rightX+145,r.bottom-66,20,22,TRUE);
+    MoveWindow(GetWindow(H(IDC_STARTMIN),GW_HWNDNEXT),rightX+167,r.bottom-65,145,22,TRUE);
+    MoveWindow(H(IDC_MINTRAY),rightX+318,r.bottom-66,20,22,TRUE);
+    MoveWindow(GetWindow(H(IDC_MINTRAY),GW_HWNDNEXT),rightX+340,r.bottom-65,108,22,TRUE);
+    MoveWindow(H(IDC_CHECKUPDATES),rightX+452,r.bottom-66,20,22,TRUE);
+    MoveWindow(GetWindow(H(IDC_CHECKUPDATES),GW_HWNDNEXT),rightX+474,r.bottom-65,120,22,TRUE);
 
     InvalidateRect(gWnd,nullptr,TRUE);
 }
@@ -1052,15 +1055,18 @@ void BuildControls(){
     Add(L"BUTTON",L"Remove",BS_OWNERDRAW,164,r.bottom-172,104,38,IDC_REMOVE);
 
     Add(L"BUTTON",L"",BS_AUTOCHECKBOX,rightX,r.bottom-66,20,22,IDC_STARTWIN);
-    Add(L"STATIC",L"Start with Windows",0,rightX+24,r.bottom-65,135,22,0);
-    Add(L"BUTTON",L"",BS_AUTOCHECKBOX,rightX+175,r.bottom-66,20,22,IDC_STARTMIN);
-    Add(L"STATIC",L"Start minimized to tray",0,rightX+199,r.bottom-65,175,22,0);
-    Add(L"BUTTON",L"",BS_AUTOCHECKBOX,rightX+395,r.bottom-66,20,22,IDC_MINTRAY);
-    Add(L"STATIC",L"Minimize to tray",0,rightX+419,r.bottom-65,135,22,0);
+    Add(L"STATIC",L"Start with Windows",0,rightX+22,r.bottom-65,118,22,0);
+    Add(L"BUTTON",L"",BS_AUTOCHECKBOX,rightX+145,r.bottom-66,20,22,IDC_STARTMIN);
+    Add(L"STATIC",L"Start minimized to tray",0,rightX+167,r.bottom-65,145,22,0);
+    Add(L"BUTTON",L"",BS_AUTOCHECKBOX,rightX+318,r.bottom-66,20,22,IDC_MINTRAY);
+    Add(L"STATIC",L"Minimize to tray",0,rightX+340,r.bottom-65,108,22,0);
+    Add(L"BUTTON",L"",BS_AUTOCHECKBOX,rightX+452,r.bottom-66,20,22,IDC_CHECKUPDATES);
+    Add(L"STATIC",L"Check for updates",0,rightX+474,r.bottom-65,120,22,0);
 
     SendMessageW(H(IDC_STARTWIN),BM_SETCHECK,gSettings.startWindows?BST_CHECKED:BST_UNCHECKED,0);
     SendMessageW(H(IDC_STARTMIN),BM_SETCHECK,gSettings.startMinimized?BST_CHECKED:BST_UNCHECKED,0);
     SendMessageW(H(IDC_MINTRAY),BM_SETCHECK,gSettings.minimizeToTray?BST_CHECKED:BST_UNCHECKED,0);
+    SendMessageW(H(IDC_CHECKUPDATES),BM_SETCHECK,gSettings.checkUpdates?BST_CHECKED:BST_UNCHECKED,0);
 }
 
 void ResizeControls(){
@@ -1577,7 +1583,7 @@ case WM_CTLCOLORSTATIC:{HDC dc=(HDC)wp;SetTextColor(dc,C_TEXT);SetBkColor(dc,C_P
         return TRUE;
     }
     break;
-}case WM_HSCROLL:UpdateSliderLabels();if((HWND)lp)InvalidateRect((HWND)lp,nullptr,FALSE);return 0;case WM_TIMER:CheckProcesses();return 0;case WM_COMMAND:{int id=LOWORD(wp);if(id==IDC_LIST&&HIWORD(wp)==LBN_SELCHANGE){LoadSelected();return 0;}if(id==IDC_DISPLAY&&HIWORD(wp)==CBN_SELCHANGE){int ds=(int)SendMessageW(H(IDC_DISPLAY),CB_GETCURSEL,0,0);if(ds>=0&&ds<(int)gDisplays.size()){if(IsDesktopSelected()){auto*p=EnsureDesktopProfile(gDisplays[ds].gdiName);LoadValuesToSliders(ValuesFromFlatProfile(*p));}else{auto*p=SelectedProfile();if(p){p->displayName=gDisplays[ds].gdiName;LoadValuesToSliders(*EnsureGameValuesForDisplay(*p,p->displayName));}}}return 0;}switch(id){case IDC_BROWSE:{OPENFILENAMEW o{sizeof(o)};wchar_t f[MAX_PATH]{};o.hwndOwner=w;o.lpstrFilter=L"Executables (*.exe)\0*.exe\0All files\0*.*\0";o.lpstrFile=f;o.nMaxFile=MAX_PATH;o.Flags=OFN_FILEMUSTEXIST;if(GetOpenFileNameW(&o)){Txt(IDC_EXE,f);auto* p=SelectedProfile();if(p&&!IsDesktopSelected()){p->exePath=f;InvalidateRect(H(IDC_LIST),nullptr,TRUE);}}break;}case IDC_SAVE:SaveSelected();break;case IDC_ADD:{GameProfile np{};if(!gDisplays.empty()){int pi=0;for(size_t di=0;di<gDisplays.size();++di)if(gDisplays[di].primary){pi=(int)di;break;}np.displayName=gDisplays[pi].gdiName;for(const auto&d:gDisplays)np.displayProfiles.push_back(ValuesFromDesktop(d.gdiName));}gSettings.profiles.push_back(np);gSelected=(int)gSettings.profiles.size();Save();RefreshList();LoadSelected();break;}case IDC_REMOVE:if(gSelected>0&&gSelected<=(int)gSettings.profiles.size()){gSettings.profiles.erase(gSettings.profiles.begin()+(gSelected-1));gSelected=std::max<int>(0,gSelected-1);Save();RefreshList();LoadSelected();}break;case IDC_STARTWIN:gSettings.startWindows=SendMessageW(H(IDC_STARTWIN),BM_GETCHECK,0,0)==BST_CHECKED;SetStartup(gSettings.startWindows);Save();break;case IDC_STARTMIN:gSettings.startMinimized=SendMessageW(H(IDC_STARTMIN),BM_GETCHECK,0,0)==BST_CHECKED;Save();break;case IDC_MINTRAY:gSettings.minimizeToTray=SendMessageW(H(IDC_MINTRAY),BM_GETCHECK,0,0)==BST_CHECKED;Save();break;case ID_TRAY_OPEN:ShowMain();break;case ID_TRAY_CHECK_UPDATE:{if(HANDLE h=CreateThread(nullptr,0,UpdateCheckThread,(LPVOID)1,0,nullptr))CloseHandle(h);break;}case ID_TRAY_ABOUT:ShowAbout();break;case ID_TRAY_EXIT:gReallyExit=true;DestroyWindow(w);break;}return 0;}case WM_CLOSE:
+}case WM_HSCROLL:UpdateSliderLabels();if((HWND)lp)InvalidateRect((HWND)lp,nullptr,FALSE);return 0;case WM_TIMER:CheckProcesses();return 0;case WM_COMMAND:{int id=LOWORD(wp);if(id==IDC_LIST&&HIWORD(wp)==LBN_SELCHANGE){LoadSelected();return 0;}if(id==IDC_DISPLAY&&HIWORD(wp)==CBN_SELCHANGE){int ds=(int)SendMessageW(H(IDC_DISPLAY),CB_GETCURSEL,0,0);if(ds>=0&&ds<(int)gDisplays.size()){if(IsDesktopSelected()){auto*p=EnsureDesktopProfile(gDisplays[ds].gdiName);LoadValuesToSliders(ValuesFromFlatProfile(*p));}else{auto*p=SelectedProfile();if(p){p->displayName=gDisplays[ds].gdiName;LoadValuesToSliders(*EnsureGameValuesForDisplay(*p,p->displayName));}}}return 0;}switch(id){case IDC_BROWSE:{OPENFILENAMEW o{sizeof(o)};wchar_t f[MAX_PATH]{};o.hwndOwner=w;o.lpstrFilter=L"Executables (*.exe)\0*.exe\0All files\0*.*\0";o.lpstrFile=f;o.nMaxFile=MAX_PATH;o.Flags=OFN_FILEMUSTEXIST;if(GetOpenFileNameW(&o)){Txt(IDC_EXE,f);auto* p=SelectedProfile();if(p&&!IsDesktopSelected()){p->exePath=f;InvalidateRect(H(IDC_LIST),nullptr,TRUE);}}break;}case IDC_SAVE:SaveSelected();break;case IDC_ADD:{GameProfile np{};if(!gDisplays.empty()){int pi=0;for(size_t di=0;di<gDisplays.size();++di)if(gDisplays[di].primary){pi=(int)di;break;}np.displayName=gDisplays[pi].gdiName;for(const auto&d:gDisplays)np.displayProfiles.push_back(ValuesFromDesktop(d.gdiName));}gSettings.profiles.push_back(np);gSelected=(int)gSettings.profiles.size();Save();RefreshList();LoadSelected();break;}case IDC_REMOVE:if(gSelected>0&&gSelected<=(int)gSettings.profiles.size()){gSettings.profiles.erase(gSettings.profiles.begin()+(gSelected-1));gSelected=std::max<int>(0,gSelected-1);Save();RefreshList();LoadSelected();}break;case IDC_STARTWIN:gSettings.startWindows=SendMessageW(H(IDC_STARTWIN),BM_GETCHECK,0,0)==BST_CHECKED;SetStartup(gSettings.startWindows);Save();break;case IDC_STARTMIN:gSettings.startMinimized=SendMessageW(H(IDC_STARTMIN),BM_GETCHECK,0,0)==BST_CHECKED;Save();break;case IDC_MINTRAY:gSettings.minimizeToTray=SendMessageW(H(IDC_MINTRAY),BM_GETCHECK,0,0)==BST_CHECKED;Save();break;case IDC_CHECKUPDATES:gSettings.checkUpdates=SendMessageW(H(IDC_CHECKUPDATES),BM_GETCHECK,0,0)==BST_CHECKED;Save();break;case ID_TRAY_OPEN:ShowMain();break;case ID_TRAY_CHECK_UPDATE:{if(HANDLE h=CreateThread(nullptr,0,UpdateCheckThread,(LPVOID)1,0,nullptr))CloseHandle(h);break;}case ID_TRAY_ABOUT:ShowAbout();break;case ID_TRAY_EXIT:gReallyExit=true;DestroyWindow(w);break;}return 0;}case WM_CLOSE:
     gReallyExit=true;
     DestroyWindow(w);
     return 0;case WM_TRAY:if(lp==WM_LBUTTONDBLCLK){ShowMain();return 0;}if(lp==WM_RBUTTONUP||lp==WM_CONTEXTMENU){POINT p;GetCursorPos(&p);SetForegroundWindow(w);TrackPopupMenu(gTrayMenu,TPM_RIGHTBUTTON,p.x,p.y,0,w,nullptr);return 0;}break;case WM_DESTROY:KillTimer(w,1);Shell_NotifyIconW(NIM_DELETE,&gNid);if(pUnload)pUnload();if(gNv)FreeLibrary(gNv);PostQuitMessage(0);return 0;}return DefWindowProcW(w,m,wp,lp);} 
@@ -1611,4 +1617,4 @@ int mainW=mainWr.right-mainWr.left, mainH=mainWr.bottom-mainWr.top;
 int mainX=mainWork.left+((mainWork.right-mainWork.left)-mainW)/2;
 int mainY=mainWork.top+((mainWork.bottom-mainWork.top)-mainH)/2;
 SetWindowPos(gWnd,nullptr,mainX,mainY,0,0,SWP_NOSIZE|SWP_NOZORDER|SWP_NOACTIVATE);
-SetWindowLongPtrW(gWnd,GWLP_USERDATA,0);gTrayMenu=CreatePopupMenu();AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_OPEN,L"Open NvProfileSwitcher");AppendMenuW(gTrayMenu,MF_SEPARATOR,0,nullptr);AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_CHECK_UPDATE,L"Check for updates");AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_ABOUT,L"About NvProfileSwitcher");AppendMenuW(gTrayMenu,MF_SEPARATOR,0,nullptr);AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_EXIT,L"Exit");gNid.cbSize=sizeof(gNid);gNid.hWnd=gWnd;gNid.uID=1;gNid.uFlags=NIF_MESSAGE|NIF_ICON|NIF_TIP;gNid.uCallbackMessage=WM_TRAY;gNid.hIcon=gIcon;wcscpy_s(gNid.szTip,L"NvProfileSwitcher");Shell_NotifyIconW(NIM_ADD,&gNid);gStatusOk=InitNv();if(gStatusOk){if(gSettings.desktopProfiles.empty()&&!gDisplays.empty()){DisplayTarget* pd=nullptr;for(auto&d:gDisplays)if(d.primary){pd=&d;break;}if(!pd)pd=&gDisplays.front();EnsureDesktopProfile(pd->gdiName);}EnsureAllGameDisplayProfiles();Save();if(auto* p=SelectedProfile())RefreshDisplayCombo(*p);RestoreAllDesktopProfiles();LoadSelected();}gActive=L"Windows";bool min=(wcsstr(cmd,L"--minimized")!=nullptr);ShowWindow(gWnd,min?SW_HIDE:SW_SHOW);UpdateWindow(gWnd);if(HANDLE h=CreateThread(nullptr,0,UpdateCheckThread,nullptr,0,nullptr))CloseHandle(h);MSG msg;while(GetMessageW(&msg,nullptr,0,0)>0){TranslateMessage(&msg);DispatchMessageW(&msg);}DeleteObject(gFont);DeleteObject(gFontBold);DeleteObject(gFontTitle);DeleteObject(gIconFont);DeleteObject(gBackBrush);DeleteObject(gPanelBrush);DeleteObject(gPanel2Brush);DeleteObject(gFieldBrush);if(instanceMutex)CloseHandle(instanceMutex);return 0;}
+SetWindowLongPtrW(gWnd,GWLP_USERDATA,0);gTrayMenu=CreatePopupMenu();AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_OPEN,L"Open NvProfileSwitcher");AppendMenuW(gTrayMenu,MF_SEPARATOR,0,nullptr);AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_CHECK_UPDATE,L"Check for updates");AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_ABOUT,L"About NvProfileSwitcher");AppendMenuW(gTrayMenu,MF_SEPARATOR,0,nullptr);AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_EXIT,L"Exit");gNid.cbSize=sizeof(gNid);gNid.hWnd=gWnd;gNid.uID=1;gNid.uFlags=NIF_MESSAGE|NIF_ICON|NIF_TIP;gNid.uCallbackMessage=WM_TRAY;gNid.hIcon=gIcon;wcscpy_s(gNid.szTip,L"NvProfileSwitcher");Shell_NotifyIconW(NIM_ADD,&gNid);gStatusOk=InitNv();if(gStatusOk){if(gSettings.desktopProfiles.empty()&&!gDisplays.empty()){DisplayTarget* pd=nullptr;for(auto&d:gDisplays)if(d.primary){pd=&d;break;}if(!pd)pd=&gDisplays.front();EnsureDesktopProfile(pd->gdiName);}EnsureAllGameDisplayProfiles();Save();if(auto* p=SelectedProfile())RefreshDisplayCombo(*p);RestoreAllDesktopProfiles();LoadSelected();}gActive=L"Windows";bool min=(wcsstr(cmd,L"--minimized")!=nullptr);ShowWindow(gWnd,min?SW_HIDE:SW_SHOW);UpdateWindow(gWnd);if(gSettings.checkUpdates){if(HANDLE h=CreateThread(nullptr,0,UpdateCheckThread,nullptr,0,nullptr))CloseHandle(h);}MSG msg;while(GetMessageW(&msg,nullptr,0,0)>0){TranslateMessage(&msg);DispatchMessageW(&msg);}DeleteObject(gFont);DeleteObject(gFontBold);DeleteObject(gFontTitle);DeleteObject(gIconFont);DeleteObject(gBackBrush);DeleteObject(gPanelBrush);DeleteObject(gPanel2Brush);DeleteObject(gFieldBrush);if(instanceMutex)CloseHandle(instanceMutex);return 0;}
