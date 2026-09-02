@@ -777,7 +777,7 @@ void Paint(HWND w){
     SelectObject(dc,gFontBold);
     GetTextExtentPoint32W(dc,versionBadge.c_str(),(int)versionBadge.size(),&versionSize);
     const int versionPad=14;
-    const int versionWidth=std::max(64,versionSize.cx+versionPad*2);
+    const int versionWidth=std::max<int>(64,(int)versionSize.cx+versionPad*2);
     RECT ver{rc.right-28-versionWidth,19,rc.right-28,49};
     FillRound(dc,ver,C_PANEL2,C_BORDER,7);
     int versionX=ver.left+((ver.right-ver.left)-versionSize.cx)/2;
