@@ -76,6 +76,7 @@ enum {ID_TRAY_OPEN=2001,ID_TRAY_CHECK_UPDATE,ID_TRAY_ABOUT,ID_TRAY_EXIT};
 
 HINSTANCE gInst{}; HWND gWnd{}; HFONT gFont{},gFontBold{},gFontTitle{},gIconFont{}; HBRUSH gBackBrush{},gPanelBrush{},gPanel2Brush{},gFieldBrush{}; HICON gIcon{};
 ULONG_PTR gGdiPlusToken{}; Gdiplus::Image* gHeaderImage{};
+Gdiplus::Image *gSliderBrightness{},*gSliderContrast{},*gSliderGamma{},*gSliderVibrance{},*gSliderHue{};
 Settings gSettings; int gSelected=-1; bool gReallyExit=false; std::wstring gActive=L"Windows", gStatus=L"Not initialized", gDriverVersion=L"--"; bool gStatusOk=false;
 NOTIFYICONDATAW gNid{}; HMENU gTrayMenu{};
 
@@ -713,7 +714,7 @@ void SetDesktopUi(bool desktop){
         {IDC_LBL_VIB,IDC_VIB,IDC_VALVIB,yVib},
         {IDC_LBL_HUE,IDC_HUE,IDC_VALHUE,yHue}
     }){
-        MoveWindow(H(sp.lbl),rightX,sp.y,190,22,TRUE);
+        MoveWindow(H(sp.lbl),rightX+29,sp.y,161,22,TRUE);
         MoveWindow(H(sp.track),rightX,sp.y+27,rightW-92,28,TRUE);
         MoveWindow(H(sp.val),rightX+rightW-76,sp.y-2,76,28,TRUE);
     }
@@ -991,6 +992,42 @@ LRESULT CustomDrawSlider(NMCUSTOMDRAW* cd){
 }
 
 
+Gdiplus::Image* LoadEmbeddedPng(int resourceId){
+    HRSRC res=FindResourceW(gInst,MAKEINTRESOURCEW(resourceId),RT_RCDATA);
+    if(!res) return nullptr;
+    HGLOBAL data=LoadResource(gInst,res);
+    if(!data) return nullptr;
+    DWORD size=SizeofResource(gInst,res);
+    const void* src=LockResource(data);
+    if(!src||!size) return nullptr;
+
+    HGLOBAL copy=GlobalAlloc(GMEM_MOVEABLE,size);
+    if(!copy) return nullptr;
+    void* dst=GlobalLock(copy);
+    if(!dst){GlobalFree(copy);return nullptr;}
+    memcpy(dst,src,size);
+    GlobalUnlock(copy);
+
+    IStream* stream=nullptr;
+    if(CreateStreamOnHGlobal(copy,TRUE,&stream)!=S_OK){
+        GlobalFree(copy);return nullptr;
+    }
+    auto* image=Gdiplus::Image::FromStream(stream,FALSE);
+    stream->Release();
+    if(!image||image->GetLastStatus()!=Gdiplus::Ok){
+        delete image;return nullptr;
+    }
+    return image;
+}
+
+void LoadSliderIcons(){
+    gSliderBrightness=LoadEmbeddedPng(IDR_SLIDER_BRIGHTNESS);
+    gSliderContrast=LoadEmbeddedPng(IDR_SLIDER_CONTRAST);
+    gSliderGamma=LoadEmbeddedPng(IDR_SLIDER_GAMMA);
+    gSliderVibrance=LoadEmbeddedPng(IDR_SLIDER_VIBRANCE);
+    gSliderHue=LoadEmbeddedPng(IDR_SLIDER_HUE);
+}
+
 bool LoadHeaderImage(){
     HRSRC res=FindResourceW(gInst,MAKEINTRESOURCEW(IDR_HEADER_PNG),RT_RCDATA);
     if(!res) return false;
@@ -1039,6 +1076,18 @@ void DrawHeaderImage(HDC dc){
     graphics.DrawImage(gHeaderImage,Gdiplus::Rect(27,9,targetW,targetH));
 }
 
+
+void DrawSliderIcon(HDC dc,Gdiplus::Image* image,int x,int y){
+    if(!image) return;
+    Gdiplus::Graphics graphics(dc);
+    graphics.SetInterpolationMode(Gdiplus::InterpolationModeHighQualityBicubic);
+    graphics.SetPixelOffsetMode(Gdiplus::PixelOffsetModeHighQuality);
+    graphics.SetCompositingMode(Gdiplus::CompositingModeSourceOver);
+    graphics.SetCompositingQuality(Gdiplus::CompositingQualityHighQuality);
+    graphics.DrawImage(image,Gdiplus::Rect(x,y,22,22));
+}
+
+
 void DrawLabel(HDC dc,const wchar_t*t,int x,int y,COLORREF c,HFONT f=nullptr){ SetBkMode(dc,TRANSPARENT);SetTextColor(dc,c);SelectObject(dc,f?f:gFont);TextOutW(dc,x,y,t,(int)wcslen(t)); }
 void Fill(HDC dc,int x,int y,int w,int h,COLORREF c){HBRUSH b=CreateSolidBrush(c);RECT r{x,y,x+w,y+h};FillRect(dc,&r,b);DeleteObject(b);} 
 void Paint(HWND w){
@@ -1075,6 +1124,20 @@ void Paint(HWND w){
 
     DrawLabel(dc,L"PROFILES",38,94,C_MUTED,gFontBold);
     DrawLabel(dc,L"PROFILE SETTINGS",rightX+22,94,C_MUTED,gFontBold);
+
+    // Original slider icons extracted from the prototype artwork.
+    const int iconX=rightX+22;
+    const bool desktopIcons=IsDesktopSelected();
+    const int iconBri=desktopIcons?195:340;
+    const int iconCon=desktopIcons?255:400;
+    const int iconGam=desktopIcons?315:460;
+    const int iconVib=desktopIcons?375:520;
+    const int iconHue=desktopIcons?435:580;
+    DrawSliderIcon(dc,gSliderBrightness,iconX,iconBri-2);
+    DrawSliderIcon(dc,gSliderContrast,iconX,iconCon-2);
+    DrawSliderIcon(dc,gSliderGamma,iconX,iconGam-2);
+    DrawSliderIcon(dc,gSliderVibrance,iconX,iconVib-2);
+    DrawSliderIcon(dc,gSliderHue,iconX,iconHue-2);
 
     // Compact NVIDIA status footer.
     const int footerY=rc.bottom-22;
@@ -1118,7 +1181,7 @@ void BuildControls(){
     SetWindowTheme(display,L"DarkMode_Explorer",nullptr);
 
     auto slider=[&](const wchar_t*t,int lid,int id,int vid,int y,int mn,int mx){
-        Add(L"STATIC",t,0,rightX,y,190,22,lid);
+        Add(L"STATIC",t,0,rightX+29,y,161,22,lid);
         HWND tr=Add(TRACKBAR_CLASSW,L"",TBS_HORZ|TBS_NOTICKS,rightX,y+27,rightW-92,28,id);
         SendMessageW(tr,TBM_SETRANGE,TRUE,MAKELONG(mn,mx));
         Add(L"STATIC",L"",SS_OWNERDRAW,rightX+rightW-76,y-2,76,28,vid);
@@ -1682,7 +1745,7 @@ gInst=h;
 Gdiplus::GdiplusStartupInput gdiplusInput;
 if(Gdiplus::GdiplusStartup(&gGdiPlusToken,&gdiplusInput,nullptr)!=Gdiplus::Ok)
     gGdiPlusToken=0;
-if(gGdiPlusToken) LoadHeaderImage();
+if(gGdiPlusToken){LoadHeaderImage();LoadSliderIcons();}
 INITCOMMONCONTROLSEX ic{sizeof(ic),ICC_BAR_CLASSES|ICC_STANDARD_CLASSES};InitCommonControlsEx(&ic);Load();gSettings.desktop.name=L"Windows";gBackBrush=CreateSolidBrush(C_BACK);gPanelBrush=CreateSolidBrush(C_PANEL);gPanel2Brush=CreateSolidBrush(C_PANEL2);gFieldBrush=CreateSolidBrush(C_FIELD);gFont=CreateFontW(-15,0,0,0,FW_NORMAL,0,0,0,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,DEFAULT_PITCH,L"Segoe UI");gFontBold=CreateFontW(-15,0,0,0,FW_SEMIBOLD,0,0,0,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,DEFAULT_PITCH,L"Segoe UI");gFontTitle=CreateFontW(-24,0,0,0,FW_BOLD,0,0,0,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,DEFAULT_PITCH,L"Segoe UI");
 gIconFont=CreateFontW(-18,0,0,0,FW_NORMAL,FALSE,FALSE,FALSE,DEFAULT_CHARSET,OUT_DEFAULT_PRECIS,CLIP_DEFAULT_PRECIS,CLEARTYPE_QUALITY,DEFAULT_PITCH,L"Segoe MDL2 Assets");gIcon=LoadIconW(h,MAKEINTRESOURCEW(IDI_APPICON));WNDCLASSEXW wc{sizeof(wc)};wc.style=CS_HREDRAW|CS_VREDRAW;wc.lpfnWndProc=Proc;wc.hInstance=h;wc.hIcon=gIcon;wc.hIconSm=gIcon;wc.hCursor=LoadCursor(nullptr,IDC_ARROW);wc.hbrBackground=gBackBrush;wc.lpszClassName=L"NvProfileSwitcherNative";RegisterClassExW(&wc);std::wstring mainTitle=L"NvProfileSwitcher ";
 #if NVPS_DEV_BUILD
@@ -1704,5 +1767,8 @@ int mainY=mainWork.top+((mainWork.bottom-mainWork.top)-mainH)/2;
 SetWindowPos(gWnd,nullptr,mainX,mainY,0,0,SWP_NOSIZE|SWP_NOZORDER|SWP_NOACTIVATE);
 SetWindowLongPtrW(gWnd,GWLP_USERDATA,0);gTrayMenu=CreatePopupMenu();AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_OPEN,L"Open NvProfileSwitcher");AppendMenuW(gTrayMenu,MF_SEPARATOR,0,nullptr);AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_CHECK_UPDATE,L"Check for updates");AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_ABOUT,L"About NvProfileSwitcher");AppendMenuW(gTrayMenu,MF_SEPARATOR,0,nullptr);AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_EXIT,L"Exit");gNid.cbSize=sizeof(gNid);gNid.hWnd=gWnd;gNid.uID=1;gNid.uFlags=NIF_MESSAGE|NIF_ICON|NIF_TIP;gNid.uCallbackMessage=WM_TRAY;gNid.hIcon=gIcon;wcscpy_s(gNid.szTip,L"NvProfileSwitcher");Shell_NotifyIconW(NIM_ADD,&gNid);gStatusOk=InitNv();if(gStatusOk){if(gSettings.desktopProfiles.empty()&&!gDisplays.empty()){DisplayTarget* pd=nullptr;for(auto&d:gDisplays)if(d.primary){pd=&d;break;}if(!pd)pd=&gDisplays.front();EnsureDesktopProfile(pd->gdiName);}EnsureAllGameDisplayProfiles();Save();if(auto* p=SelectedProfile())RefreshDisplayCombo(*p);RestoreAllDesktopProfiles();LoadSelected();}gActive=L"Windows";bool min=(wcsstr(cmd,L"--minimized")!=nullptr);ShowWindow(gWnd,min?SW_HIDE:SW_SHOW);UpdateWindow(gWnd);if(gSettings.checkUpdates){if(HANDLE h=CreateThread(nullptr,0,UpdateCheckThread,nullptr,0,nullptr))CloseHandle(h);}MSG msg;while(GetMessageW(&msg,nullptr,0,0)>0){TranslateMessage(&msg);DispatchMessageW(&msg);}DeleteObject(gFont);DeleteObject(gFontBold);DeleteObject(gFontTitle);DeleteObject(gIconFont);DeleteObject(gBackBrush);DeleteObject(gPanelBrush);DeleteObject(gPanel2Brush);DeleteObject(gFieldBrush);
 if(gHeaderImage){delete gHeaderImage;gHeaderImage=nullptr;}
+for(auto** image:{&gSliderBrightness,&gSliderContrast,&gSliderGamma,&gSliderVibrance,&gSliderHue}){
+    if(*image){delete *image;*image=nullptr;}
+}
 if(gGdiPlusToken){Gdiplus::GdiplusShutdown(gGdiPlusToken);gGdiPlusToken=0;}
 if(instanceMutex)CloseHandle(instanceMutex);return 0;}
