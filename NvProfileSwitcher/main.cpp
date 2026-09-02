@@ -77,7 +77,6 @@ enum {ID_TRAY_OPEN=2001,ID_TRAY_CHECK_UPDATE,ID_TRAY_ABOUT,ID_TRAY_EXIT};
 HINSTANCE gInst{}; HWND gWnd{}; HFONT gFont{},gFontBold{},gFontTitle{},gIconFont{}; HBRUSH gBackBrush{},gPanelBrush{},gPanel2Brush{},gFieldBrush{}; HICON gIcon{};
 ULONG_PTR gGdiPlusToken{}; Gdiplus::Image* gHeaderImage{};
 Gdiplus::Image *gSliderBrightness{},*gSliderContrast{},*gSliderGamma{},*gSliderVibrance{},*gSliderHue{};
-Gdiplus::Image *gSectionProfiles{},*gSectionProfileSettings{},*gSectionAppSettings{};
 Settings gSettings; int gSelected=-1; bool gReallyExit=false; std::wstring gActive=L"Windows", gStatus=L"Not initialized", gDriverVersion=L"--"; bool gStatusOk=false;
 NOTIFYICONDATAW gNid{}; HMENU gTrayMenu{};
 HWND gFooterHover{};
@@ -725,18 +724,15 @@ void SetDesktopUi(bool desktop){
 
     // Global startup options stay at the bottom of the right panel.
     // Global options in two balanced rows.
-    const int settingsCol1=rightX+230;
-    const int settingsCol2=rightX+390;
+    MoveWindow(H(IDC_STARTWIN),rightX,r.bottom-88,20,22,TRUE);
+    MoveWindow(GetWindow(H(IDC_STARTWIN),GW_HWNDNEXT),rightX+24,r.bottom-87,135,22,TRUE);
+    MoveWindow(H(IDC_STARTMIN),rightX+220,r.bottom-88,20,22,TRUE);
+    MoveWindow(GetWindow(H(IDC_STARTMIN),GW_HWNDNEXT),rightX+244,r.bottom-87,175,22,TRUE);
 
-    MoveWindow(H(IDC_STARTWIN),settingsCol1,r.bottom-88,20,22,TRUE);
-    MoveWindow(GetWindow(H(IDC_STARTWIN),GW_HWNDNEXT),settingsCol1+24,r.bottom-87,135,22,TRUE);
-    MoveWindow(H(IDC_STARTMIN),settingsCol2,r.bottom-88,20,22,TRUE);
-    MoveWindow(GetWindow(H(IDC_STARTMIN),GW_HWNDNEXT),settingsCol2+24,r.bottom-87,175,22,TRUE);
-
-    MoveWindow(H(IDC_MINTRAY),settingsCol1,r.bottom-56,20,22,TRUE);
-    MoveWindow(GetWindow(H(IDC_MINTRAY),GW_HWNDNEXT),settingsCol1+24,r.bottom-55,135,22,TRUE);
-    MoveWindow(H(IDC_CHECKUPDATES),settingsCol2,r.bottom-56,20,22,TRUE);
-    MoveWindow(GetWindow(H(IDC_CHECKUPDATES),GW_HWNDNEXT),settingsCol2+24,r.bottom-55,145,22,TRUE);
+    MoveWindow(H(IDC_MINTRAY),rightX,r.bottom-56,20,22,TRUE);
+    MoveWindow(GetWindow(H(IDC_MINTRAY),GW_HWNDNEXT),rightX+24,r.bottom-55,135,22,TRUE);
+    MoveWindow(H(IDC_CHECKUPDATES),rightX+220,r.bottom-56,20,22,TRUE);
+    MoveWindow(GetWindow(H(IDC_CHECKUPDATES),GW_HWNDNEXT),rightX+244,r.bottom-55,145,22,TRUE);
 
     InvalidateRect(gWnd,nullptr,TRUE);
 }
@@ -1033,12 +1029,6 @@ void LoadSliderIcons(){
     gSliderHue=LoadEmbeddedPng(IDR_SLIDER_HUE);
 }
 
-void LoadSectionIcons(){
-    gSectionProfiles=LoadEmbeddedPng(IDR_SECTION_PROFILES);
-    gSectionProfileSettings=LoadEmbeddedPng(IDR_SECTION_PROFILE_SETTINGS);
-    gSectionAppSettings=LoadEmbeddedPng(IDR_SECTION_APP_SETTINGS);
-}
-
 bool LoadHeaderImage(){
     HRSRC res=FindResourceW(gInst,MAKEINTRESOURCEW(IDR_HEADER_PNG),RT_RCDATA);
     if(!res) return false;
@@ -1098,20 +1088,44 @@ void DrawSliderIcon(HDC dc,Gdiplus::Image* image,int x,int y){
     graphics.DrawImage(image,Gdiplus::Rect(x,y,22,22));
 }
 
-void DrawSectionIcon(HDC dc,Gdiplus::Image* image,int x,int y,int size=24){
-    if(!image) return;
-    Gdiplus::Graphics graphics(dc);
-    graphics.SetInterpolationMode(Gdiplus::InterpolationModeHighQualityBicubic);
-    graphics.SetPixelOffsetMode(Gdiplus::PixelOffsetModeHighQuality);
-    graphics.SetCompositingMode(Gdiplus::CompositingModeSourceOver);
-    graphics.SetCompositingQuality(Gdiplus::CompositingQualityHighQuality);
-    graphics.DrawImage(image,Gdiplus::Rect(x,y,size,size));
-}
-
-
 
 void DrawLabel(HDC dc,const wchar_t*t,int x,int y,COLORREF c,HFONT f=nullptr){ SetBkMode(dc,TRANSPARENT);SetTextColor(dc,c);SelectObject(dc,f?f:gFont);TextOutW(dc,x,y,t,(int)wcslen(t)); }
 void Fill(HDC dc,int x,int y,int w,int h,COLORREF c){HBRUSH b=CreateSolidBrush(c);RECT r{x,y,x+w,y+h};FillRect(dc,&r,b);DeleteObject(b);} 
+
+void DrawProfilesSectionIcon(HDC dc,int x,int y,COLORREF c){
+    HPEN pen=CreatePen(PS_SOLID,2,c);
+    HGDIOBJ oldPen=SelectObject(dc,pen);
+    HBRUSH oldBrush=(HBRUSH)SelectObject(dc,GetStockObject(HOLLOW_BRUSH));
+
+    // Two overlapping profile cards, matching the prototype's stacked-window icon.
+    Rectangle(dc,x+2,y+3,x+15,y+13);
+    Rectangle(dc,x+7,y+7,x+20,y+17);
+
+    SelectObject(dc,oldBrush);
+    SelectObject(dc,oldPen);
+    DeleteObject(pen);
+}
+
+void DrawProfileSettingsSectionIcon(HDC dc,int x,int y,COLORREF c){
+    HPEN pen=CreatePen(PS_SOLID,2,c);
+    HGDIOBJ oldPen=SelectObject(dc,pen);
+
+    // Three compact adjustment sliders, matching the prototype header icon.
+    MoveToEx(dc,x+1,y+4,nullptr); LineTo(dc,x+20,y+4);
+    MoveToEx(dc,x+1,y+10,nullptr); LineTo(dc,x+20,y+10);
+    MoveToEx(dc,x+1,y+16,nullptr); LineTo(dc,x+20,y+16);
+
+    HBRUSH brush=CreateSolidBrush(c);
+    HGDIOBJ oldBrush=SelectObject(dc,brush);
+    Ellipse(dc,x+5,y+1,x+10,y+6);
+    Ellipse(dc,x+13,y+7,x+18,y+12);
+    Ellipse(dc,x+7,y+13,x+12,y+18);
+
+    SelectObject(dc,oldBrush);
+    SelectObject(dc,oldPen);
+    DeleteObject(brush);
+    DeleteObject(pen);
+}
 
 void DrawDriverIcon(HDC dc,int x,int y,COLORREF c){
     HPEN pen=CreatePen(PS_SOLID,1,c);
@@ -1211,16 +1225,13 @@ void Paint(HWND w){
     int versionY=ver.top+((ver.bottom-ver.top)-versionSize.cy)/2;
     DrawLabel(dc,versionBadge.c_str(),versionX,versionY,C_ACCENT,gFontBold);
 
-    DrawSectionIcon(dc,gSectionProfiles,34,88,24);
-    DrawLabel(dc,L"PROFILES",64,94,C_ACCENT,gFontBold);
+    // Prototype-inspired section headers: compact green icon + green title.
+    const int sectionHeaderY=93;
+    DrawProfilesSectionIcon(dc,38,sectionHeaderY-1,C_ACCENT);
+    DrawLabel(dc,L"PROFILES",66,sectionHeaderY,C_ACCENT,gFontBold);
 
-    DrawSectionIcon(dc,gSectionProfileSettings,rightX+22,88,24);
-    DrawLabel(dc,L"PROFILE SETTINGS",rightX+52,94,C_ACCENT,gFontBold);
-
-    // Application settings marker in the bottom-left of the right panel.
-    const int appY=rc.bottom-84;
-    DrawSectionIcon(dc,gSectionAppSettings,rightX+22,appY-4,24);
-    DrawLabel(dc,L"APPLICATION SETTINGS",rightX+52,appY+2,C_ACCENT,gFontBold);
+    DrawProfileSettingsSectionIcon(dc,rightX+22,sectionHeaderY-1,C_ACCENT);
+    DrawLabel(dc,L"PROFILE SETTINGS",rightX+50,sectionHeaderY,C_ACCENT,gFontBold);
 
     // Original slider icons extracted from the prototype artwork.
     const int iconX=rightX+22;
@@ -1316,18 +1327,15 @@ void BuildControls(){
     Add(L"BUTTON",L"Add game",BS_OWNERDRAW,34,r.bottom-172,118,38,IDC_ADD);
     Add(L"BUTTON",L"Remove",BS_OWNERDRAW,164,r.bottom-172,104,38,IDC_REMOVE);
 
-    const int settingsCol1=rightX+230;
-    const int settingsCol2=rightX+390;
+    Add(L"BUTTON",L"",BS_AUTOCHECKBOX,rightX,r.bottom-88,20,22,IDC_STARTWIN);
+    Add(L"STATIC",L"Start with Windows",0,rightX+24,r.bottom-87,135,22,0);
+    Add(L"BUTTON",L"",BS_AUTOCHECKBOX,rightX+220,r.bottom-88,20,22,IDC_STARTMIN);
+    Add(L"STATIC",L"Start minimized to tray",0,rightX+244,r.bottom-87,175,22,0);
 
-    Add(L"BUTTON",L"",BS_AUTOCHECKBOX,settingsCol1,r.bottom-88,20,22,IDC_STARTWIN);
-    Add(L"STATIC",L"Start with Windows",0,settingsCol1+24,r.bottom-87,135,22,0);
-    Add(L"BUTTON",L"",BS_AUTOCHECKBOX,settingsCol2,r.bottom-88,20,22,IDC_STARTMIN);
-    Add(L"STATIC",L"Start minimized to tray",0,settingsCol2+24,r.bottom-87,175,22,0);
-
-    Add(L"BUTTON",L"",BS_AUTOCHECKBOX,settingsCol1,r.bottom-56,20,22,IDC_MINTRAY);
-    Add(L"STATIC",L"Minimize to tray",0,settingsCol1+24,r.bottom-55,135,22,0);
-    Add(L"BUTTON",L"",BS_AUTOCHECKBOX,settingsCol2,r.bottom-56,20,22,IDC_CHECKUPDATES);
-    Add(L"STATIC",L"Check for updates",0,settingsCol2+24,r.bottom-55,145,22,0);
+    Add(L"BUTTON",L"",BS_AUTOCHECKBOX,rightX,r.bottom-56,20,22,IDC_MINTRAY);
+    Add(L"STATIC",L"Minimize to tray",0,rightX+24,r.bottom-55,135,22,0);
+    Add(L"BUTTON",L"",BS_AUTOCHECKBOX,rightX+220,r.bottom-56,20,22,IDC_CHECKUPDATES);
+    Add(L"STATIC",L"Check for updates",0,rightX+244,r.bottom-55,145,22,0);
 
     SendMessageW(H(IDC_STARTWIN),BM_SETCHECK,gSettings.startWindows?BST_CHECKED:BST_UNCHECKED,0);
     SendMessageW(H(IDC_STARTMIN),BM_SETCHECK,gSettings.startMinimized?BST_CHECKED:BST_UNCHECKED,0);
@@ -1893,7 +1901,7 @@ gInst=h;
 Gdiplus::GdiplusStartupInput gdiplusInput;
 if(Gdiplus::GdiplusStartup(&gGdiPlusToken,&gdiplusInput,nullptr)!=Gdiplus::Ok)
     gGdiPlusToken=0;
-if(gGdiPlusToken){LoadHeaderImage();LoadSliderIcons();LoadSectionIcons();}
+if(gGdiPlusToken){LoadHeaderImage();LoadSliderIcons();}
 INITCOMMONCONTROLSEX ic{sizeof(ic),ICC_BAR_CLASSES|ICC_STANDARD_CLASSES};InitCommonControlsEx(&ic);Load();gSettings.desktop.name=L"Windows";gBackBrush=CreateSolidBrush(C_BACK);gPanelBrush=CreateSolidBrush(C_PANEL);gPanel2Brush=CreateSolidBrush(C_PANEL2);gFieldBrush=CreateSolidBrush(C_FIELD);gFont=CreateFontW(-15,0,0,0,FW_NORMAL,0,0,0,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,DEFAULT_PITCH,L"Segoe UI");gFontBold=CreateFontW(-15,0,0,0,FW_SEMIBOLD,0,0,0,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,DEFAULT_PITCH,L"Segoe UI");gFontTitle=CreateFontW(-24,0,0,0,FW_BOLD,0,0,0,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,DEFAULT_PITCH,L"Segoe UI");
 gIconFont=CreateFontW(-18,0,0,0,FW_NORMAL,FALSE,FALSE,FALSE,DEFAULT_CHARSET,OUT_DEFAULT_PRECIS,CLIP_DEFAULT_PRECIS,CLEARTYPE_QUALITY,DEFAULT_PITCH,L"Segoe MDL2 Assets");gIcon=LoadIconW(h,MAKEINTRESOURCEW(IDI_APPICON));WNDCLASSEXW wc{sizeof(wc)};wc.style=CS_HREDRAW|CS_VREDRAW;wc.lpfnWndProc=Proc;wc.hInstance=h;wc.hIcon=gIcon;wc.hIconSm=gIcon;wc.hCursor=LoadCursor(nullptr,IDC_ARROW);wc.hbrBackground=gBackBrush;wc.lpszClassName=L"NvProfileSwitcherNative";RegisterClassExW(&wc);std::wstring mainTitle=L"NvProfileSwitcher ";
 #if NVPS_DEV_BUILD
@@ -1916,9 +1924,6 @@ SetWindowPos(gWnd,nullptr,mainX,mainY,0,0,SWP_NOSIZE|SWP_NOZORDER|SWP_NOACTIVATE
 SetWindowLongPtrW(gWnd,GWLP_USERDATA,0);gTrayMenu=CreatePopupMenu();AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_OPEN,L"Open NvProfileSwitcher");AppendMenuW(gTrayMenu,MF_SEPARATOR,0,nullptr);AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_CHECK_UPDATE,L"Check for updates");AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_ABOUT,L"About NvProfileSwitcher");AppendMenuW(gTrayMenu,MF_SEPARATOR,0,nullptr);AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_EXIT,L"Exit");gNid.cbSize=sizeof(gNid);gNid.hWnd=gWnd;gNid.uID=1;gNid.uFlags=NIF_MESSAGE|NIF_ICON|NIF_TIP;gNid.uCallbackMessage=WM_TRAY;gNid.hIcon=gIcon;wcscpy_s(gNid.szTip,L"NvProfileSwitcher");Shell_NotifyIconW(NIM_ADD,&gNid);gStatusOk=InitNv();if(gStatusOk){if(gSettings.desktopProfiles.empty()&&!gDisplays.empty()){DisplayTarget* pd=nullptr;for(auto&d:gDisplays)if(d.primary){pd=&d;break;}if(!pd)pd=&gDisplays.front();EnsureDesktopProfile(pd->gdiName);}EnsureAllGameDisplayProfiles();Save();if(auto* p=SelectedProfile())RefreshDisplayCombo(*p);RestoreAllDesktopProfiles();LoadSelected();}gActive=L"Windows";bool min=(wcsstr(cmd,L"--minimized")!=nullptr);ShowWindow(gWnd,min?SW_HIDE:SW_SHOW);UpdateWindow(gWnd);if(gSettings.checkUpdates){if(HANDLE h=CreateThread(nullptr,0,UpdateCheckThread,nullptr,0,nullptr))CloseHandle(h);}MSG msg;while(GetMessageW(&msg,nullptr,0,0)>0){TranslateMessage(&msg);DispatchMessageW(&msg);}DeleteObject(gFont);DeleteObject(gFontBold);DeleteObject(gFontTitle);DeleteObject(gIconFont);DeleteObject(gBackBrush);DeleteObject(gPanelBrush);DeleteObject(gPanel2Brush);DeleteObject(gFieldBrush);
 if(gHeaderImage){delete gHeaderImage;gHeaderImage=nullptr;}
 for(auto** image:{&gSliderBrightness,&gSliderContrast,&gSliderGamma,&gSliderVibrance,&gSliderHue}){
-    if(*image){delete *image;*image=nullptr;}
-}
-for(auto** image:{&gSectionProfiles,&gSectionProfileSettings,&gSectionAppSettings}){
     if(*image){delete *image;*image=nullptr;}
 }
 if(gGdiPlusToken){Gdiplus::GdiplusShutdown(gGdiPlusToken);gGdiPlusToken=0;}
