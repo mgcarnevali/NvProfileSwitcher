@@ -1092,39 +1092,34 @@ void DrawSliderIcon(HDC dc,Gdiplus::Image* image,int x,int y){
 void DrawLabel(HDC dc,const wchar_t*t,int x,int y,COLORREF c,HFONT f=nullptr){ SetBkMode(dc,TRANSPARENT);SetTextColor(dc,c);SelectObject(dc,f?f:gFont);TextOutW(dc,x,y,t,(int)wcslen(t)); }
 void Fill(HDC dc,int x,int y,int w,int h,COLORREF c){HBRUSH b=CreateSolidBrush(c);RECT r{x,y,x+w,y+h};FillRect(dc,&r,b);DeleteObject(b);} 
 
-void DrawProfilesSectionIcon(HDC dc,int x,int y,COLORREF c){
-    HPEN pen=CreatePen(PS_SOLID,2,c);
-    HGDIOBJ oldPen=SelectObject(dc,pen);
-    HBRUSH oldBrush=(HBRUSH)SelectObject(dc,GetStockObject(HOLLOW_BRUSH));
 
-    // Two overlapping profile cards, matching the prototype's stacked-window icon.
-    Rectangle(dc,x+2,y+3,x+15,y+13);
-    Rectangle(dc,x+7,y+7,x+20,y+17);
+void DrawPrototypeProfileIcon(HDC dc,int x,int y){
+    HPEN p=CreatePen(PS_SOLID,2,C_ACCENT);
+    HGDIOBJ oldPen=SelectObject(dc,p);
 
-    SelectObject(dc,oldBrush);
+    for(int i=0;i<3;i++){
+        int yy=y+i*8;
+
+        MoveToEx(dc,x,yy,nullptr);
+        LineTo(dc,x+22,yy);
+
+        int dotX=x+6+i*5;
+        HBRUSH b=CreateSolidBrush(C_ACCENT);
+        HPEN dp=CreatePen(PS_SOLID,1,C_ACCENT);
+        HGDIOBJ oldBrush=SelectObject(dc,b);
+        HGDIOBJ oldDotPen=SelectObject(dc,dp);
+
+        const int r=3;
+        Ellipse(dc,dotX-r,yy-r,dotX+r+1,yy+r+1);
+
+        SelectObject(dc,oldDotPen);
+        SelectObject(dc,oldBrush);
+        DeleteObject(dp);
+        DeleteObject(b);
+    }
+
     SelectObject(dc,oldPen);
-    DeleteObject(pen);
-}
-
-void DrawProfileSettingsSectionIcon(HDC dc,int x,int y,COLORREF c){
-    HPEN pen=CreatePen(PS_SOLID,2,c);
-    HGDIOBJ oldPen=SelectObject(dc,pen);
-
-    // Three compact adjustment sliders, matching the prototype header icon.
-    MoveToEx(dc,x+1,y+4,nullptr); LineTo(dc,x+20,y+4);
-    MoveToEx(dc,x+1,y+10,nullptr); LineTo(dc,x+20,y+10);
-    MoveToEx(dc,x+1,y+16,nullptr); LineTo(dc,x+20,y+16);
-
-    HBRUSH brush=CreateSolidBrush(c);
-    HGDIOBJ oldBrush=SelectObject(dc,brush);
-    Ellipse(dc,x+5,y+1,x+10,y+6);
-    Ellipse(dc,x+13,y+7,x+18,y+12);
-    Ellipse(dc,x+7,y+13,x+12,y+18);
-
-    SelectObject(dc,oldBrush);
-    SelectObject(dc,oldPen);
-    DeleteObject(brush);
-    DeleteObject(pen);
+    DeleteObject(p);
 }
 
 void DrawDriverIcon(HDC dc,int x,int y,COLORREF c){
@@ -1225,13 +1220,12 @@ void Paint(HWND w){
     int versionY=ver.top+((ver.bottom-ver.top)-versionSize.cy)/2;
     DrawLabel(dc,versionBadge.c_str(),versionX,versionY,C_ACCENT,gFontBold);
 
-    // Prototype-inspired section headers: compact green icon + green title.
-    const int sectionHeaderY=93;
-    DrawProfilesSectionIcon(dc,38,sectionHeaderY-1,C_ACCENT);
-    DrawLabel(dc,L"PROFILES",66,sectionHeaderY,C_ACCENT,gFontBold);
+    // Original prototype ProfileIcon() adapted to this compact layout.
+    DrawPrototypeProfileIcon(dc,38,95);
+    DrawLabel(dc,L"PROFILES",68,94,C_ACCENT,gFontBold);
 
-    DrawProfileSettingsSectionIcon(dc,rightX+22,sectionHeaderY-1,C_ACCENT);
-    DrawLabel(dc,L"PROFILE SETTINGS",rightX+50,sectionHeaderY,C_ACCENT,gFontBold);
+    DrawPrototypeProfileIcon(dc,rightX+22,95);
+    DrawLabel(dc,L"PROFILE SETTINGS",rightX+52,94,C_ACCENT,gFontBold);
 
     // Original slider icons extracted from the prototype artwork.
     const int iconX=rightX+22;
