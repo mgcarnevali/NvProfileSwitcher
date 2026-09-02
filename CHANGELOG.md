@@ -5,6 +5,20 @@ All notable changes to NvProfileSwitcher will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project follows [Semantic Versioning](https://semver.org/).
 
+## 1.1.2 — 2026-09-02
+
+### Added
+
+- Added a **Check for updates** setting to enable or disable automatic update checks at startup.
+- Manual update checks from the system tray remain available when automatic update checks are disabled.
+
+### Changed
+
+- Improved the main window layout and spacing.
+- Updated the window sizing behavior to keep the interface at a consistent fixed size.
+- Improved game profile layout to accommodate profile name, executable selection and automatic profile controls.
+- Improved application settings layout.
+
 ## 1.1.1 — 2026-09-01
 
 ### Added
