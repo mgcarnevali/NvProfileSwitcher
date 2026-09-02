@@ -35,7 +35,7 @@ your Windows profile is automatically restored.
 - Start minimized to the system tray
 - Optional minimize-to-tray behavior
 - Single-instance support
-- Built-in update checker
+- Built-in update checker with optional automatic checks
 - Lightweight native C++ application
 - Portable — no installation required
 - No .NET runtime required
@@ -153,9 +153,14 @@ system tray while handling profile switching in the background.
 
 ## Update checker
 
-NvProfileSwitcher checks GitHub for new releases when the application starts.
+NvProfileSwitcher can automatically check GitHub for new releases when the
+application starts.
 
-You can also manually check for updates from the system tray menu.
+Automatic update checks can be enabled or disabled using the
+**Check for updates** option in the application settings.
+
+You can always manually check for updates from the system tray menu, even when
+automatic update checks are disabled.
 
 If a newer version is available, a notification provides a direct link to the
 latest GitHub release.
@@ -210,9 +215,9 @@ Development builds use:
 
 `dev-<commit>`
 
-Official releases use semantic versions such as:
+Official releases use semantic version tags such as:
 
-`v1.0.0`
+`v1.1.2`
 
 ## Support
 
