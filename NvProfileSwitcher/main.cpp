@@ -1260,10 +1260,10 @@ void Paint(HWND w){
 
 
     DrawProfilesPrototypeIcon(dc,38,91);
-    DrawLabel(dc,L"PROFILES",68,94,C_ACCENT,gFontBold);
+    DrawLabel(dc,L"Profiles",68,94,C_ACCENT,gFontBold);
 
     DrawProfileSettingsPrototypeIcon(dc,rightX+22,93);
-    DrawLabel(dc,L"PROFILE SETTINGS",rightX+52,94,C_ACCENT,gFontBold);
+    DrawLabel(dc,L"Profile Settings",rightX+52,94,C_ACCENT,gFontBold);
 
     // DISPLAY monitor icon follows the selected profile's compact layout.
     {
@@ -1358,7 +1358,7 @@ void BuildControls(){
     Add(L"BUTTON",L"",BS_AUTOCHECKBOX,rightX,247,20,22,IDC_ENABLED);
     Add(L"STATIC",L"Enable automatic profile",0,rightX+25,248,205,22,IDC_LBL_ENABLED);
 
-    Add(L"STATIC",L"DISPLAY",0,rightX+31,278,129,22,IDC_LBL_DISPLAY);
+    Add(L"STATIC",L"Display",0,rightX+31,278,129,22,IDC_LBL_DISPLAY);
     SendMessageW(H(IDC_LBL_DISPLAY),WM_SETFONT,(WPARAM)gFontBold,TRUE);
     HWND display=Add(L"COMBOBOX",L"",CBS_DROPDOWNLIST|CBS_OWNERDRAWFIXED|CBS_HASSTRINGS|WS_VSCROLL,rightX,303,rightW,240,IDC_DISPLAY);
     SendMessageW(display,CB_SETITEMHEIGHT,0,28);
