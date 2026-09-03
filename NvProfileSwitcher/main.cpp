@@ -904,11 +904,20 @@ void DrawSaveIcon(HDC dc,int x,int y,COLORREF c){
     SelectObject(dc,old);DeleteObject(p);
 }
 void DrawFolderIcon(HDC dc,int x,int y,COLORREF c){
-    HPEN p=CreatePen(PS_SOLID,2,c);HGDIOBJ old=SelectObject(dc,p);
-    MoveToEx(dc,x+1,y+6,nullptr);LineTo(dc,x+7,y+6);
-    LineTo(dc,x+9,y+9);LineTo(dc,x+20,y+9);LineTo(dc,x+20,y+20);
-    LineTo(dc,x+1,y+20);LineTo(dc,x+1,y+6);
-    SelectObject(dc,old);DeleteObject(p);
+    Gdiplus::Graphics g(dc);
+    g.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
+    Gdiplus::Color color(255,GetRValue(c),GetGValue(c),GetBValue(c));
+    Gdiplus::Pen pen(color,1.35f);
+    pen.SetLineJoin(Gdiplus::LineJoinRound);
+    Gdiplus::GraphicsPath path;
+    path.StartFigure();
+    path.AddLine((Gdiplus::REAL)x+1.5f,(Gdiplus::REAL)y+6.0f,(Gdiplus::REAL)x+7.0f,(Gdiplus::REAL)y+6.0f);
+    path.AddLine((Gdiplus::REAL)x+7.0f,(Gdiplus::REAL)y+6.0f,(Gdiplus::REAL)x+9.5f,(Gdiplus::REAL)y+8.5f);
+    path.AddLine((Gdiplus::REAL)x+9.5f,(Gdiplus::REAL)y+8.5f,(Gdiplus::REAL)x+19.0f,(Gdiplus::REAL)y+8.5f);
+    path.AddLine((Gdiplus::REAL)x+19.0f,(Gdiplus::REAL)y+8.5f,(Gdiplus::REAL)x+19.0f,(Gdiplus::REAL)y+18.0f);
+    path.AddLine((Gdiplus::REAL)x+19.0f,(Gdiplus::REAL)y+18.0f,(Gdiplus::REAL)x+1.5f,(Gdiplus::REAL)y+18.0f);
+    path.CloseFigure();
+    g.DrawPath(&pen,&path);
 }
 
 void DrawOwnerButton(const DRAWITEMSTRUCT* d){
@@ -1249,23 +1258,6 @@ void Paint(HWND w){
     // Branded header artwork embedded as a PNG resource.
     DrawHeaderImage(dc);
 
-    std::wstring versionBadge;
-#if NVPS_DEV_BUILD
-    versionBadge=APP_VERSION;
-#else
-    versionBadge=L"v";
-    versionBadge+=APP_VERSION;
-#endif
-    SIZE versionSize{};
-    SelectObject(dc,gFontBold);
-    GetTextExtentPoint32W(dc,versionBadge.c_str(),(int)versionBadge.size(),&versionSize);
-    const int versionPad=14;
-    const int versionWidth=std::max(64,(int)versionSize.cx+versionPad*2);
-    RECT ver{rc.right-28-versionWidth,19,rc.right-28,49};
-    FillRound(dc,ver,C_PANEL2,C_BORDER,7);
-    int versionX=ver.left+((ver.right-ver.left)-versionSize.cx)/2;
-    int versionY=ver.top+((ver.bottom-ver.top)-versionSize.cy)/2;
-    DrawLabel(dc,versionBadge.c_str(),versionX,versionY,C_ACCENT,gFontBold);
 
     DrawProfilesPrototypeIcon(dc,38,91);
     DrawLabel(dc,L"PROFILES",68,94,C_ACCENT,gFontBold);
@@ -1333,6 +1325,19 @@ void Paint(HWND w){
     GetTextExtentPoint32W(dc,L"Driver",6,&driverLabel);
     DrawLabel(dc,gDriverVersion.c_str(),driverTextX+driverLabel.cx+8,footerY,C_TEXT,gFont);
 
+    std::wstring footerVersion;
+#if NVPS_DEV_BUILD
+    footerVersion=APP_VERSION;
+#else
+    footerVersion=L"v";
+    footerVersion+=APP_VERSION;
+#endif
+    SIZE driverVersionSize{};SelectObject(dc,gFont);
+    GetTextExtentPoint32W(dc,gDriverVersion.c_str(),(int)gDriverVersion.size(),&driverVersionSize);
+    int versionDividerX=driverTextX+driverLabel.cx+8+driverVersionSize.cx+16;
+    Fill(dc,versionDividerX,footerY+1,1,14,C_BORDER);
+    DrawLabel(dc,footerVersion.c_str(),versionDividerX+14,footerY,C_MUTED,gFont);
+
     EndPaint(w,&ps);
 }
 void BuildControls(){
@@ -1345,9 +1350,9 @@ void BuildControls(){
     HWND list=Add(L"LISTBOX",L"",LBS_NOTIFY|LBS_OWNERDRAWFIXED|WS_VSCROLL,34,124,leftW-32,r.bottom-308,IDC_LIST);SetWindowTheme(list,L"DarkMode_Explorer",nullptr);
     SendMessageW(list,LB_SETITEMHEIGHT,0,56);
 
-    Add(L"STATIC",L"Profile name",0,rightX,122,160,22,IDC_LBL_NAME);
+    HWND lblName=Add(L"STATIC",L"Profile name",0,rightX,122,160,22,IDC_LBL_NAME);SendMessageW(lblName,WM_SETFONT,(WPARAM)gFontBold,TRUE);
     HWND eName=Add(L"EDIT",L"",WS_BORDER|ES_AUTOHSCROLL,rightX,146,rightW,28,IDC_NAME);SetWindowTheme(eName,L"DarkMode_Explorer",nullptr);
-    Add(L"STATIC",L"Game executable",0,rightX,185,160,22,IDC_LBL_EXE);
+    HWND lblExe=Add(L"STATIC",L"Game executable",0,rightX,185,160,22,IDC_LBL_EXE);SendMessageW(lblExe,WM_SETFONT,(WPARAM)gFontBold,TRUE);
     HWND eExe=Add(L"EDIT",L"",WS_BORDER|ES_AUTOHSCROLL,rightX,209,rightW-110,28,IDC_EXE);SetWindowTheme(eExe,L"DarkMode_Explorer",nullptr);
     Add(L"BUTTON",L"Browse...",BS_OWNERDRAW,rightX+rightW-100,204,100,36,IDC_BROWSE);
     Add(L"BUTTON",L"",BS_AUTOCHECKBOX,rightX,247,20,22,IDC_ENABLED);
