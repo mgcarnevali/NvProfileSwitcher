@@ -947,7 +947,8 @@ void DrawOwnerButton(const DRAWITEMSTRUCT* d){
     SIZE sz{};SelectObject(d->hDC,gFont);GetTextExtentPoint32W(d->hDC,caption,(int)wcslen(caption),&sz);
 
     int iconW=(id==IDC_ADD||id==IDC_REMOVE)?19:20;
-    int gap=(id==IDC_SAVE)?7:6;\n    if(id==IDC_BROWSE) gap=7;
+    int gap=(id==IDC_SAVE)?7:6;
+    if(id==IDC_BROWSE) gap=7;
     int total=iconW+gap+sz.cx;
     int start=r.left+((r.right-r.left)-total)/2;
     int cy=(r.top+r.bottom)/2;
@@ -958,7 +959,9 @@ void DrawOwnerButton(const DRAWITEMSTRUCT* d){
     else if(id==IDC_BROWSE) DrawFolderIcon(d->hDC,start,cy-12,icon);
 
     SetBkMode(d->hDC,TRANSPARENT);SetTextColor(d->hDC,textColor);SelectObject(d->hDC,gFont);
-    int textY=cy-sz.cy/2;\n    if(id==IDC_BROWSE) textY-=1;\n    TextOutW(d->hDC,start+iconW+gap,textY,caption,(int)wcslen(caption));
+    int textY=cy-sz.cy/2;
+    if(id==IDC_BROWSE) textY-=1;
+    TextOutW(d->hDC,start+iconW+gap,textY,caption,(int)wcslen(caption));
 }
 
 void DrawValueBox(const DRAWITEMSTRUCT* d){
