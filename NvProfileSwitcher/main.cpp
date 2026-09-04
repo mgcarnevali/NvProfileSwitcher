@@ -907,15 +907,16 @@ void DrawFolderIcon(HDC dc,int x,int y,COLORREF c){
     Gdiplus::Graphics g(dc);
     g.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
     Gdiplus::Color color(255,GetRValue(c),GetGValue(c),GetBValue(c));
-    Gdiplus::Pen pen(color,1.35f);
+    Gdiplus::Pen pen(color,1.10f);
     pen.SetLineJoin(Gdiplus::LineJoinRound);
+
     Gdiplus::GraphicsPath path;
     path.StartFigure();
-    path.AddLine((Gdiplus::REAL)x+1.5f,(Gdiplus::REAL)y+6.0f,(Gdiplus::REAL)x+7.0f,(Gdiplus::REAL)y+6.0f);
-    path.AddLine((Gdiplus::REAL)x+7.0f,(Gdiplus::REAL)y+6.0f,(Gdiplus::REAL)x+9.5f,(Gdiplus::REAL)y+8.5f);
-    path.AddLine((Gdiplus::REAL)x+9.5f,(Gdiplus::REAL)y+8.5f,(Gdiplus::REAL)x+19.0f,(Gdiplus::REAL)y+8.5f);
-    path.AddLine((Gdiplus::REAL)x+19.0f,(Gdiplus::REAL)y+8.5f,(Gdiplus::REAL)x+19.0f,(Gdiplus::REAL)y+18.0f);
-    path.AddLine((Gdiplus::REAL)x+19.0f,(Gdiplus::REAL)y+18.0f,(Gdiplus::REAL)x+1.5f,(Gdiplus::REAL)y+18.0f);
+    path.AddLine((Gdiplus::REAL)x+1.5f,(Gdiplus::REAL)y+6.5f,(Gdiplus::REAL)x+7.0f,(Gdiplus::REAL)y+6.5f);
+    path.AddLine((Gdiplus::REAL)x+7.0f,(Gdiplus::REAL)y+6.5f,(Gdiplus::REAL)x+9.0f,(Gdiplus::REAL)y+8.5f);
+    path.AddLine((Gdiplus::REAL)x+9.0f,(Gdiplus::REAL)y+8.5f,(Gdiplus::REAL)x+18.5f,(Gdiplus::REAL)y+8.5f);
+    path.AddLine((Gdiplus::REAL)x+18.5f,(Gdiplus::REAL)y+8.5f,(Gdiplus::REAL)x+18.5f,(Gdiplus::REAL)y+17.5f);
+    path.AddLine((Gdiplus::REAL)x+18.5f,(Gdiplus::REAL)y+17.5f,(Gdiplus::REAL)x+1.5f,(Gdiplus::REAL)y+17.5f);
     path.CloseFigure();
     g.DrawPath(&pen,&path);
 }
@@ -946,7 +947,7 @@ void DrawOwnerButton(const DRAWITEMSTRUCT* d){
     SIZE sz{};SelectObject(d->hDC,gFont);GetTextExtentPoint32W(d->hDC,caption,(int)wcslen(caption),&sz);
 
     int iconW=(id==IDC_ADD||id==IDC_REMOVE)?19:20;
-    int gap=(id==IDC_SAVE)?7:6;
+    int gap=(id==IDC_SAVE)?7:6;\n    if(id==IDC_BROWSE) gap=7;
     int total=iconW+gap+sz.cx;
     int start=r.left+((r.right-r.left)-total)/2;
     int cy=(r.top+r.bottom)/2;
@@ -954,10 +955,10 @@ void DrawOwnerButton(const DRAWITEMSTRUCT* d){
     if(id==IDC_SAVE) DrawSaveIcon(d->hDC,start,cy-10,icon);
     else if(id==IDC_ADD) DrawGlyphIcon(d->hDC,L"\xE710",start+1,cy-9,icon);      // Add
     else if(id==IDC_REMOVE) DrawGlyphIcon(d->hDC,L"\xE74D",start+1,cy-9,icon); // Delete
-    else if(id==IDC_BROWSE) DrawFolderIcon(d->hDC,start,cy-10,icon);
+    else if(id==IDC_BROWSE) DrawFolderIcon(d->hDC,start,cy-12,icon);
 
     SetBkMode(d->hDC,TRANSPARENT);SetTextColor(d->hDC,textColor);SelectObject(d->hDC,gFont);
-    TextOutW(d->hDC,start+iconW+gap,cy-sz.cy/2,caption,(int)wcslen(caption));
+    int textY=cy-sz.cy/2;\n    if(id==IDC_BROWSE) textY-=1;\n    TextOutW(d->hDC,start+iconW+gap,textY,caption,(int)wcslen(caption));
 }
 
 void DrawValueBox(const DRAWITEMSTRUCT* d){
