@@ -702,7 +702,7 @@ void SetDesktopUi(bool desktop){
     const int yGam=desktop?315:460;
     const int yVib=desktop?375:520;
     const int yHue=desktop?435:580;
-    const int ySave=desktop?513:644;
+    const int ySave=desktop?499:644;
 
     MoveWindow(H(IDC_LBL_DISPLAY),rightX+31,yDisplay,129,22,TRUE);
     MoveWindow(H(IDC_DISPLAY),rightX,yDisplay+25,rightW,32,TRUE);
