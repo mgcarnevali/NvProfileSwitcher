@@ -1243,17 +1243,48 @@ void DrawDisplayPrototypeIcon(HDC dc,int x,int y){
 }
 
 void DrawDriverIcon(HDC dc,int x,int y,COLORREF c){
-    HPEN pen=CreatePen(PS_SOLID,1,c);
-    HGDIOBJ oldPen=SelectObject(dc,pen);
-    HBRUSH oldBrush=(HBRUSH)SelectObject(dc,GetStockObject(HOLLOW_BRUSH));
+    // Small monochrome NVIDIA-inspired "eye" mark for the driver status.
+    // Kept vector-only so the footer needs no extra bitmap/resource.
+    Gdiplus::Graphics g(dc);
+    g.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
 
-    Rectangle(dc,x,y,x+16,y+11);
-    MoveToEx(dc,x+5,y+13,nullptr);LineTo(dc,x+11,y+13);
-    MoveToEx(dc,x+8,y+11,nullptr);LineTo(dc,x+8,y+14);
+    Gdiplus::Color color(255,GetRValue(c),GetGValue(c),GetBValue(c));
+    Gdiplus::Pen pen(color,1.25f);
+    pen.SetStartCap(Gdiplus::LineCapRound);
+    pen.SetEndCap(Gdiplus::LineCapRound);
+    pen.SetLineJoin(Gdiplus::LineJoinRound);
 
-    SelectObject(dc,oldBrush);
-    SelectObject(dc,oldPen);
-    DeleteObject(pen);
+    // Stylized NVIDIA eye/swirl, sized to the old monitor icon footprint.
+    Gdiplus::GraphicsPath outer;
+    outer.StartFigure();
+    outer.AddBezier((Gdiplus::REAL)x+1.0f,(Gdiplus::REAL)y+7.0f,
+                    (Gdiplus::REAL)x+4.2f,(Gdiplus::REAL)y+2.0f,
+                    (Gdiplus::REAL)x+11.8f,(Gdiplus::REAL)y+1.8f,
+                    (Gdiplus::REAL)x+16.0f,(Gdiplus::REAL)y+5.4f);
+    outer.AddBezier((Gdiplus::REAL)x+16.0f,(Gdiplus::REAL)y+5.4f,
+                    (Gdiplus::REAL)x+12.7f,(Gdiplus::REAL)y+10.8f,
+                    (Gdiplus::REAL)x+5.4f,(Gdiplus::REAL)y+11.2f,
+                    (Gdiplus::REAL)x+1.0f,(Gdiplus::REAL)y+7.0f);
+    g.DrawPath(&pen,&outer);
+
+    Gdiplus::GraphicsPath swirl;
+    swirl.StartFigure();
+    swirl.AddBezier((Gdiplus::REAL)x+4.0f,(Gdiplus::REAL)y+7.0f,
+                    (Gdiplus::REAL)x+6.0f,(Gdiplus::REAL)y+3.8f,
+                    (Gdiplus::REAL)x+11.3f,(Gdiplus::REAL)y+3.7f,
+                    (Gdiplus::REAL)x+13.5f,(Gdiplus::REAL)y+6.0f);
+    swirl.AddBezier((Gdiplus::REAL)x+13.5f,(Gdiplus::REAL)y+6.0f,
+                    (Gdiplus::REAL)x+11.8f,(Gdiplus::REAL)y+8.8f,
+                    (Gdiplus::REAL)x+7.7f,(Gdiplus::REAL)y+9.0f,
+                    (Gdiplus::REAL)x+6.0f,(Gdiplus::REAL)y+7.2f);
+    swirl.AddBezier((Gdiplus::REAL)x+6.0f,(Gdiplus::REAL)y+7.2f,
+                    (Gdiplus::REAL)x+7.0f,(Gdiplus::REAL)y+5.5f,
+                    (Gdiplus::REAL)x+9.7f,(Gdiplus::REAL)y+5.3f,
+                    (Gdiplus::REAL)x+10.8f,(Gdiplus::REAL)y+6.5f);
+    g.DrawPath(&pen,&swirl);
+
+    Gdiplus::SolidBrush dot(color);
+    g.FillEllipse(&dot,(Gdiplus::REAL)x+8.7f,(Gdiplus::REAL)y+5.4f,2.2f,2.2f);
 }
 
 
