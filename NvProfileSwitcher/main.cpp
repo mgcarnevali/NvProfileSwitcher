@@ -928,7 +928,7 @@ void DrawOwnerButton(const DRAWITEMSTRUCT* d){
 
     COLORREF fill=C_PANEL2, border=C_BORDER, textColor=disabled?C_MUTED:C_TEXT, icon=C_MUTED;
     if(id==IDC_SAVE){
-        fill=down?RGB(22,48,27):C_PANEL2;
+        fill=down?RGB(16,28,18):C_BACK;
         border=C_ACCENT;
         textColor=disabled?C_MUTED:C_ACCENT;
         icon=disabled?C_MUTED:C_ACCENT;
@@ -946,21 +946,26 @@ void DrawOwnerButton(const DRAWITEMSTRUCT* d){
 
     wchar_t caption[128]{};
     GetWindowTextW(d->hwndItem,caption,128);
-    SIZE sz{};SelectObject(d->hDC,gFont);GetTextExtentPoint32W(d->hDC,caption,(int)wcslen(caption),&sz);
+    SIZE sz{};
+    HFONT buttonFont=(id==IDC_SAVE)?gFontBold:gFont;
+    SelectObject(d->hDC,buttonFont);
+    GetTextExtentPoint32W(d->hDC,caption,(int)wcslen(caption),&sz);
 
-    int iconW=(id==IDC_ADD||id==IDC_REMOVE)?19:20;
-    int gap=(id==IDC_SAVE)?7:6;
+    int iconW=(id==IDC_SAVE)?0:((id==IDC_ADD||id==IDC_REMOVE)?19:20);
+    int gap=(id==IDC_SAVE)?0:6;
     if(id==IDC_BROWSE) gap=7;
     int total=iconW+gap+sz.cx;
     int start=r.left+((r.right-r.left)-total)/2;
     int cy=(r.top+r.bottom)/2;
 
-    if(id==IDC_SAVE) DrawSaveIcon(d->hDC,start,cy-10,icon);
+    if(id==IDC_SAVE) { /* prototype save button uses text only */ }
     else if(id==IDC_ADD) DrawGlyphIcon(d->hDC,L"\xE710",start+1,cy-9,icon);      // Add
     else if(id==IDC_REMOVE) DrawGlyphIcon(d->hDC,L"\xE74D",start+1,cy-9,icon); // Delete
     else if(id==IDC_BROWSE) DrawFolderIcon(d->hDC,start,cy-12,icon);
 
-    SetBkMode(d->hDC,TRANSPARENT);SetTextColor(d->hDC,textColor);SelectObject(d->hDC,gFont);
+    SetBkMode(d->hDC,TRANSPARENT);
+    SetTextColor(d->hDC,textColor);
+    SelectObject(d->hDC,buttonFont);
     int textY=cy-sz.cy/2;
     if(id==IDC_BROWSE) textY-=1;
     TextOutW(d->hDC,start+iconW+gap,textY,caption,(int)wcslen(caption));
