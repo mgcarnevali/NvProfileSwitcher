@@ -1352,14 +1352,14 @@ void Paint(HWND w){
 
     // Application Settings as its own compact module:
     // border line + gear + title + border line. Checkbox rows stay untouched.
-    const int appSettingsY=rc.bottom-104;
+    const int appSettingsY=rc.bottom-98;
     const int appSettingsLineY=appSettingsY+8;
     const int moduleLeft=rightX+22;
     const int moduleRight=rc.right-margin-22;
 
-    Fill(dc,moduleLeft,appSettingsLineY,14,1,C_BORDER);
+    Fill(dc,moduleLeft,appSettingsLineY,24,1,C_BORDER);
 
-    const int gearX=moduleLeft+22;
+    const int gearX=moduleLeft+32;
     DrawApplicationSettingsGear(dc,gearX,appSettingsY-1);
 
     const int titleX=gearX+27;
