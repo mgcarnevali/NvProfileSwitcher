@@ -30,6 +30,8 @@ your Windows profile is automatically restored.
 - Multi-monitor support
 - Separate Windows color settings for each configured display
 - Individual game executable icons
+- Redesigned dark interface with dedicated Profiles, Profile Settings, and Application Settings sections
+- Integrated NVIDIA API status, driver version, and application version footer
 - Enable or disable individual game profiles
 - Start automatically with Windows
 - Start minimized to the system tray
@@ -53,6 +55,15 @@ your Windows profile is automatically restored.
 ### System Tray
 
 ![NvProfileSwitcher System Tray](docs/screenshots/system-tray.png)
+
+## Interface
+
+The interface is organized into dedicated **Profiles**, **Profile Settings**,
+and **Application Settings** sections.
+
+The footer provides at-a-glance NVIDIA API status, NVIDIA driver information,
+the running NvProfileSwitcher version, and direct access to GitHub, support,
+and application information.
 
 ## Installation
 
@@ -142,7 +153,8 @@ The tray menu provides:
 
 The **Minimize to tray** option controls the behavior of the minimize button.
 
-When enabled, minimizing NvProfileSwitcher hides it in the system tray.
+When enabled, minimizing NvProfileSwitcher hides it in the system tray. The tray icon is shown only while the application is minimized there and is removed again when the main window is restored.
+
 When disabled, the application minimizes normally to the Windows taskbar.
 
 The **Start with Windows** option allows NvProfileSwitcher to launch
@@ -217,7 +229,7 @@ Development builds use:
 
 Official releases use semantic version tags such as:
 
-`v1.1.2`
+`v1.2.0`
 
 ## Support
 

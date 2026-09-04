@@ -5,6 +5,48 @@ All notable changes to NvProfileSwitcher will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project follows [Semantic Versioning](https://semver.org/).
 
+## 1.2.0 — 2026-09-04
+
+### Added
+
+- Added a completely redesigned interface with a new branded application header.
+- Added dedicated visual sections for **Profiles**, **Profile Settings**, and **Application Settings**.
+- Added custom icons for Brightness, Contrast, Gamma, Digital Vibrance, and Hue controls.
+- Added new visual indicators and action icons throughout the interface.
+- Added a dedicated placeholder icon for profiles without an assigned executable.
+- Added application version information to the footer, including development build identification.
+- Added direct **GitHub**, **Support me**, and **About** links to the application footer.
+- Added hover and hand-cursor behavior for footer links.
+
+### Changed
+
+- Redesigned the profile list and profile settings presentation.
+- Redesigned slider controls with improved spacing, alignment, and visual feedback.
+- Redesigned the display selector and application settings area.
+- Redesigned the status footer to integrate NVIDIA API status, NVIDIA driver information, application version, and navigation links.
+- Improved typography, spacing, button sizing, and overall visual hierarchy.
+- Improved executable icon loading for sharper game icons in the profile list.
+- Improved system tray behavior so the tray icon is only present when the application is actually minimized to the tray.
+- Restoring the application now removes the tray icon and returns the application to the taskbar.
+- Disabling **Minimize to tray** now removes an existing tray icon immediately.
+- Reorganized UI assets and embedded resources for a cleaner project structure.
+- Updated the GitHub Actions build workflow and development/release version handling.
+
+### Fixed
+
+- Improved cleanup of UI and image resources during application shutdown.
+
+## 1.1.3 — 2026-09-02
+
+### Added
+
+- Added NVIDIA API status and NVIDIA driver version information to the application footer.
+
+### Changed
+
+- Added dark styling to the profile list scrollbar to better match the application theme.
+- Refined UI spacing and alignment.
+
 ## 1.1.2 — 2026-09-02
 
 ### Added
