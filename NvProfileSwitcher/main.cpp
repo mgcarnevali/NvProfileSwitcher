@@ -720,7 +720,7 @@ void SetDesktopUi(bool desktop){
         MoveWindow(H(sp.val),rightX+rightW-76,sp.y-2,76,28,TRUE);
     }
 
-    MoveWindow(H(IDC_SAVE),rightX+rightW-110,ySave-7,110,32,TRUE);
+    MoveWindow(H(IDC_SAVE),rightX+rightW-110,ySave-3,110,32,TRUE);
 
     // Global startup options stay at the bottom of the right panel.
     // Global options in two balanced rows.
@@ -1463,7 +1463,7 @@ void BuildControls(){
     slider(L"Digital Vibrance (%)",IDC_LBL_VIB,IDC_VIB,IDC_VALVIB,520,0,100);
     slider(L"Hue (\x00B0)",IDC_LBL_HUE,IDC_HUE,IDC_VALHUE,580,0,359);
 
-    Add(L"BUTTON",L"Save profile",BS_OWNERDRAW,rightX+rightW-110,650,110,32,IDC_SAVE);
+    Add(L"BUTTON",L"Save profile",BS_OWNERDRAW,rightX+rightW-110,654,110,32,IDC_SAVE);
     Add(L"BUTTON",L"Add game",BS_OWNERDRAW,34,r.bottom-169,110,32,IDC_ADD);
     Add(L"BUTTON",L"Remove",BS_OWNERDRAW,154,r.bottom-169,110,32,IDC_REMOVE);
 
