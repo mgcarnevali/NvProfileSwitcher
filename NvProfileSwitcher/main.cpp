@@ -720,7 +720,7 @@ void SetDesktopUi(bool desktop){
         MoveWindow(H(sp.val),rightX+rightW-76,sp.y-2,76,28,TRUE);
     }
 
-    MoveWindow(H(IDC_SAVE),rightX,ySave,150,38,TRUE);
+    MoveWindow(H(IDC_SAVE),rightX+rightW-150,ySave,150,38,TRUE);
 
     // Global startup options stay at the bottom of the right panel.
     // Global options in two balanced rows.
@@ -928,8 +928,10 @@ void DrawOwnerButton(const DRAWITEMSTRUCT* d){
 
     COLORREF fill=C_PANEL2, border=C_BORDER, textColor=disabled?C_MUTED:C_TEXT, icon=C_MUTED;
     if(id==IDC_SAVE){
-        fill=down?RGB(42,130,23):RGB(39,151,22);
-        border=RGB(77,205,44); icon=C_TEXT;
+        fill=down?RGB(22,48,27):C_PANEL2;
+        border=C_ACCENT;
+        textColor=disabled?C_MUTED:C_ACCENT;
+        icon=disabled?C_MUTED:C_ACCENT;
     }else if(id==IDC_ADD){
         fill=down?RGB(26,62,29):RGB(22,48,27);
         border=RGB(46,117,46); icon=C_ACCENT;
@@ -1381,7 +1383,7 @@ void BuildControls(){
     slider(L"Digital Vibrance (%)",IDC_LBL_VIB,IDC_VIB,IDC_VALVIB,520,0,100);
     slider(L"Hue (\x00B0)",IDC_LBL_HUE,IDC_HUE,IDC_VALHUE,580,0,359);
 
-    Add(L"BUTTON",L"Save profile",BS_OWNERDRAW,rightX,657,150,38,IDC_SAVE);
+    Add(L"BUTTON",L"Save profile",BS_OWNERDRAW,rightX+rightW-150,657,150,38,IDC_SAVE);
     Add(L"BUTTON",L"Add game",BS_OWNERDRAW,34,r.bottom-172,118,38,IDC_ADD);
     Add(L"BUTTON",L"Remove",BS_OWNERDRAW,164,r.bottom-172,104,38,IDC_REMOVE);
 
