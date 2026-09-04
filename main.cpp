@@ -704,7 +704,7 @@ void SetDesktopUi(bool desktop){
     const int yHue=desktop?435:580;
     const int ySave=desktop?513:644;
 
-    MoveWindow(H(IDC_LBL_DISPLAY),rightX,yDisplay,160,22,TRUE);
+    MoveWindow(H(IDC_LBL_DISPLAY),rightX+31,yDisplay,129,22,TRUE);
     MoveWindow(H(IDC_DISPLAY),rightX,yDisplay+25,rightW,32,TRUE);
 
     struct SPos{int lbl,track,val,y;};
@@ -720,7 +720,7 @@ void SetDesktopUi(bool desktop){
         MoveWindow(H(sp.val),rightX+rightW-76,sp.y-2,76,28,TRUE);
     }
 
-    MoveWindow(H(IDC_SAVE),rightX,ySave,150,38,TRUE);
+    MoveWindow(H(IDC_SAVE),rightX+rightW-150,ySave,150,38,TRUE);
 
     // Global startup options stay at the bottom of the right panel.
     // Global options in two balanced rows.
@@ -904,11 +904,21 @@ void DrawSaveIcon(HDC dc,int x,int y,COLORREF c){
     SelectObject(dc,old);DeleteObject(p);
 }
 void DrawFolderIcon(HDC dc,int x,int y,COLORREF c){
-    HPEN p=CreatePen(PS_SOLID,2,c);HGDIOBJ old=SelectObject(dc,p);
-    MoveToEx(dc,x+1,y+6,nullptr);LineTo(dc,x+7,y+6);
-    LineTo(dc,x+9,y+9);LineTo(dc,x+20,y+9);LineTo(dc,x+20,y+20);
-    LineTo(dc,x+1,y+20);LineTo(dc,x+1,y+6);
-    SelectObject(dc,old);DeleteObject(p);
+    Gdiplus::Graphics g(dc);
+    g.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
+    Gdiplus::Color color(255,GetRValue(c),GetGValue(c),GetBValue(c));
+    Gdiplus::Pen pen(color,1.10f);
+    pen.SetLineJoin(Gdiplus::LineJoinRound);
+
+    Gdiplus::GraphicsPath path;
+    path.StartFigure();
+    path.AddLine((Gdiplus::REAL)x+1.5f,(Gdiplus::REAL)y+6.5f,(Gdiplus::REAL)x+7.0f,(Gdiplus::REAL)y+6.5f);
+    path.AddLine((Gdiplus::REAL)x+7.0f,(Gdiplus::REAL)y+6.5f,(Gdiplus::REAL)x+9.0f,(Gdiplus::REAL)y+8.5f);
+    path.AddLine((Gdiplus::REAL)x+9.0f,(Gdiplus::REAL)y+8.5f,(Gdiplus::REAL)x+18.5f,(Gdiplus::REAL)y+8.5f);
+    path.AddLine((Gdiplus::REAL)x+18.5f,(Gdiplus::REAL)y+8.5f,(Gdiplus::REAL)x+18.5f,(Gdiplus::REAL)y+17.5f);
+    path.AddLine((Gdiplus::REAL)x+18.5f,(Gdiplus::REAL)y+17.5f,(Gdiplus::REAL)x+1.5f,(Gdiplus::REAL)y+17.5f);
+    path.CloseFigure();
+    g.DrawPath(&pen,&path);
 }
 
 void DrawOwnerButton(const DRAWITEMSTRUCT* d){
@@ -918,8 +928,10 @@ void DrawOwnerButton(const DRAWITEMSTRUCT* d){
 
     COLORREF fill=C_PANEL2, border=C_BORDER, textColor=disabled?C_MUTED:C_TEXT, icon=C_MUTED;
     if(id==IDC_SAVE){
-        fill=down?RGB(42,130,23):RGB(39,151,22);
-        border=RGB(77,205,44); icon=C_TEXT;
+        fill=down?RGB(16,28,18):C_BACK;
+        border=C_ACCENT;
+        textColor=disabled?C_MUTED:C_ACCENT;
+        icon=disabled?C_MUTED:C_ACCENT;
     }else if(id==IDC_ADD){
         fill=down?RGB(26,62,29):RGB(22,48,27);
         border=RGB(46,117,46); icon=C_ACCENT;
@@ -934,21 +946,29 @@ void DrawOwnerButton(const DRAWITEMSTRUCT* d){
 
     wchar_t caption[128]{};
     GetWindowTextW(d->hwndItem,caption,128);
-    SIZE sz{};SelectObject(d->hDC,gFont);GetTextExtentPoint32W(d->hDC,caption,(int)wcslen(caption),&sz);
+    SIZE sz{};
+    HFONT buttonFont=(id==IDC_SAVE)?gFontBold:gFont;
+    SelectObject(d->hDC,buttonFont);
+    GetTextExtentPoint32W(d->hDC,caption,(int)wcslen(caption),&sz);
 
-    int iconW=(id==IDC_ADD||id==IDC_REMOVE)?19:20;
-    int gap=(id==IDC_SAVE)?7:6;
+    int iconW=(id==IDC_SAVE)?0:((id==IDC_ADD||id==IDC_REMOVE)?19:20);
+    int gap=(id==IDC_SAVE)?0:6;
+    if(id==IDC_BROWSE) gap=7;
     int total=iconW+gap+sz.cx;
     int start=r.left+((r.right-r.left)-total)/2;
     int cy=(r.top+r.bottom)/2;
 
-    if(id==IDC_SAVE) DrawSaveIcon(d->hDC,start,cy-10,icon);
+    if(id==IDC_SAVE) { /* prototype save button uses text only */ }
     else if(id==IDC_ADD) DrawGlyphIcon(d->hDC,L"\xE710",start+1,cy-9,icon);      // Add
     else if(id==IDC_REMOVE) DrawGlyphIcon(d->hDC,L"\xE74D",start+1,cy-9,icon); // Delete
-    else if(id==IDC_BROWSE) DrawFolderIcon(d->hDC,start,cy-10,icon);
+    else if(id==IDC_BROWSE) DrawFolderIcon(d->hDC,start,cy-12,icon);
 
-    SetBkMode(d->hDC,TRANSPARENT);SetTextColor(d->hDC,textColor);SelectObject(d->hDC,gFont);
-    TextOutW(d->hDC,start+iconW+gap,cy-sz.cy/2,caption,(int)wcslen(caption));
+    SetBkMode(d->hDC,TRANSPARENT);
+    SetTextColor(d->hDC,textColor);
+    SelectObject(d->hDC,buttonFont);
+    int textY=cy-sz.cy/2;
+    if(id==IDC_BROWSE) textY-=1;
+    TextOutW(d->hDC,start+iconW+gap,textY,caption,(int)wcslen(caption));
 }
 
 void DrawValueBox(const DRAWITEMSTRUCT* d){
@@ -956,7 +976,7 @@ void DrawValueBox(const DRAWITEMSTRUCT* d){
     FillRound(d->hDC,r,C_FIELD,C_BORDER,7);
     wchar_t text[64]{};GetWindowTextW(d->hwndItem,text,64);
     RECT tr=r;tr.right-=10;
-    SetBkMode(d->hDC,TRANSPARENT);SetTextColor(d->hDC,C_TEXT);SelectObject(d->hDC,gFont);
+    SetBkMode(d->hDC,TRANSPARENT);SetTextColor(d->hDC,C_TEXT);SelectObject(d->hDC,gFontBold);
     DrawTextW(d->hDC,text,-1,&tr,DT_RIGHT|DT_VCENTER|DT_SINGLELINE);
 }
 
@@ -1093,42 +1113,80 @@ void DrawLabel(HDC dc,const wchar_t*t,int x,int y,COLORREF c,HFONT f=nullptr){ S
 void Fill(HDC dc,int x,int y,int w,int h,COLORREF c){HBRUSH b=CreateSolidBrush(c);RECT r{x,y,x+w,y+h};FillRect(dc,&r,b);DeleteObject(b);} 
 
 
-void DrawProfilesSectionIcon(HDC dc,int x,int y){
-    HPEN p=CreatePen(PS_SOLID,2,C_ACCENT);
-    HGDIOBJ oldPen=SelectObject(dc,p);
-    HGDIOBJ oldBrush=SelectObject(dc,GetStockObject(NULL_BRUSH));
+void DrawProfilesPrototypeIcon(HDC dc,int x,int y){
+    // Prototype: two overlapping WHITE cards with a thin green outline.
+    // The old version incorrectly filled the front card green.
+    Gdiplus::Graphics g(dc);
+    g.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
 
-    // Two overlapping profile cards, like the original prototype heading icon.
-    RoundRect(dc,x+5,y,x+22,y+15,3,3);
-    RoundRect(dc,x,y+5,x+17,y+20,3,3);
+    Gdiplus::Color accent(255,GetRValue(C_ACCENT),GetGValue(C_ACCENT),GetBValue(C_ACCENT));
+    Gdiplus::Color white(255,245,245,245);
+    Gdiplus::Pen outline(accent,1.0f);
+    Gdiplus::SolidBrush fill(white);
+
+    // Rear card: slightly up/left.
+    g.FillRectangle(&fill,(Gdiplus::REAL)x+1,(Gdiplus::REAL)y+1,15.0f,10.0f);
+    g.DrawRectangle(&outline,(Gdiplus::REAL)x+1,(Gdiplus::REAL)y+1,15.0f,10.0f);
+
+    // Front card: offset down/right, also white like the prototype.
+    g.FillRectangle(&fill,(Gdiplus::REAL)x+7,(Gdiplus::REAL)y+6,16.0f,11.0f);
+    g.DrawRectangle(&outline,(Gdiplus::REAL)x+7,(Gdiplus::REAL)y+6,16.0f,11.0f);
+}
+
+void DrawProfileSettingsPrototypeIcon(HDC dc,int x,int y){
+    // Prototype: very thin anti-aliased lines with small round adjustment knobs.
+    Gdiplus::Graphics g(dc);
+    g.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
+
+    Gdiplus::Color accent(255,GetRValue(C_ACCENT),GetGValue(C_ACCENT),GetBValue(C_ACCENT));
+    Gdiplus::Pen line(accent,1.25f);
+    Gdiplus::SolidBrush knob(accent);
+
+    const Gdiplus::REAL ys[3]={(Gdiplus::REAL)y+2.5f,(Gdiplus::REAL)y+8.5f,(Gdiplus::REAL)y+14.5f};
+    const Gdiplus::REAL xs[3]={(Gdiplus::REAL)x+7.0f,(Gdiplus::REAL)x+15.0f,(Gdiplus::REAL)x+11.0f};
+
+    for(int i=0;i<3;i++){
+        g.DrawLine(&line,(Gdiplus::REAL)x,ys[i],(Gdiplus::REAL)x+22.0f,ys[i]);
+        g.FillEllipse(&knob,xs[i]-2.25f,ys[i]-2.25f,4.5f,4.5f);
+    }
+}
+
+void DrawDisplayPrototypeIcon(HDC dc,int x,int y){
+    // Match prototype: gray bezel/frame with a solid white screen,
+    // then a gray stem and base underneath.
+    const COLORREF frame=RGB(145,151,154);
+    const COLORREF screen=RGB(245,245,245);
+
+    HPEN framePen=CreatePen(PS_SOLID,1,frame);
+    HBRUSH frameBrush=CreateSolidBrush(frame);
+    HBRUSH screenBrush=CreateSolidBrush(screen);
+
+    HGDIOBJ oldPen=SelectObject(dc,framePen);
+    HGDIOBJ oldBrush=SelectObject(dc,frameBrush);
+
+    // Prototype proportions: smaller/thinner bezel and a larger white screen.
+    // Draw the bezel as a solid 1 px shell so GDI Rectangle's inclusive edge
+    // doesn't visually turn it into a ~2 px border.
+    SelectObject(dc,frameBrush);
+    PatBlt(dc,x,y,22,1,PATCOPY);          // top
+    PatBlt(dc,x,y+1,1,14,PATCOPY);        // left
+    PatBlt(dc,x+21,y+1,1,14,PATCOPY);     // right
+    PatBlt(dc,x,y+15,22,1,PATCOPY);       // bottom
+
+    // White screen.
+    SelectObject(dc,screenBrush);
+    PatBlt(dc,x+1,y+1,20,14,PATCOPY);
+
+    // Very thin stand/base, matching the reference.
+    SelectObject(dc,frameBrush);
+    PatBlt(dc,x+10,y+16,2,4,PATCOPY);
+    PatBlt(dc,x+6,y+20,10,1,PATCOPY);
 
     SelectObject(dc,oldBrush);
     SelectObject(dc,oldPen);
-    DeleteObject(p);
-}
-
-void DrawProfileSettingsSectionIcon(HDC dc,int x,int y){
-    HPEN p=CreatePen(PS_SOLID,2,C_ACCENT);
-    HGDIOBJ oldPen=SelectObject(dc,p);
-
-    const int knobX[3]={7,16,11};
-    for(int i=0;i<3;i++){
-        int yy=y+i*8;
-        MoveToEx(dc,x,yy,nullptr);
-        LineTo(dc,x+22,yy);
-
-        HBRUSH b=CreateSolidBrush(C_ACCENT);
-        HGDIOBJ oldBrush=SelectObject(dc,b);
-        HGDIOBJ oldPen2=SelectObject(dc,p);
-        const int r=3;
-        Ellipse(dc,x+knobX[i]-r,yy-r,x+knobX[i]+r+1,yy+r+1);
-        SelectObject(dc,oldPen2);
-        SelectObject(dc,oldBrush);
-        DeleteObject(b);
-    }
-
-    SelectObject(dc,oldPen);
-    DeleteObject(p);
+    DeleteObject(screenBrush);
+    DeleteObject(frameBrush);
+    DeleteObject(framePen);
 }
 
 void DrawDriverIcon(HDC dc,int x,int y,COLORREF c){
@@ -1211,29 +1269,19 @@ void Paint(HWND w){
     // Branded header artwork embedded as a PNG resource.
     DrawHeaderImage(dc);
 
-    std::wstring versionBadge;
-#if NVPS_DEV_BUILD
-    versionBadge=APP_VERSION;
-#else
-    versionBadge=L"v";
-    versionBadge+=APP_VERSION;
-#endif
-    SIZE versionSize{};
-    SelectObject(dc,gFontBold);
-    GetTextExtentPoint32W(dc,versionBadge.c_str(),(int)versionBadge.size(),&versionSize);
-    const int versionPad=14;
-    const int versionWidth=std::max(64,(int)versionSize.cx+versionPad*2);
-    RECT ver{rc.right-28-versionWidth,19,rc.right-28,49};
-    FillRound(dc,ver,C_PANEL2,C_BORDER,7);
-    int versionX=ver.left+((ver.right-ver.left)-versionSize.cx)/2;
-    int versionY=ver.top+((ver.bottom-ver.top)-versionSize.cy)/2;
-    DrawLabel(dc,versionBadge.c_str(),versionX,versionY,C_ACCENT,gFontBold);
 
-    DrawProfilesSectionIcon(dc,38,94);
-    DrawLabel(dc,L"PROFILES",68,94,C_ACCENT,gFontBold);
+    DrawProfilesPrototypeIcon(dc,38,91);
+    DrawLabel(dc,L"Profiles",68,94,C_ACCENT,gFontBold);
 
-    DrawProfileSettingsSectionIcon(dc,rightX+22,95);
-    DrawLabel(dc,L"PROFILE SETTINGS",rightX+52,94,C_ACCENT,gFontBold);
+    DrawProfileSettingsPrototypeIcon(dc,rightX+22,93);
+    DrawLabel(dc,L"Profile Settings",rightX+52,94,C_ACCENT,gFontBold);
+
+    // DISPLAY monitor icon follows the selected profile's compact layout.
+    {
+        const bool desktopDisplay=IsDesktopSelected();
+        const int displayY=desktopDisplay?132:278;
+        DrawDisplayPrototypeIcon(dc,rightX+22,displayY);
+    }
 
     // Original slider icons extracted from the prototype artwork.
     const int iconX=rightX+22;
@@ -1288,6 +1336,19 @@ void Paint(HWND w){
     GetTextExtentPoint32W(dc,L"Driver",6,&driverLabel);
     DrawLabel(dc,gDriverVersion.c_str(),driverTextX+driverLabel.cx+8,footerY,C_TEXT,gFont);
 
+    std::wstring footerVersion;
+#if NVPS_DEV_BUILD
+    footerVersion=APP_VERSION;
+#else
+    footerVersion=L"v";
+    footerVersion+=APP_VERSION;
+#endif
+    SIZE driverVersionSize{};SelectObject(dc,gFont);
+    GetTextExtentPoint32W(dc,gDriverVersion.c_str(),(int)gDriverVersion.size(),&driverVersionSize);
+    int versionDividerX=driverTextX+driverLabel.cx+8+driverVersionSize.cx+16;
+    Fill(dc,versionDividerX,footerY+1,1,14,C_BORDER);
+    DrawLabel(dc,footerVersion.c_str(),versionDividerX+14,footerY,C_MUTED,gFont);
+
     EndPaint(w,&ps);
 }
 void BuildControls(){
@@ -1300,21 +1361,23 @@ void BuildControls(){
     HWND list=Add(L"LISTBOX",L"",LBS_NOTIFY|LBS_OWNERDRAWFIXED|WS_VSCROLL,34,124,leftW-32,r.bottom-308,IDC_LIST);SetWindowTheme(list,L"DarkMode_Explorer",nullptr);
     SendMessageW(list,LB_SETITEMHEIGHT,0,56);
 
-    Add(L"STATIC",L"Profile name",0,rightX,122,160,22,IDC_LBL_NAME);
+    HWND lblName=Add(L"STATIC",L"Profile name",0,rightX,122,160,22,IDC_LBL_NAME);SendMessageW(lblName,WM_SETFONT,(WPARAM)gFontBold,TRUE);
     HWND eName=Add(L"EDIT",L"",WS_BORDER|ES_AUTOHSCROLL,rightX,146,rightW,28,IDC_NAME);SetWindowTheme(eName,L"DarkMode_Explorer",nullptr);
-    Add(L"STATIC",L"Game executable",0,rightX,185,160,22,IDC_LBL_EXE);
+    HWND lblExe=Add(L"STATIC",L"Game executable",0,rightX,185,160,22,IDC_LBL_EXE);SendMessageW(lblExe,WM_SETFONT,(WPARAM)gFontBold,TRUE);
     HWND eExe=Add(L"EDIT",L"",WS_BORDER|ES_AUTOHSCROLL,rightX,209,rightW-110,28,IDC_EXE);SetWindowTheme(eExe,L"DarkMode_Explorer",nullptr);
     Add(L"BUTTON",L"Browse...",BS_OWNERDRAW,rightX+rightW-100,204,100,36,IDC_BROWSE);
     Add(L"BUTTON",L"",BS_AUTOCHECKBOX,rightX,247,20,22,IDC_ENABLED);
     Add(L"STATIC",L"Enable automatic profile",0,rightX+25,248,205,22,IDC_LBL_ENABLED);
 
-    Add(L"STATIC",L"Display",0,rightX,278,160,22,IDC_LBL_DISPLAY);
+    Add(L"STATIC",L"Display",0,rightX+31,278,129,22,IDC_LBL_DISPLAY);
+    SendMessageW(H(IDC_LBL_DISPLAY),WM_SETFONT,(WPARAM)gFontBold,TRUE);
     HWND display=Add(L"COMBOBOX",L"",CBS_DROPDOWNLIST|CBS_OWNERDRAWFIXED|CBS_HASSTRINGS|WS_VSCROLL,rightX,303,rightW,240,IDC_DISPLAY);
     SendMessageW(display,CB_SETITEMHEIGHT,0,28);
     SetWindowTheme(display,L"DarkMode_Explorer",nullptr);
 
     auto slider=[&](const wchar_t*t,int lid,int id,int vid,int y,int mn,int mx){
-        Add(L"STATIC",t,0,rightX+29,y-2,161,22,lid);
+        HWND lbl=Add(L"STATIC",t,0,rightX+29,y-2,161,22,lid);
+        SendMessageW(lbl,WM_SETFONT,(WPARAM)gFontBold,TRUE);
         HWND tr=Add(TRACKBAR_CLASSW,L"",TBS_HORZ|TBS_NOTICKS,rightX,y+27,rightW-92,28,id);
         SendMessageW(tr,TBM_SETRANGE,TRUE,MAKELONG(mn,mx));
         Add(L"STATIC",L"",SS_OWNERDRAW,rightX+rightW-76,y-2,76,28,vid);
@@ -1325,7 +1388,7 @@ void BuildControls(){
     slider(L"Digital Vibrance (%)",IDC_LBL_VIB,IDC_VIB,IDC_VALVIB,520,0,100);
     slider(L"Hue (\x00B0)",IDC_LBL_HUE,IDC_HUE,IDC_VALHUE,580,0,359);
 
-    Add(L"BUTTON",L"Save profile",BS_OWNERDRAW,rightX,657,150,38,IDC_SAVE);
+    Add(L"BUTTON",L"Save profile",BS_OWNERDRAW,rightX+rightW-150,657,150,38,IDC_SAVE);
     Add(L"BUTTON",L"Add game",BS_OWNERDRAW,34,r.bottom-172,118,38,IDC_ADD);
     Add(L"BUTTON",L"Remove",BS_OWNERDRAW,164,r.bottom-172,104,38,IDC_REMOVE);
 
@@ -1784,19 +1847,40 @@ void ShowAbout(){
     SetForegroundWindow(a);
 }
 
+bool gTrayIconVisible=false;
+
+void SetTrayIconVisible(bool visible){
+    if(visible==gTrayIconVisible) return;
+
+    if(visible){
+        if(Shell_NotifyIconW(NIM_ADD,&gNid))
+            gTrayIconVisible=true;
+    }else{
+        Shell_NotifyIconW(NIM_DELETE,&gNid);
+        gTrayIconVisible=false;
+    }
+}
+
 void ShowMain(){
     if(IsIconic(gWnd))
         ShowWindow(gWnd,SW_RESTORE);
     else
         ShowWindow(gWnd,SW_SHOW);
 
+    // Restored/visible window lives only in the taskbar.
+    SetTrayIconVisible(false);
+
     SetForegroundWindow(gWnd);
     BringWindowToTop(gWnd);
 } void RestoreDesktop(){RestoreAllDesktopProfiles();gActive=L"Windows";InvalidateRect(gWnd,nullptr,FALSE);}
 LRESULT CALLBACK Proc(HWND w,UINT m,WPARAM wp,LPARAM lp){switch(m){case WM_SHOW_EXISTING_INSTANCE:ShowMain();return 0;case WM_UPDATE_AVAILABLE:ShowUpdateAvailable((UpdateInfo*)lp);return 0;case WM_CREATE:gWnd=w;BuildControls();RefreshList();LoadSelected();SetTimer(w,1,250,nullptr);return 0;case WM_SIZE:
     if(wp==SIZE_MINIMIZED){
-        if(gSettings.minimizeToTray)
+        if(gSettings.minimizeToTray){
+            SetTrayIconVisible(true);
             ShowWindow(w,SW_HIDE);
+        }else{
+            SetTrayIconVisible(false);
+        }
         return 0;
     }
     ResizeControls();
@@ -1881,13 +1965,18 @@ case WM_CTLCOLORSTATIC:{HDC dc=(HDC)wp;SetTextColor(dc,C_TEXT);SetBkColor(dc,C_P
         return TRUE;
     }
     break;
-}case WM_HSCROLL:UpdateSliderLabels();if((HWND)lp)InvalidateRect((HWND)lp,nullptr,FALSE);return 0;case WM_TIMER:CheckProcesses();return 0;case WM_COMMAND:{int id=LOWORD(wp);if(id==IDC_LIST&&HIWORD(wp)==LBN_SELCHANGE){LoadSelected();return 0;}if(id==IDC_DISPLAY&&HIWORD(wp)==CBN_SELCHANGE){int ds=(int)SendMessageW(H(IDC_DISPLAY),CB_GETCURSEL,0,0);if(ds>=0&&ds<(int)gDisplays.size()){if(IsDesktopSelected()){auto*p=EnsureDesktopProfile(gDisplays[ds].gdiName);LoadValuesToSliders(ValuesFromFlatProfile(*p));}else{auto*p=SelectedProfile();if(p){p->displayName=gDisplays[ds].gdiName;LoadValuesToSliders(*EnsureGameValuesForDisplay(*p,p->displayName));}}}return 0;}switch(id){case IDC_BROWSE:{OPENFILENAMEW o{sizeof(o)};wchar_t f[MAX_PATH]{};o.hwndOwner=w;o.lpstrFilter=L"Executables (*.exe)\0*.exe\0All files\0*.*\0";o.lpstrFile=f;o.nMaxFile=MAX_PATH;o.Flags=OFN_FILEMUSTEXIST;if(GetOpenFileNameW(&o)){Txt(IDC_EXE,f);auto* p=SelectedProfile();if(p&&!IsDesktopSelected()){p->exePath=f;InvalidateRect(H(IDC_LIST),nullptr,TRUE);}}break;}case IDC_SAVE:SaveSelected();break;case IDC_ADD:{GameProfile np{};if(!gDisplays.empty()){int pi=0;for(size_t di=0;di<gDisplays.size();++di)if(gDisplays[di].primary){pi=(int)di;break;}np.displayName=gDisplays[pi].gdiName;for(const auto&d:gDisplays)np.displayProfiles.push_back(ValuesFromDesktop(d.gdiName));}gSettings.profiles.push_back(np);gSelected=(int)gSettings.profiles.size();Save();RefreshList();LoadSelected();break;}case IDC_REMOVE:if(gSelected>0&&gSelected<=(int)gSettings.profiles.size()){gSettings.profiles.erase(gSettings.profiles.begin()+(gSelected-1));gSelected=std::max<int>(0,gSelected-1);Save();RefreshList();LoadSelected();}break;case IDC_STARTWIN:gSettings.startWindows=SendMessageW(H(IDC_STARTWIN),BM_GETCHECK,0,0)==BST_CHECKED;SetStartup(gSettings.startWindows);Save();break;case IDC_STARTMIN:gSettings.startMinimized=SendMessageW(H(IDC_STARTMIN),BM_GETCHECK,0,0)==BST_CHECKED;Save();break;case IDC_MINTRAY:gSettings.minimizeToTray=SendMessageW(H(IDC_MINTRAY),BM_GETCHECK,0,0)==BST_CHECKED;Save();break;case IDC_CHECKUPDATES:gSettings.checkUpdates=SendMessageW(H(IDC_CHECKUPDATES),BM_GETCHECK,0,0)==BST_CHECKED;Save();break;case IDC_FOOT_GITHUB:ShellExecuteW(w,L"open",APP_URL,nullptr,nullptr,SW_SHOWNORMAL);break;
+}case WM_HSCROLL:UpdateSliderLabels();if((HWND)lp)InvalidateRect((HWND)lp,nullptr,FALSE);return 0;case WM_TIMER:CheckProcesses();return 0;case WM_COMMAND:{int id=LOWORD(wp);if(id==IDC_LIST&&HIWORD(wp)==LBN_SELCHANGE){LoadSelected();return 0;}if(id==IDC_DISPLAY&&HIWORD(wp)==CBN_SELCHANGE){int ds=(int)SendMessageW(H(IDC_DISPLAY),CB_GETCURSEL,0,0);if(ds>=0&&ds<(int)gDisplays.size()){if(IsDesktopSelected()){auto*p=EnsureDesktopProfile(gDisplays[ds].gdiName);LoadValuesToSliders(ValuesFromFlatProfile(*p));}else{auto*p=SelectedProfile();if(p){p->displayName=gDisplays[ds].gdiName;LoadValuesToSliders(*EnsureGameValuesForDisplay(*p,p->displayName));}}}return 0;}switch(id){case IDC_BROWSE:{OPENFILENAMEW o{sizeof(o)};wchar_t f[MAX_PATH]{};o.hwndOwner=w;o.lpstrFilter=L"Executables (*.exe)\0*.exe\0All files\0*.*\0";o.lpstrFile=f;o.nMaxFile=MAX_PATH;o.Flags=OFN_FILEMUSTEXIST;if(GetOpenFileNameW(&o)){Txt(IDC_EXE,f);auto* p=SelectedProfile();if(p&&!IsDesktopSelected()){p->exePath=f;InvalidateRect(H(IDC_LIST),nullptr,TRUE);}}break;}case IDC_SAVE:SaveSelected();break;case IDC_ADD:{GameProfile np{};if(!gDisplays.empty()){int pi=0;for(size_t di=0;di<gDisplays.size();++di)if(gDisplays[di].primary){pi=(int)di;break;}np.displayName=gDisplays[pi].gdiName;for(const auto&d:gDisplays)np.displayProfiles.push_back(ValuesFromDesktop(d.gdiName));}gSettings.profiles.push_back(np);gSelected=(int)gSettings.profiles.size();Save();RefreshList();LoadSelected();break;}case IDC_REMOVE:if(gSelected>0&&gSelected<=(int)gSettings.profiles.size()){gSettings.profiles.erase(gSettings.profiles.begin()+(gSelected-1));gSelected=std::max<int>(0,gSelected-1);Save();RefreshList();LoadSelected();}break;case IDC_STARTWIN:gSettings.startWindows=SendMessageW(H(IDC_STARTWIN),BM_GETCHECK,0,0)==BST_CHECKED;SetStartup(gSettings.startWindows);Save();break;case IDC_STARTMIN:gSettings.startMinimized=SendMessageW(H(IDC_STARTMIN),BM_GETCHECK,0,0)==BST_CHECKED;Save();break;case IDC_MINTRAY:
+    gSettings.minimizeToTray=SendMessageW(H(IDC_MINTRAY),BM_GETCHECK,0,0)==BST_CHECKED;
+    if(!gSettings.minimizeToTray)
+        SetTrayIconVisible(false);
+    Save();
+    break;case IDC_CHECKUPDATES:gSettings.checkUpdates=SendMessageW(H(IDC_CHECKUPDATES),BM_GETCHECK,0,0)==BST_CHECKED;Save();break;case IDC_FOOT_GITHUB:ShellExecuteW(w,L"open",APP_URL,nullptr,nullptr,SW_SHOWNORMAL);break;
 case IDC_FOOT_SUPPORT:ShellExecuteW(w,L"open",SUPPORT_URL,nullptr,nullptr,SW_SHOWNORMAL);break;
 case IDC_FOOT_ABOUT:ShowAbout();break;
 case ID_TRAY_OPEN:ShowMain();break;case ID_TRAY_CHECK_UPDATE:{if(HANDLE h=CreateThread(nullptr,0,UpdateCheckThread,(LPVOID)1,0,nullptr))CloseHandle(h);break;}case ID_TRAY_ABOUT:ShowAbout();break;case ID_TRAY_EXIT:gReallyExit=true;DestroyWindow(w);break;}return 0;}case WM_CLOSE:
     gReallyExit=true;
     DestroyWindow(w);
-    return 0;case WM_TRAY:if(lp==WM_LBUTTONDBLCLK){ShowMain();return 0;}if(lp==WM_RBUTTONUP||lp==WM_CONTEXTMENU){POINT p;GetCursorPos(&p);SetForegroundWindow(w);TrackPopupMenu(gTrayMenu,TPM_RIGHTBUTTON,p.x,p.y,0,w,nullptr);return 0;}break;case WM_DESTROY:KillTimer(w,1);Shell_NotifyIconW(NIM_DELETE,&gNid);if(pUnload)pUnload();if(gNv)FreeLibrary(gNv);PostQuitMessage(0);return 0;}return DefWindowProcW(w,m,wp,lp);} 
+    return 0;case WM_TRAY:if(lp==WM_LBUTTONDBLCLK){ShowMain();return 0;}if(lp==WM_RBUTTONUP||lp==WM_CONTEXTMENU){POINT p;GetCursorPos(&p);SetForegroundWindow(w);TrackPopupMenu(gTrayMenu,TPM_RIGHTBUTTON,p.x,p.y,0,w,nullptr);return 0;}break;case WM_DESTROY:KillTimer(w,1);SetTrayIconVisible(false);if(pUnload)pUnload();if(gNv)FreeLibrary(gNv);PostQuitMessage(0);return 0;}return DefWindowProcW(w,m,wp,lp);} 
 
 int WINAPI wWinMain(HINSTANCE h,HINSTANCE,LPWSTR cmd,int){
 HANDLE instanceMutex=CreateMutexW(nullptr,TRUE,INSTANCE_MUTEX_NAME);
@@ -1923,7 +2012,10 @@ int mainW=mainWr.right-mainWr.left, mainH=mainWr.bottom-mainWr.top;
 int mainX=mainWork.left+((mainWork.right-mainWork.left)-mainW)/2;
 int mainY=mainWork.top+((mainWork.bottom-mainWork.top)-mainH)/2;
 SetWindowPos(gWnd,nullptr,mainX,mainY,0,0,SWP_NOSIZE|SWP_NOZORDER|SWP_NOACTIVATE);
-SetWindowLongPtrW(gWnd,GWLP_USERDATA,0);gTrayMenu=CreatePopupMenu();AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_OPEN,L"Open NvProfileSwitcher");AppendMenuW(gTrayMenu,MF_SEPARATOR,0,nullptr);AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_CHECK_UPDATE,L"Check for updates");AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_ABOUT,L"About NvProfileSwitcher");AppendMenuW(gTrayMenu,MF_SEPARATOR,0,nullptr);AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_EXIT,L"Exit");gNid.cbSize=sizeof(gNid);gNid.hWnd=gWnd;gNid.uID=1;gNid.uFlags=NIF_MESSAGE|NIF_ICON|NIF_TIP;gNid.uCallbackMessage=WM_TRAY;gNid.hIcon=gIcon;wcscpy_s(gNid.szTip,L"NvProfileSwitcher");Shell_NotifyIconW(NIM_ADD,&gNid);gStatusOk=InitNv();if(gStatusOk){if(gSettings.desktopProfiles.empty()&&!gDisplays.empty()){DisplayTarget* pd=nullptr;for(auto&d:gDisplays)if(d.primary){pd=&d;break;}if(!pd)pd=&gDisplays.front();EnsureDesktopProfile(pd->gdiName);}EnsureAllGameDisplayProfiles();Save();if(auto* p=SelectedProfile())RefreshDisplayCombo(*p);RestoreAllDesktopProfiles();LoadSelected();}gActive=L"Windows";bool min=(wcsstr(cmd,L"--minimized")!=nullptr);ShowWindow(gWnd,min?SW_HIDE:SW_SHOW);UpdateWindow(gWnd);if(gSettings.checkUpdates){if(HANDLE h=CreateThread(nullptr,0,UpdateCheckThread,nullptr,0,nullptr))CloseHandle(h);}MSG msg;while(GetMessageW(&msg,nullptr,0,0)>0){TranslateMessage(&msg);DispatchMessageW(&msg);}DeleteObject(gFont);DeleteObject(gFontBold);DeleteObject(gFontTitle);DeleteObject(gIconFont);DeleteObject(gBackBrush);DeleteObject(gPanelBrush);DeleteObject(gPanel2Brush);DeleteObject(gFieldBrush);
+SetWindowLongPtrW(gWnd,GWLP_USERDATA,0);gTrayMenu=CreatePopupMenu();AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_OPEN,L"Open NvProfileSwitcher");AppendMenuW(gTrayMenu,MF_SEPARATOR,0,nullptr);AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_CHECK_UPDATE,L"Check for updates");AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_ABOUT,L"About NvProfileSwitcher");AppendMenuW(gTrayMenu,MF_SEPARATOR,0,nullptr);AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_EXIT,L"Exit");gNid.cbSize=sizeof(gNid);gNid.hWnd=gWnd;gNid.uID=1;gNid.uFlags=NIF_MESSAGE|NIF_ICON|NIF_TIP;gNid.uCallbackMessage=WM_TRAY;gNid.hIcon=gIcon;wcscpy_s(gNid.szTip,L"NvProfileSwitcher");gStatusOk=InitNv();if(gStatusOk){if(gSettings.desktopProfiles.empty()&&!gDisplays.empty()){DisplayTarget* pd=nullptr;for(auto&d:gDisplays)if(d.primary){pd=&d;break;}if(!pd)pd=&gDisplays.front();EnsureDesktopProfile(pd->gdiName);}EnsureAllGameDisplayProfiles();Save();if(auto* p=SelectedProfile())RefreshDisplayCombo(*p);RestoreAllDesktopProfiles();LoadSelected();}gActive=L"Windows";bool min=(wcsstr(cmd,L"--minimized")!=nullptr);
+if(min) SetTrayIconVisible(true);
+ShowWindow(gWnd,min?SW_HIDE:SW_SHOW);
+UpdateWindow(gWnd);if(gSettings.checkUpdates){if(HANDLE h=CreateThread(nullptr,0,UpdateCheckThread,nullptr,0,nullptr))CloseHandle(h);}MSG msg;while(GetMessageW(&msg,nullptr,0,0)>0){TranslateMessage(&msg);DispatchMessageW(&msg);}DeleteObject(gFont);DeleteObject(gFontBold);DeleteObject(gFontTitle);DeleteObject(gIconFont);DeleteObject(gBackBrush);DeleteObject(gPanelBrush);DeleteObject(gPanel2Brush);DeleteObject(gFieldBrush);
 if(gHeaderImage){delete gHeaderImage;gHeaderImage=nullptr;}
 for(auto** image:{&gSliderBrightness,&gSliderContrast,&gSliderGamma,&gSliderVibrance,&gSliderHue}){
     if(*image){delete *image;*image=nullptr;}
