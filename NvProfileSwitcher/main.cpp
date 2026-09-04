@@ -2025,9 +2025,25 @@ case WM_CTLCOLORSTATIC:{HDC dc=(HDC)wp;SetTextColor(dc,C_TEXT);SetBkColor(dc,C_P
             HICON ic=LoadExeIcon(p->exePath);
             if(ic){DrawIconEx(d->hDC,x,y,ic,iconSize,iconSize,0,nullptr,DI_NORMAL);DestroyIcon(ic);}
             else{
-                HBRUSH b=CreateSolidBrush(C_ACCENT);HGDIOBJ old=SelectObject(d->hDC,b);
-                Ellipse(d->hDC,x+1,y+1,x+iconSize+1,y+iconSize+1);SelectObject(d->hDC,old);DeleteObject(b);
-                if(!p->name.empty()){wchar_t c[2]{p->name[0],0};DrawLabel(d->hDC,c,x+14,y+11,RGB(255,255,255),gFontBold);}
+                // Placeholder for a profile without an EXE yet:
+                // outlined green circle with a centered plus.
+                Gdiplus::Graphics g(d->hDC);
+                g.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
+                Gdiplus::Color accent(255,GetRValue(C_ACCENT),GetGValue(C_ACCENT),GetBValue(C_ACCENT));
+                Gdiplus::Pen pen(accent,2.5f);
+                pen.SetStartCap(Gdiplus::LineCapRound);
+                pen.SetEndCap(Gdiplus::LineCapRound);
+
+                const Gdiplus::REAL inset=2.5f;
+                g.DrawEllipse(&pen,
+                    (Gdiplus::REAL)x+inset,(Gdiplus::REAL)y+inset,
+                    (Gdiplus::REAL)iconSize-inset*2,(Gdiplus::REAL)iconSize-inset*2);
+
+                const Gdiplus::REAL cx=(Gdiplus::REAL)x+iconSize/2.0f;
+                const Gdiplus::REAL cy=(Gdiplus::REAL)y+iconSize/2.0f;
+                const Gdiplus::REAL arm=8.0f;
+                g.DrawLine(&pen,cx-arm,cy,cx+arm,cy);
+                g.DrawLine(&pen,cx,cy-arm,cx,cy+arm);
             }
         }
 
