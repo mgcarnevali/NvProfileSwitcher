@@ -1161,6 +1161,31 @@ void DrawProfilesPrototypeIcon(HDC dc,int x,int y){
     g.DrawRectangle(&outline,(Gdiplus::REAL)x+7,(Gdiplus::REAL)y+6,16.0f,11.0f);
 }
 
+void DrawApplicationSettingsGear(HDC dc,int x,int y){
+    // Thin prototype-style green gear for the Application Settings module.
+    Gdiplus::Graphics g(dc);
+    g.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
+
+    Gdiplus::Color accent(255,GetRValue(C_ACCENT),GetGValue(C_ACCENT),GetBValue(C_ACCENT));
+    Gdiplus::Pen pen(accent,1.35f);
+
+    const Gdiplus::REAL cx=(Gdiplus::REAL)x+9.0f;
+    const Gdiplus::REAL cy=(Gdiplus::REAL)y+9.0f;
+
+    g.DrawEllipse(&pen,cx-5.0f,cy-5.0f,10.0f,10.0f);
+    g.DrawEllipse(&pen,cx-1.8f,cy-1.8f,3.6f,3.6f);
+
+    // Eight short teeth, kept light so the icon matches the other section glyphs.
+    for(int i=0;i<8;i++){
+        const double a=(3.14159265358979323846/4.0)*i;
+        const Gdiplus::REAL x1=cx+(Gdiplus::REAL)(6.0*cos(a));
+        const Gdiplus::REAL y1=cy+(Gdiplus::REAL)(6.0*sin(a));
+        const Gdiplus::REAL x2=cx+(Gdiplus::REAL)(8.0*cos(a));
+        const Gdiplus::REAL y2=cy+(Gdiplus::REAL)(8.0*sin(a));
+        g.DrawLine(&pen,x1,y1,x2,y2);
+    }
+}
+
 void DrawProfileSettingsPrototypeIcon(HDC dc,int x,int y){
     // Prototype: very thin anti-aliased lines with small round adjustment knobs.
     Gdiplus::Graphics g(dc);
@@ -1325,10 +1350,27 @@ void Paint(HWND w){
     DrawSliderIcon(dc,gSliderVibrance,iconX,iconVib-2);
     DrawSliderIcon(dc,gSliderHue,iconX,iconHue-2);
 
-    // Compact Application Settings heading. Keep the existing two-column
-    // checkbox layout intact and use the free space above it.
-    const int appSettingsY=rc.bottom-119;
-    DrawLabel(dc,L"Application Settings",rightX+22,appSettingsY,C_ACCENT,gFontBold);
+    // Application Settings as its own compact module:
+    // border line + gear + title + border line. Checkbox rows stay untouched.
+    const int appSettingsY=rc.bottom-104;
+    const int appSettingsLineY=appSettingsY+8;
+    const int moduleLeft=rightX+22;
+    const int moduleRight=rc.right-margin-22;
+
+    Fill(dc,moduleLeft,appSettingsLineY,14,1,C_BORDER);
+
+    const int gearX=moduleLeft+22;
+    DrawApplicationSettingsGear(dc,gearX,appSettingsY-1);
+
+    const int titleX=gearX+27;
+    DrawLabel(dc,L"Application Settings",titleX,appSettingsY,C_ACCENT,gFontBold);
+
+    SIZE appTitleSize{};
+    SelectObject(dc,gFontBold);
+    GetTextExtentPoint32W(dc,L"Application Settings",20,&appTitleSize);
+    const int rightLineX=titleX+appTitleSize.cx+12;
+    if(moduleRight>rightLineX)
+        Fill(dc,rightLineX,appSettingsLineY,moduleRight-rightLineX,1,C_BORDER);
 
     // Prototype-inspired compact footer: status + driver on the left,
     // navigation links on the right.
