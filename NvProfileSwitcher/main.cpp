@@ -933,17 +933,10 @@ void DrawOwnerButton(const DRAWITEMSTRUCT* d){
         textColor=disabled?C_MUTED:C_ACCENT;
         icon=disabled?C_MUTED:C_ACCENT;
     }else if(id==IDC_ADD){
-        // Prototype-style secondary action: dark background, green outline/text.
-        fill=down?RGB(16,28,18):C_BACK;
-        border=disabled?C_BORDER:C_ACCENT;
-        textColor=disabled?C_MUTED:C_ACCENT;
-        icon=disabled?C_MUTED:C_ACCENT;
+        fill=down?RGB(26,62,29):RGB(22,48,27);
+        border=RGB(46,117,46); icon=C_ACCENT;
     }else if(id==IDC_REMOVE){
-        // Prototype-style destructive action: dark background, red outline/text.
-        fill=down?RGB(31,17,19):C_BACK;
-        border=disabled?C_BORDER:C_DANGER;
-        textColor=disabled?C_MUTED:C_DANGER;
-        icon=disabled?C_MUTED:C_DANGER;
+        icon=C_DANGER;
     }else if(id==IDC_BROWSE){
         icon=C_TEXT;
     }
@@ -954,7 +947,7 @@ void DrawOwnerButton(const DRAWITEMSTRUCT* d){
     wchar_t caption[128]{};
     GetWindowTextW(d->hwndItem,caption,128);
     SIZE sz{};
-    HFONT buttonFont=(id==IDC_SAVE)?gFontBold:gFont;
+    HFONT buttonFont=(id==IDC_SAVE||id==IDC_ADD||id==IDC_REMOVE)?gFontBold:gFont;
     SelectObject(d->hDC,buttonFont);
     GetTextExtentPoint32W(d->hDC,caption,(int)wcslen(caption),&sz);
 
