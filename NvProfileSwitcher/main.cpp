@@ -724,15 +724,15 @@ void SetDesktopUi(bool desktop){
 
     // Global startup options stay at the bottom of the right panel.
     // Global options in two balanced rows.
-    MoveWindow(H(IDC_STARTWIN),rightX,r.bottom-78,20,22,TRUE);
-    MoveWindow(GetWindow(H(IDC_STARTWIN),GW_HWNDNEXT),rightX+24,r.bottom-77,135,22,TRUE);
-    MoveWindow(H(IDC_STARTMIN),rightX+220,r.bottom-78,20,22,TRUE);
-    MoveWindow(GetWindow(H(IDC_STARTMIN),GW_HWNDNEXT),rightX+244,r.bottom-77,175,22,TRUE);
+    MoveWindow(H(IDC_STARTWIN),rightX,r.bottom-88,20,22,TRUE);
+    MoveWindow(GetWindow(H(IDC_STARTWIN),GW_HWNDNEXT),rightX+24,r.bottom-87,135,22,TRUE);
+    MoveWindow(H(IDC_STARTMIN),rightX+220,r.bottom-88,20,22,TRUE);
+    MoveWindow(GetWindow(H(IDC_STARTMIN),GW_HWNDNEXT),rightX+244,r.bottom-87,175,22,TRUE);
 
-    MoveWindow(H(IDC_MINTRAY),rightX,r.bottom-46,20,22,TRUE);
-    MoveWindow(GetWindow(H(IDC_MINTRAY),GW_HWNDNEXT),rightX+24,r.bottom-45,135,22,TRUE);
-    MoveWindow(H(IDC_CHECKUPDATES),rightX+220,r.bottom-46,20,22,TRUE);
-    MoveWindow(GetWindow(H(IDC_CHECKUPDATES),GW_HWNDNEXT),rightX+244,r.bottom-45,145,22,TRUE);
+    MoveWindow(H(IDC_MINTRAY),rightX,r.bottom-56,20,22,TRUE);
+    MoveWindow(GetWindow(H(IDC_MINTRAY),GW_HWNDNEXT),rightX+24,r.bottom-55,135,22,TRUE);
+    MoveWindow(H(IDC_CHECKUPDATES),rightX+220,r.bottom-56,20,22,TRUE);
+    MoveWindow(GetWindow(H(IDC_CHECKUPDATES),GW_HWNDNEXT),rightX+244,r.bottom-55,145,22,TRUE);
 
     InvalidateRect(gWnd,nullptr,TRUE);
 }
@@ -1425,15 +1425,15 @@ void BuildControls(){
     Add(L"BUTTON",L"Add game",BS_OWNERDRAW,34,r.bottom-172,118,38,IDC_ADD);
     Add(L"BUTTON",L"Remove",BS_OWNERDRAW,164,r.bottom-172,104,38,IDC_REMOVE);
 
-    Add(L"BUTTON",L"",BS_AUTOCHECKBOX,rightX,r.bottom-78,20,22,IDC_STARTWIN);
-    Add(L"STATIC",L"Start with Windows",0,rightX+24,r.bottom-77,135,22,0);
-    Add(L"BUTTON",L"",BS_AUTOCHECKBOX,rightX+220,r.bottom-78,20,22,IDC_STARTMIN);
-    Add(L"STATIC",L"Start minimized to tray",0,rightX+244,r.bottom-77,175,22,0);
+    Add(L"BUTTON",L"",BS_AUTOCHECKBOX,rightX,r.bottom-88,20,22,IDC_STARTWIN);
+    Add(L"STATIC",L"Start with Windows",0,rightX+24,r.bottom-87,135,22,0);
+    Add(L"BUTTON",L"",BS_AUTOCHECKBOX,rightX+220,r.bottom-88,20,22,IDC_STARTMIN);
+    Add(L"STATIC",L"Start minimized to tray",0,rightX+244,r.bottom-87,175,22,0);
 
-    Add(L"BUTTON",L"",BS_AUTOCHECKBOX,rightX,r.bottom-46,20,22,IDC_MINTRAY);
-    Add(L"STATIC",L"Minimize to tray",0,rightX+24,r.bottom-45,135,22,0);
-    Add(L"BUTTON",L"",BS_AUTOCHECKBOX,rightX+220,r.bottom-46,20,22,IDC_CHECKUPDATES);
-    Add(L"STATIC",L"Check for updates",0,rightX+244,r.bottom-45,145,22,0);
+    Add(L"BUTTON",L"",BS_AUTOCHECKBOX,rightX,r.bottom-56,20,22,IDC_MINTRAY);
+    Add(L"STATIC",L"Minimize to tray",0,rightX+24,r.bottom-55,135,22,0);
+    Add(L"BUTTON",L"",BS_AUTOCHECKBOX,rightX+220,r.bottom-56,20,22,IDC_CHECKUPDATES);
+    Add(L"STATIC",L"Check for updates",0,rightX+244,r.bottom-55,145,22,0);
 
     SendMessageW(H(IDC_STARTWIN),BM_SETCHECK,gSettings.startWindows?BST_CHECKED:BST_UNCHECKED,0);
     SendMessageW(H(IDC_STARTMIN),BM_SETCHECK,gSettings.startMinimized?BST_CHECKED:BST_UNCHECKED,0);
