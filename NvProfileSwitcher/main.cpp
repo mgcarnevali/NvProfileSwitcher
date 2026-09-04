@@ -896,6 +896,34 @@ void DrawGlyphIcon(HDC dc,const wchar_t* glyph,int x,int y,COLORREF c){
     SelectObject(dc,oldFont);
 }
 
+
+void DrawAddButtonIcon(HDC dc,int x,int y,COLORREF c){
+    Gdiplus::Graphics g(dc);
+    g.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
+    Gdiplus::Color color(255,GetRValue(c),GetGValue(c),GetBValue(c));
+    Gdiplus::Pen pen(color,1.35f);
+    pen.SetStartCap(Gdiplus::LineCapRound);
+    pen.SetEndCap(Gdiplus::LineCapRound);
+    g.DrawLine(&pen,(Gdiplus::REAL)x+7,(Gdiplus::REAL)y+2.5f,(Gdiplus::REAL)x+7,(Gdiplus::REAL)y+15.5f);
+    g.DrawLine(&pen,(Gdiplus::REAL)x+0.5f,(Gdiplus::REAL)y+9,(Gdiplus::REAL)x+13.5f,(Gdiplus::REAL)y+9);
+}
+void DrawRemoveButtonIcon(HDC dc,int x,int y,COLORREF c){
+    Gdiplus::Graphics g(dc);
+    g.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
+    Gdiplus::Color color(255,GetRValue(c),GetGValue(c),GetBValue(c));
+    Gdiplus::Pen pen(color,1.15f);
+    pen.SetStartCap(Gdiplus::LineCapRound);
+    pen.SetEndCap(Gdiplus::LineCapRound);
+    pen.SetLineJoin(Gdiplus::LineJoinRound);
+    g.DrawLine(&pen,x+1.5f,y+4.5f,x+14.5f,y+4.5f);
+    g.DrawLine(&pen,x+5.0f,y+2.0f,x+11.0f,y+2.0f);
+    g.DrawLine(&pen,x+3.0f,y+6.0f,x+4.0f,y+17.0f);
+    g.DrawLine(&pen,x+4.0f,y+17.0f,x+12.0f,y+17.0f);
+    g.DrawLine(&pen,x+12.0f,y+17.0f,x+13.0f,y+6.0f);
+    g.DrawLine(&pen,x+6.5f,y+8.0f,x+6.8f,y+14.5f);
+    g.DrawLine(&pen,x+9.5f,y+8.0f,x+9.2f,y+14.5f);
+}
+
 void DrawSaveIcon(HDC dc,int x,int y,COLORREF c){
     HPEN p=CreatePen(PS_SOLID,2,c);HGDIOBJ old=SelectObject(dc,p);
     Rectangle(dc,x+2,y+2,x+18,y+19);
@@ -959,8 +987,8 @@ void DrawOwnerButton(const DRAWITEMSTRUCT* d){
     int cy=(r.top+r.bottom)/2;
 
     if(id==IDC_SAVE) { /* prototype save button uses text only */ }
-    else if(id==IDC_ADD) DrawGlyphIcon(d->hDC,L"\xE710",start+1,cy-9,icon);      // Add
-    else if(id==IDC_REMOVE) DrawGlyphIcon(d->hDC,L"\xE74D",start+1,cy-9,icon); // Delete
+    else if(id==IDC_ADD) DrawAddButtonIcon(d->hDC,start+2,cy-9,icon);
+    else if(id==IDC_REMOVE) DrawRemoveButtonIcon(d->hDC,start+2,cy-9,icon);
     else if(id==IDC_BROWSE) DrawFolderIcon(d->hDC,start,cy-12,icon);
 
     SetBkMode(d->hDC,TRANSPARENT);
