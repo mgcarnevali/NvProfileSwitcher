@@ -1325,6 +1325,11 @@ void Paint(HWND w){
     DrawSliderIcon(dc,gSliderVibrance,iconX,iconVib-2);
     DrawSliderIcon(dc,gSliderHue,iconX,iconHue-2);
 
+    // Compact Application Settings heading. Keep the existing two-column
+    // checkbox layout intact and use the free space above it.
+    const int appSettingsY=rc.bottom-119;
+    DrawLabel(dc,L"Application Settings",rightX+22,appSettingsY,C_ACCENT,gFontBold);
+
     // Prototype-inspired compact footer: status + driver on the left,
     // navigation links on the right.
     const int footerTop=rc.bottom-24;
