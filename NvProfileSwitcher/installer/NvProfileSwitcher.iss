@@ -25,6 +25,8 @@ OutputDir=output
 OutputBaseFilename=NvProfileSwitcher-Setup-v{#MyAppVersion}
 
 SetupIconFile=..\assets\branding\NvProfileSwitcher.ico
+WizardImageFile=..\assets\branding\installer-large.bmp
+WizardSmallImageFile=..\assets\branding\installer-small.bmp
 UninstallDisplayIcon={app}\NvProfileSwitcher.exe
 
 Compression=lzma2
