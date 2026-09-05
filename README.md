@@ -239,6 +239,10 @@ If you find NvProfileSwitcher useful and would like to support its development:
 
 https://ko-fi.com/mgcarnevali
 
+## Code signing
+
+See the [Code signing policy](CODE_SIGNING.md).
+
 ## License
 
 NvProfileSwitcher is licensed under the [MIT License](LICENSE).
