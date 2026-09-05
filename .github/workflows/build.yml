@@ -86,10 +86,26 @@ jobs:
           cl /nologo /std:c++20 /O2 /EHsc /MT /DUNICODE /D_UNICODE /DNOMINMAX main.cpp app.res /Fe:NvProfileSwitcher.exe /link /SUBSYSTEM:WINDOWS /MACHINE:X64
           if errorlevel 1 exit /b %errorlevel%
 
+      - name: Install Inno Setup
+        shell: powershell
+        run: |
+          choco install innosetup -y --no-progress
+
+      - name: Build installer
+        shell: powershell
+        working-directory: NvProfileSwitcher
+        run: |
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" `
+            "/DMyAppVersion=${{ env.BUILD_VERSION }}" `
+            "installer\NvProfileSwitcher.iss"
+
       - name: Show binary size
         shell: powershell
         run: |
           Get-Item .\NvProfileSwitcher\NvProfileSwitcher.exe |
+            Select-Object Name,Length
+
+          Get-Item .\NvProfileSwitcher\installer\output\*.exe |
             Select-Object Name,Length
 
       - name: Create portable folder
@@ -104,11 +120,18 @@ jobs:
             .\NvProfileSwitcher\NvProfileSwitcher.exe `
             .\Release\NvProfileSwitcher\NvProfileSwitcher.exe
 
-      - name: Upload build artifact
+      - name: Upload portable artifact
         uses: actions/upload-artifact@v6
         with:
           name: ${{ env.ARTIFACT_NAME }}
           path: .\Release
+          if-no-files-found: error
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: NvProfileSwitcher-Setup-${{ env.BUILD_VERSION }}
+          path: .\NvProfileSwitcher\installer\output\*.exe
           if-no-files-found: error
 
       - name: Create Release ZIP
@@ -120,8 +143,10 @@ jobs:
             -DestinationPath ".\${{ env.ARTIFACT_NAME }}.zip" `
             -Force
 
-      - name: Attach ZIP to GitHub Release
+      - name: Attach files to GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: .\${{ env.ARTIFACT_NAME }}.zip
+          files: |
+            .\${{ env.ARTIFACT_NAME }}.zip
+            .\NvProfileSwitcher\installer\output\NvProfileSwitcher-Setup-v${{ env.BUILD_VERSION }}.exe
