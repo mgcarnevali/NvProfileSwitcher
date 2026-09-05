@@ -24,6 +24,7 @@ DisableProgramGroupPage=yes
 OutputDir=output
 OutputBaseFilename=NvProfileSwitcher-Setup-v{#MyAppVersion}
 
+DisableWelcomePage=no
 SetupIconFile=..\assets\branding\NvProfileSwitcher.ico
 WizardImageFile=..\assets\branding\installer-large.bmp
 WizardSmallImageFile=..\assets\branding\installer-small.bmp
