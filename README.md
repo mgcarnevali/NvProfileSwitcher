@@ -46,15 +46,15 @@ your Windows profile is automatically restored.
 
 ### Game Profile
 
-![NvProfileSwitcher Game Profile](docs/screenshots/game-profile.png)
+![NvProfileSwitcher Game Profile](docs/screenshots/game-profile-v1.2.png)
 
 ### Windows Profile
 
-![NvProfileSwitcher Windows Profile](docs/screenshots/windows-profile.png)
+![NvProfileSwitcher Windows Profile](docs/screenshots/windows-profile-v1.2.png)
 
 ### System Tray
 
-![NvProfileSwitcher System Tray](docs/screenshots/system-tray.png)
+![NvProfileSwitcher System Tray](docs/screenshots/system-tray-v1.2.png)
 
 ## Interface
 
