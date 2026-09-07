@@ -1522,9 +1522,16 @@ void BuildControls(){
         CW_USEDEFAULT,CW_USEDEFAULT,CW_USEDEFAULT,CW_USEDEFAULT,
         gWnd,nullptr,gInst,nullptr);
     if(gProfileTooltip){
-        SetWindowTheme(gProfileTooltip,L"DarkMode_Explorer",nullptr);
+        // Match the tooltip to NvProfileSwitcher's dark UI.
+        SetWindowTheme(gProfileTooltip,L"",L"");
+        SendMessageW(gProfileTooltip,WM_SETFONT,(WPARAM)gFont,FALSE);
+        SendMessageW(gProfileTooltip,TTM_SETTIPBKCOLOR,(WPARAM)C_PANEL2,0);
+        SendMessageW(gProfileTooltip,TTM_SETTIPTEXTCOLOR,(WPARAM)C_TEXT,0);
         SendMessageW(gProfileTooltip,TTM_SETMAXTIPWIDTH,0,500);
-        SendMessageW(gProfileTooltip,TTM_SETDELAYTIME,TTDT_INITIAL,350);
+
+        RECT tipMargin{7,5,7,5};
+        SendMessageW(gProfileTooltip,TTM_SETMARGIN,0,(LPARAM)&tipMargin);
+
         TOOLINFOW ti{sizeof(ti)};
         ti.uFlags=TTF_TRACK|TTF_ABSOLUTE;
         ti.hwnd=list;
