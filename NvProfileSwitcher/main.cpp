@@ -728,7 +728,7 @@ LRESULT CALLBACK ProfileTooltipSubclassProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM 
         RECT r{};
         GetClientRect(hwnd,&r);
         if(r.right>0 && r.bottom>0){
-            HRGN region=CreateRoundRectRgn(0,0,r.right+1,r.bottom+1,8,8);
+            HRGN region=CreateRoundRectRgn(0,0,r.right+1,r.bottom+1,5,5);
             SetWindowRgn(hwnd,region,TRUE); // Windows owns the region after success.
         }
         break;
@@ -745,23 +745,16 @@ LRESULT CALLBACK ProfileTooltipSubclassProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM 
         HPEN border=CreatePen(PS_SOLID,1,C_BORDER);
         HGDIOBJ oldBrush=SelectObject(dc,bg);
         HGDIOBJ oldPen=SelectObject(dc,border);
-        RoundRect(dc,r.left,r.top,r.right,r.bottom,8,8);
+        RoundRect(dc,r.left,r.top,r.right,r.bottom,5,5);
         SelectObject(dc,oldBrush);
         SelectObject(dc,oldPen);
         DeleteObject(bg);
         DeleteObject(border);
 
-        // Subtle NvProfileSwitcher accent: a short green bar on the left,
-        // instead of a bright green border around the whole tooltip.
-        HBRUSH accent=CreateSolidBrush(C_ACCENT2);
-        RECT accentRect{r.left+1,r.top+5,r.left+4,r.bottom-5};
-        FillRect(dc,&accentRect,accent);
-        DeleteObject(accent);
-
         wchar_t text[512]{};
         GetWindowTextW(hwnd,text,(int)(sizeof(text)/sizeof(text[0])));
         RECT tr=r;
-        tr.left+=11; tr.right-=9; tr.top+=5; tr.bottom-=5;
+        tr.left+=8; tr.right-=8; tr.top+=5; tr.bottom-=5;
         SetBkMode(dc,TRANSPARENT);
         SetTextColor(dc,C_TEXT);
         SelectObject(dc,gFont);
