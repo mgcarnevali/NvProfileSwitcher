@@ -720,6 +720,56 @@ void UpdateProfileTooltip(POINT clientPt){
     gProfileTooltipItem=item;
 }
 
+LRESULT CALLBACK ProfileTooltipSubclassProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp,
+                                           UINT_PTR subclassId,DWORD_PTR refData){
+    switch(msg){
+    case WM_WINDOWPOSCHANGED:
+    case WM_SIZE:{
+        RECT r{};
+        GetClientRect(hwnd,&r);
+        if(r.right>0 && r.bottom>0){
+            HRGN region=CreateRoundRectRgn(0,0,r.right+1,r.bottom+1,8,8);
+            SetWindowRgn(hwnd,region,TRUE); // Windows owns the region after success.
+        }
+        break;
+    }
+    case WM_ERASEBKGND:
+        return 1;
+    case WM_PAINT:{
+        PAINTSTRUCT ps{};
+        HDC dc=BeginPaint(hwnd,&ps);
+        RECT r{};
+        GetClientRect(hwnd,&r);
+
+        HBRUSH bg=CreateSolidBrush(C_PANEL2);
+        HPEN border=CreatePen(PS_SOLID,1,C_ACCENT2);
+        HGDIOBJ oldBrush=SelectObject(dc,bg);
+        HGDIOBJ oldPen=SelectObject(dc,border);
+        RoundRect(dc,r.left,r.top,r.right,r.bottom,8,8);
+        SelectObject(dc,oldBrush);
+        SelectObject(dc,oldPen);
+        DeleteObject(bg);
+        DeleteObject(border);
+
+        wchar_t text[512]{};
+        GetWindowTextW(hwnd,text,(int)(sizeof(text)/sizeof(text[0])));
+        RECT tr=r;
+        tr.left+=9; tr.right-=9; tr.top+=5; tr.bottom-=5;
+        SetBkMode(dc,TRANSPARENT);
+        SetTextColor(dc,C_TEXT);
+        SelectObject(dc,gFont);
+        DrawTextW(dc,text,-1,&tr,DT_LEFT|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);
+
+        EndPaint(hwnd,&ps);
+        return 0;
+    }
+    case WM_NCDESTROY:
+        RemoveWindowSubclass(hwnd,ProfileTooltipSubclassProc,subclassId);
+        break;
+    }
+    return DefSubclassProc(hwnd,msg,wp,lp);
+}
+
 LRESULT CALLBACK ProfileListSubclassProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp,
                                         UINT_PTR subclassId,DWORD_PTR refData){
     switch(msg){
@@ -1531,6 +1581,7 @@ void BuildControls(){
 
         RECT tipMargin{7,5,7,5};
         SendMessageW(gProfileTooltip,TTM_SETMARGIN,0,(LPARAM)&tipMargin);
+        SetWindowSubclass(gProfileTooltip,ProfileTooltipSubclassProc,1,0);
 
         TOOLINFOW ti{sizeof(ti)};
         ti.uFlags=TTF_TRACK|TTF_ABSOLUTE;
