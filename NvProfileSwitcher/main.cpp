@@ -1,5 +1,6 @@
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#include <windowsx.h>
 #include <commctrl.h>
 #include <shellapi.h>
 #include <commdlg.h>
@@ -1457,7 +1458,6 @@ void Paint(HWND w){
     // navigation links on the right.
     const int footerTop=rc.bottom-24;
     const int footerY=rc.bottom-20;
-    Fill(dc,28,footerTop,rc.right-56,1,C_BORDER);
 
     // NVIDIA API status.
     const int dotX=30, dotY=footerY+6;
