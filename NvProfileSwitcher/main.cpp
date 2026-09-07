@@ -80,6 +80,9 @@ Gdiplus::Image *gSliderBrightness{},*gSliderContrast{},*gSliderGamma{},*gSliderV
 Settings gSettings; int gSelected=-1; bool gReallyExit=false; std::wstring gActive=L"Windows", gStatus=L"Not initialized", gDriverVersion=L"--"; bool gStatusOk=false;
 NOTIFYICONDATAW gNid{}; HMENU gTrayMenu{};
 HWND gFooterHover{};
+HWND gProfileTooltip{};
+int gProfileTooltipItem=-1;
+std::wstring gProfileTooltipText;
 
 using NvQueryInterface=void* (__cdecl*)(unsigned int);
 using NvInit=int (__cdecl*)(); using NvUnload=int (__cdecl*)(); using NvEnumDisplay=int (__cdecl*)(int,void**);
@@ -653,6 +656,90 @@ void SetStartup(bool on){
 HWND H(int id){return GetDlgItem(gWnd,id);} void Txt(int id,const std::wstring&s){SetWindowTextW(H(id),s.c_str());} std::wstring GetTxt(int id){int n=GetWindowTextLengthW(H(id));std::wstring s(n+1,0);GetWindowTextW(H(id),s.data(),n+1);s.resize(n);return s;}
 HWND Add(const wchar_t*cls,const wchar_t*txt,DWORD style,int x,int y,int w,int h,int id){ HWND c=CreateWindowExW(0,cls,txt,WS_CHILD|WS_VISIBLE|style,x,y,w,h,gWnd,(HMENU)(INT_PTR)id,gInst,nullptr); SendMessageW(c,WM_SETFONT,(WPARAM)gFont,TRUE); return c; }
 void RefreshList(){ HWND l=H(IDC_LIST); SendMessageW(l,LB_RESETCONTENT,0,0); SendMessageW(l,LB_ADDSTRING,0,(LPARAM)gSettings.desktop.name.c_str()); for(auto&p:gSettings.profiles)SendMessageW(l,LB_ADDSTRING,0,(LPARAM)p.name.c_str()); int maxSel=(int)gSettings.profiles.size(); gSelected=std::clamp(gSelected,0,maxSel); SendMessageW(l,LB_SETCURSEL,gSelected,0); }
+
+bool ProfileTitleIsTruncated(int item){
+    HWND list=H(IDC_LIST);
+    if(!list || item<0 || item>(int)gSettings.profiles.size()) return false;
+
+    const wchar_t* title=item==0?L"Windows":gSettings.profiles[item-1].name.c_str();
+    RECT itemRect{};
+    if(SendMessageW(list,LB_GETITEMRECT,item,(LPARAM)&itemRect)==LB_ERR) return false;
+
+    HDC dc=GetDC(list);
+    if(!dc) return false;
+    HFONT oldFont=(HFONT)SelectObject(dc,gFontBold);
+    SIZE titleSize{};
+    GetTextExtentPoint32W(dc,title,(int)wcslen(title),&titleSize);
+    SelectObject(dc,oldFont);
+    ReleaseDC(list,dc);
+
+    const int textLeft=itemRect.left+12+54;
+    const int textRight=itemRect.right-8;
+    return titleSize.cx>(textRight-textLeft);
+}
+
+void HideProfileTooltip(){
+    if(gProfileTooltip){
+        TOOLINFOW ti{sizeof(ti)};
+        ti.hwnd=H(IDC_LIST);
+        ti.uId=1;
+        SendMessageW(gProfileTooltip,TTM_TRACKACTIVATE,FALSE,(LPARAM)&ti);
+    }
+    gProfileTooltipItem=-1;
+}
+
+void UpdateProfileTooltip(POINT clientPt){
+    HWND list=H(IDC_LIST);
+    if(!list || !gProfileTooltip) return;
+
+    LRESULT hit=SendMessageW(list,LB_ITEMFROMPOINT,0,MAKELPARAM(clientPt.x,clientPt.y));
+    int item=LOWORD(hit);
+    BOOL outside=HIWORD(hit);
+
+    if(outside || item<0 || item>(int)gSettings.profiles.size() || !ProfileTitleIsTruncated(item)){
+        HideProfileTooltip();
+        return;
+    }
+    if(item==gProfileTooltipItem) return;
+
+    gProfileTooltipText=item==0?L"Windows":gSettings.profiles[item-1].name;
+
+    RECT itemRect{};
+    SendMessageW(list,LB_GETITEMRECT,item,(LPARAM)&itemRect);
+    POINT screenPt{itemRect.left+66,itemRect.bottom-2};
+    ClientToScreen(list,&screenPt);
+
+    TOOLINFOW ti{sizeof(ti)};
+    ti.hwnd=list;
+    ti.uId=1;
+    ti.lpszText=(LPWSTR)gProfileTooltipText.c_str();
+    SendMessageW(gProfileTooltip,TTM_UPDATETIPTEXTW,0,(LPARAM)&ti);
+    SendMessageW(gProfileTooltip,TTM_TRACKPOSITION,0,MAKELPARAM(screenPt.x,screenPt.y));
+    SendMessageW(gProfileTooltip,TTM_TRACKACTIVATE,TRUE,(LPARAM)&ti);
+    gProfileTooltipItem=item;
+}
+
+LRESULT CALLBACK ProfileListSubclassProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp,
+                                        UINT_PTR subclassId,DWORD_PTR refData){
+    switch(msg){
+    case WM_MOUSEMOVE:{
+        POINT pt{GET_X_LPARAM(lp),GET_Y_LPARAM(lp)};
+        UpdateProfileTooltip(pt);
+        TRACKMOUSEEVENT tme{sizeof(tme),TME_LEAVE,hwnd,0};
+        TrackMouseEvent(&tme);
+        break;
+    }
+    case WM_MOUSELEAVE:
+        HideProfileTooltip();
+        break;
+    case WM_NCDESTROY:
+        HideProfileTooltip();
+        RemoveWindowSubclass(hwnd,ProfileListSubclassProc,subclassId);
+        break;
+    }
+    return DefSubclassProc(hwnd,msg,wp,lp);
+}
+
 void UpdateSliderLabels(){
     Txt(IDC_VALVIB,std::to_wstring((int)SendMessageW(H(IDC_VIB),TBM_GETPOS,0,0))+L"%");
     Txt(IDC_VALHUE,std::to_wstring((int)SendMessageW(H(IDC_HUE),TBM_GETPOS,0,0))+L"\x00B0");
@@ -1430,6 +1517,23 @@ void BuildControls(){
     HWND list=Add(L"LISTBOX",L"",LBS_NOTIFY|LBS_OWNERDRAWFIXED|WS_VSCROLL,34,124,leftW-32,r.bottom-308,IDC_LIST);SetWindowTheme(list,L"DarkMode_Explorer",nullptr);
     SendMessageW(list,LB_SETITEMHEIGHT,0,56);
 
+    gProfileTooltip=CreateWindowExW(WS_EX_TOPMOST,TOOLTIPS_CLASSW,nullptr,
+        WS_POPUP|TTS_ALWAYSTIP|TTS_NOPREFIX,
+        CW_USEDEFAULT,CW_USEDEFAULT,CW_USEDEFAULT,CW_USEDEFAULT,
+        gWnd,nullptr,gInst,nullptr);
+    if(gProfileTooltip){
+        SetWindowTheme(gProfileTooltip,L"DarkMode_Explorer",nullptr);
+        SendMessageW(gProfileTooltip,TTM_SETMAXTIPWIDTH,0,500);
+        SendMessageW(gProfileTooltip,TTM_SETDELAYTIME,TTDT_INITIAL,350);
+        TOOLINFOW ti{sizeof(ti)};
+        ti.uFlags=TTF_TRACK|TTF_ABSOLUTE;
+        ti.hwnd=list;
+        ti.uId=1;
+        ti.lpszText=(LPWSTR)L"";
+        SendMessageW(gProfileTooltip,TTM_ADDTOOLW,0,(LPARAM)&ti);
+        SetWindowSubclass(list,ProfileListSubclassProc,1,0);
+    }
+
     HWND lblName=Add(L"STATIC",L"Profile name",0,rightX,122,160,22,IDC_LBL_NAME);SendMessageW(lblName,WM_SETFONT,(WPARAM)gFontBold,TRUE);
     HWND eName=Add(L"EDIT",L"",WS_BORDER|ES_AUTOHSCROLL,rightX,146,rightW,28,IDC_NAME);SetWindowTheme(eName,L"DarkMode_Explorer",nullptr);
     HWND lblExe=Add(L"STATIC",L"Game executable",0,rightX,185,160,22,IDC_LBL_EXE);SendMessageW(lblExe,WM_SETFONT,(WPARAM)gFontBold,TRUE);
@@ -2042,10 +2146,12 @@ case WM_CTLCOLORSTATIC:{HDC dc=(HDC)wp;SetTextColor(dc,C_TEXT);SetBkColor(dc,C_P
         }
 
         const wchar_t* title=desktop?L"Windows":p->name.c_str();
-        SIZE titleSize{};
+        RECT titleRect{x+54,d->rcItem.top,d->rcItem.right-8,d->rcItem.bottom};
+        SetBkMode(d->hDC,TRANSPARENT);
+        SetTextColor(d->hDC,C_TEXT);
         SelectObject(d->hDC,gFontBold);
-        GetTextExtentPoint32W(d->hDC,title,(int)wcslen(title),&titleSize);
-        DrawLabel(d->hDC,title,x+54,d->rcItem.top+(rowH-titleSize.cy)/2,C_TEXT,gFontBold);
+        DrawTextW(d->hDC,title,-1,&titleRect,
+            DT_LEFT|DT_VCENTER|DT_SINGLELINE|DT_END_ELLIPSIS|DT_NOPREFIX);
         Fill(d->hDC,d->rcItem.left,d->rcItem.bottom-1,d->rcItem.right-d->rcItem.left,1,C_BORDER);
         return TRUE;
     }
