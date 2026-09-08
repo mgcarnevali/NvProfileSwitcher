@@ -113,7 +113,7 @@ struct DisplayTarget {
 };
 
 HMODULE gNv{}; NvUnload pUnload{}; NvGetDVC pGetDvc{}; NvSetDVC pSetDvc{}; NvGetHUE pGetHue{}; NvSetHUE pSetHue{};
-NvGetPrimaryDisplayId pGetPrimaryDisplayId{}; NvSetTargetGamma pSetTargetGamma{};
+NvGetPrimaryDisplayId pGetPrimaryDisplayId{}; NvSetTargetGamma pSetTargetGamma{}; NvGetDriverAndBranchVersion pGetDriverVersion{};
 NvGetAssociatedDisplayHandle pGetAssociatedDisplayHandle{}; NvGetDisplayIdByName pGetDisplayIdByName{};
 void* gDisplay{}; unsigned int gDisplayId{};
 std::vector<DisplayTarget> gDisplays;
@@ -514,16 +514,16 @@ bool InitNv(){
     pSetTargetGamma=(NvSetTargetGamma)q(0x7082A053);
     pGetAssociatedDisplayHandle=(NvGetAssociatedDisplayHandle)q(0x35C29134);
     pGetDisplayIdByName=(NvGetDisplayIdByName)q(0xAE457190);
-    auto getDriverVersion=(NvGetDriverAndBranchVersion)q(0x2926AAAD);
+    pGetDriverVersion=(NvGetDriverAndBranchVersion)q(0x2926AAAD);
     if(!init||!en||!pGetDvc||!pSetDvc||!pGetHue||!pSetHue||!pGetPrimaryDisplayId||!pSetTargetGamma||init()!=0||en(0,&gDisplay)!=0||pGetPrimaryDisplayId(&gDisplayId)!=0){
         gStatus=L"Could not initialize NVIDIA display";
         return false;
     }
     EnumerateNvDisplays();
-    if(getDriverVersion){
+    if(pGetDriverVersion){
         unsigned int version=0;
         char branch[64]{};
-        if(getDriverVersion(&version,branch)==0 && version>0){
+        if(pGetDriverVersion(&version,branch)==0 && version>0){
             unsigned int major=version/100;
             unsigned int minor=version%100;
             wchar_t buf[32]{};
@@ -533,6 +533,24 @@ bool InitNv(){
     }
     gStatus=L"Ready";
     return true;
+}
+
+void RefreshDriverVersion(){
+    if(!pGetDriverVersion) return;
+
+    unsigned int version=0;
+    char branch[64]{};
+    if(pGetDriverVersion(&version,branch)==0 && version>0){
+        unsigned int major=version/100;
+        unsigned int minor=version%100;
+        wchar_t buf[32]{};
+        swprintf_s(buf,L"%u.%02u",major,minor);
+
+        if(gDriverVersion!=buf){
+            gDriverVersion=buf;
+            InvalidateRect(gWnd,nullptr,FALSE);
+        }
+    }
 }
 
 // Maps the NVIDIA App style 0..100 slider (50 = neutral) onto the actual
@@ -2104,7 +2122,9 @@ void ShowMain(){
     SetForegroundWindow(gWnd);
     BringWindowToTop(gWnd);
 } void RestoreDesktop(){RestoreAllDesktopProfiles();gActive=L"Windows";InvalidateRect(gWnd,nullptr,FALSE);}
-LRESULT CALLBACK Proc(HWND w,UINT m,WPARAM wp,LPARAM lp){switch(m){case WM_SHOW_EXISTING_INSTANCE:ShowMain();return 0;case WM_UPDATE_AVAILABLE:ShowUpdateAvailable((UpdateInfo*)lp);return 0;case WM_CREATE:gWnd=w;BuildControls();RefreshList();LoadSelected();SetTimer(w,1,250,nullptr);return 0;case WM_SIZE:
+LRESULT CALLBACK Proc(HWND w,UINT m,WPARAM wp,LPARAM lp){switch(m){case WM_SHOW_EXISTING_INSTANCE:ShowMain();return 0;case WM_UPDATE_AVAILABLE:ShowUpdateAvailable((UpdateInfo*)lp);return 0;case WM_CREATE:gWnd=w;BuildControls();RefreshList();LoadSelected();SetTimer(w,1,250,nullptr);return 0;case WM_ACTIVATE:
+    if(LOWORD(wp)!=WA_INACTIVE) RefreshDriverVersion();
+    return 0;case WM_SIZE:
     if(wp==SIZE_MINIMIZED){
         if(gSettings.minimizeToTray){
             SetTrayIconVisible(true);
