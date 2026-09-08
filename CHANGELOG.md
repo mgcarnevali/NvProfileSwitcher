@@ -6,6 +6,13 @@ file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project follows [Semantic Versioning](https://semver.org/).
 
+## 1.2.3 --- 2026-09-08
+
+### Changed
+
+-   NVIDIA driver version information is now refreshed when the
+    application regains focus.
+
 ## 1.2.2 --- 2026-09-07
 
 ### Changed
