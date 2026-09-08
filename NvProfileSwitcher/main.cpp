@@ -244,7 +244,14 @@ GameProfile DesktopTemplate(){
 DisplayProfileValues ValuesFromDesktop(const std::wstring&displayName,const std::wstring&monitorId=L""){
     DisplayProfileValues v;v.displayName=displayName;v.monitorId=monitorId;
     const GameProfile*d=!monitorId.empty()?DesktopProfileForMonitorConst(monitorId):nullptr;
-    if(!d)d=DesktopProfileForDisplayConst(displayName);
+    if(!d){
+        const GameProfile*byDisplay=DesktopProfileForDisplayConst(displayName);
+        // DISPLAYx is only a safe fallback for legacy entries that do not yet
+        // have a stable monitor ID. Never inherit values from a different
+        // physical monitor that happens to reuse the same DISPLAYx.
+        if(byDisplay && (monitorId.empty() || byDisplay->monitorId.empty()))
+            d=byDisplay;
+    }
     if(d){v.vibrance=d->vibrance;v.hue=d->hue;v.brightness=d->brightness;v.contrast=d->contrast;v.gamma=d->gamma;}
     return v;
 }
@@ -258,7 +265,15 @@ DisplayProfileValues* GameValuesForDisplay(GameProfile&p,const std::wstring&disp
 }
 DisplayProfileValues* EnsureGameValuesForDisplay(GameProfile&p,const std::wstring&displayName,const std::wstring&monitorId=L""){
     if(!monitorId.empty())if(auto*v=GameValuesForMonitor(p,monitorId)){v->displayName=displayName;return v;}
-    if(auto*v=GameValuesForDisplay(p,displayName)){if(v->monitorId.empty())v->monitorId=monitorId;return v;}
+    if(auto*v=GameValuesForDisplay(p,displayName)){
+        // Reuse DISPLAYx only for legacy entries with no stable ID (or when
+        // the caller itself has no stable ID). A different non-empty ID means
+        // Windows reused the DISPLAYx for another physical monitor.
+        if(monitorId.empty() || v->monitorId.empty()){
+            if(v->monitorId.empty())v->monitorId=monitorId;
+            return v;
+        }
+    }
     p.displayProfiles.push_back(ValuesFromDesktop(displayName,monitorId));return &p.displayProfiles.back();
 }
 std::wstring WindowsProfileJsonName(const std::wstring& displayName){
@@ -524,7 +539,14 @@ bool Apply(const GameProfile& p);
 
 GameProfile* EnsureDesktopProfile(const std::wstring&displayName,const std::wstring&monitorId=L""){
     if(!monitorId.empty())if(auto*p=DesktopProfileForMonitor(monitorId)){p->displayName=displayName;return p;}
-    if(auto*p=DesktopProfileForDisplay(displayName)){if(p->monitorId.empty())p->monitorId=monitorId;return p;}
+    if(auto*p=DesktopProfileForDisplay(displayName)){
+        // DISPLAYx is only a migration fallback. If it already belongs to a
+        // different stable monitor ID, create a new physical-monitor profile.
+        if(monitorId.empty() || p->monitorId.empty()){
+            if(p->monitorId.empty())p->monitorId=monitorId;
+            return p;
+        }
+    }
     GameProfile p=DesktopTemplate();p.displayName=displayName;p.monitorId=monitorId;gSettings.desktopProfiles.push_back(p);return &gSettings.desktopProfiles.back();
 }
 GameProfile* CurrentDesktopProfile(){
@@ -536,24 +558,38 @@ GameProfile* CurrentDesktopProfile(){
 void ApplyDesktopForDisplay(const std::wstring&displayName){
     for(const auto&d:gDisplays)if(_wcsicmp(d.gdiName.c_str(),displayName.c_str())==0){
         const GameProfile*p=!d.monitorId.empty()?DesktopProfileForMonitorConst(d.monitorId):nullptr;
-        if(!p)p=DesktopProfileForDisplayConst(displayName);if(p)Apply(*p);return;
+        if(!p){
+            const GameProfile*byDisplay=DesktopProfileForDisplayConst(displayName);
+            if(byDisplay && (d.monitorId.empty() || byDisplay->monitorId.empty()))
+                p=byDisplay;
+        }
+        if(p)Apply(*p);return;
     }
 }
 void RestoreAllDesktopProfiles(){
     for(const auto&d:gDisplays){
         const GameProfile*p=!d.monitorId.empty()?DesktopProfileForMonitorConst(d.monitorId):nullptr;
-        if(!p)p=DesktopProfileForDisplayConst(d.gdiName);
+        if(!p){
+            const GameProfile*byDisplay=DesktopProfileForDisplayConst(d.gdiName);
+            if(byDisplay && (d.monitorId.empty() || byDisplay->monitorId.empty()))
+                p=byDisplay;
+        }
         if(p)Apply(*p);
     }
 }
 void MigrateProfilesToStableIds(){
-    // Safe migration: only bind a legacy DISPLAYx entry when that same DISPLAYx
-    // is active now. Never delete unmatched legacy entries.
+    // Safe migration: only bind legacy DISPLAYx entries whose MonitorId is
+    // still empty. A stable entry with a different ID may simply be a
+    // disconnected monitor whose DISPLAYx was reused by Windows.
     for(const auto&d:gDisplays){
         if(d.monitorId.empty())continue;
-        if(auto*p=DesktopProfileForDisplay(d.gdiName)){if(p->monitorId.empty())p->monitorId=d.monitorId;p->displayName=d.gdiName;}
+        if(auto*p=DesktopProfileForDisplay(d.gdiName)){
+            if(p->monitorId.empty()){p->monitorId=d.monitorId;p->displayName=d.gdiName;}
+        }
         for(auto&game:gSettings.profiles){
-            if(auto*v=GameValuesForDisplay(game,d.gdiName)){if(v->monitorId.empty())v->monitorId=d.monitorId;v->displayName=d.gdiName;}
+            if(auto*v=GameValuesForDisplay(game,d.gdiName)){
+                if(v->monitorId.empty()){v->monitorId=d.monitorId;v->displayName=d.gdiName;}
+            }
             if(game.monitorId.empty()&&_wcsicmp(game.displayName.c_str(),d.gdiName.c_str())==0)game.monitorId=d.monitorId;
         }
     }
@@ -591,7 +627,11 @@ void ApplyGameProfile(const GameProfile& p){
 }
 
 DisplayTarget* TargetForProfile(const GameProfile& p){
-    if(!p.monitorId.empty())if(auto*d=TargetForMonitorId(p.monitorId))return d;
+    // Once a profile has a stable monitor ID, never fall back to DISPLAYx.
+    // The old DISPLAYx may now belong to a completely different monitor.
+    if(!p.monitorId.empty())
+        return TargetForMonitorId(p.monitorId);
+
     if(!p.displayName.empty()){
         for(auto& d:gDisplays)
             if(_wcsicmp(d.gdiName.c_str(),p.displayName.c_str())==0) return &d;
