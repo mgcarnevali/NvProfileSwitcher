@@ -382,23 +382,54 @@ std::wstring EdidSerialFromRegistry(const std::wstring& hardware,const std::wstr
     std::wstring path=L"SYSTEM\\CurrentControlSet\\Enum\\DISPLAY\\"+hardware+L"\\"+instance+L"\\Device Parameters";
     HKEY k{};
     if(RegOpenKeyExW(HKEY_LOCAL_MACHINE,path.c_str(),0,KEY_READ,&k)!=ERROR_SUCCESS)return L"";
+
     DWORD type=0,size=0;
-    if(RegQueryValueExW(k,L"EDID",nullptr,&type,nullptr,&size)!=ERROR_SUCCESS||type!=REG_BINARY||size<128){RegCloseKey(k);return L"";}
+    if(RegQueryValueExW(k,L"EDID",nullptr,&type,nullptr,&size)!=ERROR_SUCCESS ||
+       type!=REG_BINARY || size<128){
+        RegCloseKey(k);
+        return L"";
+    }
+
     std::vector<BYTE> edid(size);
-    if(RegQueryValueExW(k,L"EDID",nullptr,&type,edid.data(),&size)!=ERROR_SUCCESS){RegCloseKey(k);return L"";}
+    if(RegQueryValueExW(k,L"EDID",nullptr,&type,edid.data(),&size)!=ERROR_SUCCESS){
+        RegCloseKey(k);
+        return L"";
+    }
     RegCloseKey(k);
-    for(size_t off=54;off+18<=edid.size()&&off<126;off+=18){
-        if(edid[off]==0&&edid[off+1]==0&&edid[off+2]==0&&edid[off+3]==0xFF){
+
+    // Preferred form: EDID monitor serial-number descriptor (tag 0xFF).
+    // This is what most PC monitors expose as a readable serial string.
+    for(size_t off=54;off+18<=edid.size() && off<126;off+=18){
+        if(edid[off]==0 && edid[off+1]==0 && edid[off+2]==0 && edid[off+3]==0xFF){
             std::string serial;
             for(size_t i=off+5;i<off+18;i++){
                 char c=(char)edid[i];
-                if(c==0||c=='\r'||c=='\n')break;
+                if(c==0 || c=='\r' || c=='\n') break;
                 serial.push_back(c);
             }
-            while(!serial.empty()&&(serial.back()==' '||serial.back()=='\t'))serial.pop_back();
-            if(!serial.empty())return U2W(serial);
+            while(!serial.empty() && (serial.back()==' ' || serial.back()=='\t'))
+                serial.pop_back();
+
+            if(!serial.empty())
+                return U2W(serial);
         }
     }
+
+    // Generic EDID fallback used by many TVs and some monitors:
+    // bytes 12..15 contain the 32-bit numeric serial number, little-endian.
+    // Do not use zero / all-ones values because vendors commonly use those
+    // to indicate that no numeric serial is available.
+    if(edid.size()>=16){
+        unsigned int numericSerial=
+            (unsigned int)edid[12] |
+            ((unsigned int)edid[13]<<8) |
+            ((unsigned int)edid[14]<<16) |
+            ((unsigned int)edid[15]<<24);
+
+        if(numericSerial!=0 && numericSerial!=0xFFFFFFFFu)
+            return std::to_wstring(numericSerial);
+    }
+
     return L"";
 }
 std::wstring StableMonitorIdForGdi(const std::wstring&gdi){
@@ -2363,7 +2394,7 @@ int mainW=mainWr.right-mainWr.left, mainH=mainWr.bottom-mainWr.top;
 int mainX=mainWork.left+((mainWork.right-mainWork.left)-mainW)/2;
 int mainY=mainWork.top+((mainWork.bottom-mainWork.top)-mainH)/2;
 SetWindowPos(gWnd,nullptr,mainX,mainY,0,0,SWP_NOSIZE|SWP_NOZORDER|SWP_NOACTIVATE);
-SetWindowLongPtrW(gWnd,GWLP_USERDATA,0);gTrayMenu=CreatePopupMenu();AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_OPEN,L"Open NvProfileSwitcher");AppendMenuW(gTrayMenu,MF_SEPARATOR,0,nullptr);AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_CHECK_UPDATE,L"Check for updates");AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_ABOUT,L"About NvProfileSwitcher");AppendMenuW(gTrayMenu,MF_SEPARATOR,0,nullptr);AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_EXIT,L"Exit");gNid.cbSize=sizeof(gNid);gNid.hWnd=gWnd;gNid.uID=1;gNid.uFlags=NIF_MESSAGE|NIF_ICON|NIF_TIP;gNid.uCallbackMessage=WM_TRAY;gNid.hIcon=gIcon;wcscpy_s(gNid.szTip,L"NvProfileSwitcher");gStatusOk=InitNv();if(gStatusOk){MigrateProfilesToStableIds();if(gSettings.desktopProfiles.empty()&&!gDisplays.empty()){DisplayTarget* pd=nullptr;for(auto&d:gDisplays)if(d.primary){pd=&d;break;}if(!pd)pd=&gDisplays.front();EnsureDesktopProfile(pd->gdiName);}EnsureAllGameDisplayProfiles();Save();if(auto* p=SelectedProfile())RefreshDisplayCombo(*p);RestoreAllDesktopProfiles();LoadSelected();}gActive=L"Windows";bool min=(wcsstr(cmd,L"--minimized")!=nullptr);
+SetWindowLongPtrW(gWnd,GWLP_USERDATA,0);gTrayMenu=CreatePopupMenu();AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_OPEN,L"Open NvProfileSwitcher");AppendMenuW(gTrayMenu,MF_SEPARATOR,0,nullptr);AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_CHECK_UPDATE,L"Check for updates");AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_ABOUT,L"About NvProfileSwitcher");AppendMenuW(gTrayMenu,MF_SEPARATOR,0,nullptr);AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_EXIT,L"Exit");gNid.cbSize=sizeof(gNid);gNid.hWnd=gWnd;gNid.uID=1;gNid.uFlags=NIF_MESSAGE|NIF_ICON|NIF_TIP;gNid.uCallbackMessage=WM_TRAY;gNid.hIcon=gIcon;wcscpy_s(gNid.szTip,L"NvProfileSwitcher");gStatusOk=InitNv();if(gStatusOk){MigrateProfilesToStableIds();if(gSettings.desktopProfiles.empty()&&!gDisplays.empty()){DisplayTarget* pd=nullptr;for(auto&d:gDisplays)if(d.primary){pd=&d;break;}if(!pd)pd=&gDisplays.front();EnsureDesktopProfile(pd->gdiName,pd->monitorId);}EnsureAllGameDisplayProfiles();Save();if(auto* p=SelectedProfile())RefreshDisplayCombo(*p);RestoreAllDesktopProfiles();LoadSelected();}gActive=L"Windows";bool min=(wcsstr(cmd,L"--minimized")!=nullptr);
 if(min) SetTrayIconVisible(true);
 ShowWindow(gWnd,min?SW_HIDE:SW_SHOW);
 UpdateWindow(gWnd);if(gSettings.checkUpdates){if(HANDLE h=CreateThread(nullptr,0,UpdateCheckThread,nullptr,0,nullptr))CloseHandle(h);}MSG msg;while(GetMessageW(&msg,nullptr,0,0)>0){TranslateMessage(&msg);DispatchMessageW(&msg);}DeleteObject(gFont);DeleteObject(gFontBold);DeleteObject(gFontTitle);DeleteObject(gIconFont);DeleteObject(gBackBrush);DeleteObject(gPanelBrush);DeleteObject(gPanel2Brush);DeleteObject(gFieldBrush);
