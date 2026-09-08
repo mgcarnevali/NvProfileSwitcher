@@ -37,6 +37,7 @@
 
 struct DisplayProfileValues {
     std::wstring displayName;
+    std::wstring monitorId; // Stable EDID identity; DisplayName is runtime/backward compatibility only.
     int vibrance=50;
     int hue=0;
     double brightness=100.0, contrast=100.0, gamma=1.00;
@@ -47,6 +48,7 @@ struct GameProfile {
     std::wstring exePath;
     // Last-selected/default display. Kept for migration/backward compatibility.
     std::wstring displayName;
+    std::wstring monitorId; // Stable EDID identity for Windows profile / selected game display.
     int vibrance=50;
     int hue=0;
     double brightness=100.0, contrast=100.0, gamma=1.00;
@@ -54,7 +56,7 @@ struct GameProfile {
     std::vector<DisplayProfileValues> displayProfiles;
 };
 struct Settings {
-    GameProfile desktop{L"Windows",L"",L"",50,0,100.0,100.0,1.00,true}; // default values for new Windows monitor profiles
+    GameProfile desktop{L"Windows",L"",L"",L"",50,0,100.0,100.0,1.00,true}; // default values for new Windows monitor profiles
     std::vector<GameProfile> desktopProfiles;
     std::vector<GameProfile> profiles;
     bool startWindows=false, startMinimized=false, minimizeToTray=false, checkUpdates=true;
@@ -110,6 +112,7 @@ struct DisplayTarget {
     void* handle{};
     unsigned int displayId{};
     bool primary{};
+    std::wstring monitorId; // Stable EDID manufacturer-product-serial identity.
 };
 
 HMODULE gNv{}; NvUnload pUnload{}; NvGetDVC pGetDvc{}; NvSetDVC pSetDvc{}; NvGetHUE pGetHue{}; NvSetHUE pSetHue{};
@@ -171,6 +174,7 @@ std::vector<std::string> JsonObjectsInArray(const std::string& s,size_t arrayOpe
 DisplayProfileValues ParseDisplayValues(const std::string& o){
     DisplayProfileValues v;
     v.displayName=Unescape(FieldS(o,"DisplayName",""));
+    v.monitorId=Unescape(FieldS(o,"MonitorId",""));
     v.vibrance=(int)FieldN(o,"DigitalVibrance",50);
     v.hue=(int)FieldN(o,"Hue",0);
     v.brightness=FieldN(o,"Brightness",100.0);
@@ -184,6 +188,7 @@ GameProfile ParseProfile(const std::string&o){
     p.name=Unescape(FieldS(o,"Name","New Profile"));
     p.exePath=Unescape(FieldS(o,"ExePath"));
     p.displayName=Unescape(FieldS(o,"DisplayName",""));
+    p.monitorId=Unescape(FieldS(o,"MonitorId",""));
     p.vibrance=(int)FieldN(o,"DigitalVibrance",50);
     p.hue=(int)FieldN(o,"Hue",0);
     p.brightness=FieldN(o,"Brightness",100.0);
@@ -207,10 +212,24 @@ GameProfile ParseProfile(const std::string&o){
     // previously selected monitor.
     if(p.displayProfiles.empty()&&!p.displayName.empty()){
         p.displayProfiles.push_back({
-            p.displayName,p.vibrance,p.hue,p.brightness,p.contrast,p.gamma
+            p.displayName,p.monitorId,p.vibrance,p.hue,p.brightness,p.contrast,p.gamma
         });
     }
     return p;
+}
+bool SameId(const std::wstring& a,const std::wstring& b){
+    return !a.empty()&&!b.empty()&&_wcsicmp(a.c_str(),b.c_str())==0;
+}
+
+GameProfile* DesktopProfileForMonitor(const std::wstring& monitorId){
+    for(auto& p:gSettings.desktopProfiles)
+        if(SameId(p.monitorId,monitorId)) return &p;
+    return nullptr;
+}
+const GameProfile* DesktopProfileForMonitorConst(const std::wstring& monitorId){
+    for(const auto& p:gSettings.desktopProfiles)
+        if(SameId(p.monitorId,monitorId)) return &p;
+    return nullptr;
 }
 GameProfile* DesktopProfileForDisplay(const std::wstring& displayName){
     for(auto& p:gSettings.desktopProfiles)
@@ -230,10 +249,13 @@ GameProfile DesktopTemplate(){
     return p;
 }
 
-DisplayProfileValues ValuesFromDesktop(const std::wstring& displayName){
+DisplayProfileValues ValuesFromDesktop(const std::wstring& displayName,const std::wstring& monitorId=L""){
     DisplayProfileValues v;
     v.displayName=displayName;
-    if(const auto* d=DesktopProfileForDisplayConst(displayName)){
+    v.monitorId=monitorId;
+    const GameProfile* d=!monitorId.empty()?DesktopProfileForMonitorConst(monitorId):nullptr;
+    if(!d) d=DesktopProfileForDisplayConst(displayName);
+    if(d){
         v.vibrance=d->vibrance;
         v.hue=d->hue;
         v.brightness=d->brightness;
@@ -243,15 +265,29 @@ DisplayProfileValues ValuesFromDesktop(const std::wstring& displayName){
     return v;
 }
 
+DisplayProfileValues* GameValuesForMonitor(GameProfile& p,const std::wstring& monitorId){
+    for(auto& v:p.displayProfiles)
+        if(SameId(v.monitorId,monitorId)) return &v;
+    return nullptr;
+}
 DisplayProfileValues* GameValuesForDisplay(GameProfile& p,const std::wstring& displayName){
     for(auto& v:p.displayProfiles)
         if(_wcsicmp(v.displayName.c_str(),displayName.c_str())==0) return &v;
     return nullptr;
 }
 
-DisplayProfileValues* EnsureGameValuesForDisplay(GameProfile& p,const std::wstring& displayName){
-    if(auto* v=GameValuesForDisplay(p,displayName)) return v;
-    p.displayProfiles.push_back(ValuesFromDesktop(displayName));
+DisplayProfileValues* EnsureGameValuesForDisplay(GameProfile& p,const std::wstring& displayName,const std::wstring& monitorId=L""){
+    if(!monitorId.empty()){
+        if(auto* v=GameValuesForMonitor(p,monitorId)){
+            v->displayName=displayName; // Refresh runtime route without changing identity.
+            return v;
+        }
+    }
+    if(auto* v=GameValuesForDisplay(p,displayName)){
+        if(v->monitorId.empty()) v->monitorId=monitorId;
+        return v;
+    }
+    p.displayProfiles.push_back(ValuesFromDesktop(displayName,monitorId));
     return &p.displayProfiles.back();
 }
 std::wstring WindowsProfileJsonName(const std::wstring& displayName){
@@ -271,6 +307,7 @@ void Save(){
          <<sp<<"  \"Name\": \""<<Escape(p.name)<<"\",\n"
          <<sp<<"  \"ExePath\": \""<<Escape(p.exePath)<<"\",\n"
          <<sp<<"  \"DisplayName\": \""<<Escape(p.displayName)<<"\",\n"
+         <<sp<<"  \"MonitorId\": \""<<Escape(p.monitorId)<<"\",\n"
          <<sp<<"  \"Brightness\": "<<p.brightness<<",\n"
          <<sp<<"  \"Contrast\": "<<p.contrast<<",\n"
          <<sp<<"  \"Gamma\": "<<p.gamma<<",\n"
@@ -284,6 +321,7 @@ void Save(){
         std::string sp(ind,' ');
         f<<sp<<"{\n"
          <<sp<<"  \"DisplayName\": \""<<Escape(v.displayName)<<"\",\n"
+         <<sp<<"  \"MonitorId\": \""<<Escape(v.monitorId)<<"\",\n"
          <<sp<<"  \"Brightness\": "<<v.brightness<<",\n"
          <<sp<<"  \"Contrast\": "<<v.contrast<<",\n"
          <<sp<<"  \"Gamma\": "<<v.gamma<<",\n"
@@ -308,6 +346,7 @@ void Save(){
          <<"      \"Name\": \""<<Escape(p.name)<<"\",\n"
          <<"      \"ExePath\": \""<<Escape(p.exePath)<<"\",\n"
          <<"      \"DisplayName\": \""<<Escape(p.displayName)<<"\",\n"
+         <<"      \"MonitorId\": \""<<Escape(p.monitorId)<<"\",\n"
          <<"      \"Brightness\": "<<p.brightness<<",\n"
          <<"      \"Contrast\": "<<p.contrast<<",\n"
          <<"      \"Gamma\": "<<p.gamma<<",\n"
@@ -367,6 +406,94 @@ std::string NvDisplayNameA(const std::wstring& gdi){
     return W2U(n);
 }
 
+
+std::wstring RegString(HKEY key,const wchar_t* name){
+    DWORD type=0,bytes=0;
+    if(RegQueryValueExW(key,name,nullptr,&type,nullptr,&bytes)!=ERROR_SUCCESS ||
+       (type!=REG_SZ&&type!=REG_MULTI_SZ) || bytes<sizeof(wchar_t)) return L"";
+    std::vector<wchar_t> buf(bytes/sizeof(wchar_t)+1,0);
+    if(RegQueryValueExW(key,name,nullptr,&type,(BYTE*)buf.data(),&bytes)!=ERROR_SUCCESS) return L"";
+    return buf.data();
+}
+
+std::wstring EdidText(const BYTE* data,size_t len,int tag){
+    // EDID detailed descriptor: 00 00 00 <tag> 00 + 13-byte ASCII payload.
+    if(!data||len<128) return L"";
+    for(size_t off=54;off+18<=len&&off<126;off+=18){
+        if(data[off]==0&&data[off+1]==0&&data[off+2]==0&&data[off+3]==tag){
+            std::string s;
+            for(size_t i=off+5;i<off+18;i++){
+                char c=(char)data[i];
+                if(c=='\n'||c=='\r'||c==0) break;
+                s.push_back(c);
+            }
+            while(!s.empty()&&(s.back()==' '||s.back()=='\t')) s.pop_back();
+            return U2W(s);
+        }
+    }
+    return L"";
+}
+
+std::wstring StableMonitorIdFromDeviceId(const std::wstring& deviceId){
+    // DeviceID from EnumDisplayDevices is normally MONITOR\\AUS275B\\... .
+    size_t first=deviceId.find(L'\\');
+    size_t second=first==std::wstring::npos?std::wstring::npos:deviceId.find(L'\\',first+1);
+    if(first==std::wstring::npos||second==std::wstring::npos) return L"";
+    std::wstring hw=deviceId.substr(first+1,second-first-1); // e.g. AUS275B
+    if(hw.empty()) return L"";
+
+    std::wstring regPath=L"SYSTEM\\CurrentControlSet\\Enum\\DISPLAY\\"+hw;
+    HKEY root{};
+    if(RegOpenKeyExW(HKEY_LOCAL_MACHINE,regPath.c_str(),0,KEY_READ,&root)!=ERROR_SUCCESS) return L"";
+
+    std::wstring best;
+    DWORD idx=0;
+    wchar_t child[256];
+    DWORD childLen=0;
+    while(true){
+        childLen=(DWORD)(sizeof(child)/sizeof(child[0]));
+        LONG er=RegEnumKeyExW(root,idx++,child,&childLen,nullptr,nullptr,nullptr,nullptr);
+        if(er==ERROR_NO_MORE_ITEMS) break;
+        if(er!=ERROR_SUCCESS) continue;
+
+        HKEY inst{};
+        if(RegOpenKeyExW(root,child,0,KEY_READ,&inst)!=ERROR_SUCCESS) continue;
+        std::wstring driver=RegString(inst,L"Driver");
+        RegCloseKey(inst);
+
+        // Match this registry instance to the current monitor DeviceID suffix.
+        std::wstring suffix=deviceId.substr(second+1);
+        if(_wcsicmp(child,suffix.c_str())!=0) continue;
+
+        std::wstring paramsPath=regPath+L"\\"+child+L"\\Device Parameters";
+        HKEY params{};
+        if(RegOpenKeyExW(HKEY_LOCAL_MACHINE,paramsPath.c_str(),0,KEY_READ,&params)!=ERROR_SUCCESS) continue;
+        DWORD type=0,bytes=0;
+        if(RegQueryValueExW(params,L"EDID",nullptr,&type,nullptr,&bytes)==ERROR_SUCCESS &&
+           type==REG_BINARY && bytes>=128){
+            std::vector<BYTE> bytesBuf(bytes);
+            if(RegQueryValueExW(params,L"EDID",nullptr,&type,bytesBuf.data(),&bytes)==ERROR_SUCCESS){
+                std::wstring serial=EdidText(bytesBuf.data(),bytesBuf.size(),0xFF);
+                if(!serial.empty()){
+                    // hw already contains the 3-char manufacturer + 4-char product code.
+                    best=hw+L"-"+serial;
+                }
+            }
+        }
+        RegCloseKey(params);
+        if(!best.empty()) break;
+    }
+    RegCloseKey(root);
+    return best;
+}
+
+DisplayTarget* TargetForMonitorId(const std::wstring& monitorId){
+    if(monitorId.empty()) return nullptr;
+    for(auto& d:gDisplays)
+        if(SameId(d.monitorId,monitorId)) return &d;
+    return nullptr;
+}
+
 void EnumerateNvDisplays(){
     gDisplays.clear();
     if(!pGetAssociatedDisplayHandle||!pGetDisplayIdByName) return;
@@ -402,21 +529,33 @@ void EnumerateNvDisplays(){
         std::wstring label=friendly;
         if(primary) label+=L" (Primary)";
 
-        gDisplays.push_back({gdi,label,handle,id,primary});
+        std::wstring monitorId;
+        if(mon.DeviceID[0]) monitorId=StableMonitorIdFromDeviceId(mon.DeviceID);
+        gDisplays.push_back({gdi,label,handle,id,primary,monitorId});
     }
 
     if(gDisplays.empty() && gDisplay && gDisplayId){
-        gDisplays.push_back({L"",L"Primary NVIDIA display",gDisplay,gDisplayId,true});
+        gDisplays.push_back({L"",L"Primary NVIDIA display",gDisplay,gDisplayId,true,L""});
     }
 
 }
 
 bool Apply(const GameProfile& p);
 
-GameProfile* EnsureDesktopProfile(const std::wstring& displayName){
-    if(auto* p=DesktopProfileForDisplay(displayName)) return p;
+GameProfile* EnsureDesktopProfile(const std::wstring& displayName,const std::wstring& monitorId=L""){
+    if(!monitorId.empty()){
+        if(auto* p=DesktopProfileForMonitor(monitorId)){
+            p->displayName=displayName;
+            return p;
+        }
+    }
+    if(auto* p=DesktopProfileForDisplay(displayName)){
+        if(p->monitorId.empty()) p->monitorId=monitorId;
+        return p;
+    }
     GameProfile p=DesktopTemplate();
     p.displayName=displayName;
+    p.monitorId=monitorId;
     gSettings.desktopProfiles.push_back(p);
     return &gSettings.desktopProfiles.back();
 }
@@ -427,13 +566,45 @@ GameProfile* CurrentDesktopProfile(){
         for(size_t i=0;i<gDisplays.size();++i)if(gDisplays[i].primary){ds=(int)i;break;}
         if(ds<0)ds=0;
     }
-    return EnsureDesktopProfile(gDisplays[ds].gdiName);
+    return EnsureDesktopProfile(gDisplays[ds].gdiName,gDisplays[ds].monitorId);
 }
 void ApplyDesktopForDisplay(const std::wstring& displayName){
-    if(const auto* p=DesktopProfileForDisplayConst(displayName)) Apply(*p);
+    for(const auto& d:gDisplays){
+        if(_wcsicmp(d.gdiName.c_str(),displayName.c_str())==0){
+            const GameProfile* p=!d.monitorId.empty()?DesktopProfileForMonitorConst(d.monitorId):nullptr;
+            if(!p) p=DesktopProfileForDisplayConst(displayName);
+            if(p) Apply(*p);
+            return;
+        }
+    }
 }
 void RestoreAllDesktopProfiles(){
-    for(const auto& p:gSettings.desktopProfiles) Apply(p);
+    // Only apply profiles to monitors that are physically present now.
+    for(const auto& d:gDisplays){
+        const GameProfile* p=!d.monitorId.empty()?DesktopProfileForMonitorConst(d.monitorId):nullptr;
+        if(!p) p=DesktopProfileForDisplayConst(d.gdiName);
+        if(p) Apply(*p);
+    }
+}
+
+void MigrateProfilesToStableMonitorIds(){
+    // Existing files used DISPLAYx as identity. Bind only currently matching
+    // entries to EDID IDs; never delete disconnected monitor history.
+    for(const auto& d:gDisplays){
+        if(d.monitorId.empty()) continue;
+        if(auto* p=DesktopProfileForDisplay(d.gdiName)){
+            if(p->monitorId.empty()) p->monitorId=d.monitorId;
+            p->displayName=d.gdiName;
+        }
+        for(auto& game:gSettings.profiles){
+            if(auto* v=GameValuesForDisplay(game,d.gdiName)){
+                if(v->monitorId.empty()) v->monitorId=d.monitorId;
+                v->displayName=d.gdiName;
+            }
+            if(_wcsicmp(game.displayName.c_str(),d.gdiName.c_str())==0 && game.monitorId.empty())
+                game.monitorId=d.monitorId;
+        }
+    }
 }
 
 void EnsureAllGameDisplayProfiles(){
@@ -445,21 +616,28 @@ void EnsureAllGameDisplayProfiles(){
 
     for(auto& p:gSettings.profiles){
         if(p.displayProfiles.empty()){
-            std::wstring legacyDisplay=p.displayName.empty()?gDisplays[primary].gdiName:p.displayName;
-            p.displayName=legacyDisplay;
+            const auto& d=gDisplays[primary];
+            p.displayName=d.gdiName;
+            p.monitorId=d.monitorId;
             p.displayProfiles.push_back({
-                legacyDisplay,p.vibrance,p.hue,p.brightness,p.contrast,p.gamma
+                d.gdiName,d.monitorId,p.vibrance,p.hue,p.brightness,p.contrast,p.gamma
             });
         }
         for(const auto& d:gDisplays)
-            EnsureGameValuesForDisplay(p,d.gdiName);
-        if(p.displayName.empty()) p.displayName=gDisplays[primary].gdiName;
+            EnsureGameValuesForDisplay(p,d.gdiName,d.monitorId);
+        if(p.displayName.empty()){
+            p.displayName=gDisplays[primary].gdiName;
+            p.monitorId=gDisplays[primary].monitorId;
+        }else if(!p.monitorId.empty()){
+            if(auto* d=TargetForMonitorId(p.monitorId)) p.displayName=d->gdiName;
+        }
     }
 }
 
 GameProfile ApplyProfileForValues(const GameProfile& game,const DisplayProfileValues& v){
     GameProfile p=game;
     p.displayName=v.displayName;
+    p.monitorId=v.monitorId;
     p.vibrance=v.vibrance;
     p.hue=v.hue;
     p.brightness=v.brightness;
@@ -475,6 +653,8 @@ void ApplyGameProfile(const GameProfile& p){
 }
 
 DisplayTarget* TargetForProfile(const GameProfile& p){
+    if(!p.monitorId.empty())
+        if(auto* d=TargetForMonitorId(p.monitorId)) return d;
     if(!p.displayName.empty()){
         for(auto& d:gDisplays)
             if(_wcsicmp(d.gdiName.c_str(),p.displayName.c_str())==0) return &d;
@@ -491,7 +671,8 @@ void RefreshDisplayCombo(const GameProfile& p){
     for(size_t i=0;i<gDisplays.size();++i){
         SendMessageW(c,CB_ADDSTRING,0,(LPARAM)gDisplays[i].label.c_str());
         if(gDisplays[i].primary) primary=(int)i;
-        if(!p.displayName.empty() && _wcsicmp(gDisplays[i].gdiName.c_str(),p.displayName.c_str())==0)
+        if((!p.monitorId.empty() && SameId(gDisplays[i].monitorId,p.monitorId)) ||
+           (p.monitorId.empty()&&!p.displayName.empty()&&_wcsicmp(gDisplays[i].gdiName.c_str(),p.displayName.c_str())==0))
             selected=(int)i;
     }
     if(selected<0) selected=primary>=0?primary:(gDisplays.empty()?-1:0);
@@ -836,7 +1017,7 @@ void LoadValuesToSliders(const DisplayProfileValues& v){
 }
 
 DisplayProfileValues ValuesFromFlatProfile(const GameProfile& p){
-    return {p.displayName,p.vibrance,p.hue,p.brightness,p.contrast,p.gamma};
+    return {p.displayName,p.monitorId,p.vibrance,p.hue,p.brightness,p.contrast,p.gamma};
 }
 bool IsDesktopSelected(){return gSelected==0;}
 GameProfile* SelectedProfile(){ if(gSelected==0)return CurrentDesktopProfile(); int i=gSelected-1; return (i>=0&&i<(int)gSettings.profiles.size())?&gSettings.profiles[i]:nullptr; }
@@ -908,7 +1089,7 @@ void LoadSelected(){
         if(primary<0 && !gDisplays.empty()) primary=0;
 
         if(primary>=0){
-            p=EnsureDesktopProfile(gDisplays[primary].gdiName);
+            p=EnsureDesktopProfile(gDisplays[primary].gdiName,gDisplays[primary].monitorId);
             RefreshDisplayCombo(*p);
             SendMessageW(H(IDC_DISPLAY),CB_SETCURSEL,primary,0);
         }else{
@@ -939,7 +1120,7 @@ void LoadSelected(){
     SendMessageW(H(IDC_ENABLED),BM_SETCHECK,p->enabled?BST_CHECKED:BST_UNCHECKED,0);
 
     if(ds>=0&&ds<(int)gDisplays.size())
-        LoadValuesToSliders(*EnsureGameValuesForDisplay(*p,gDisplays[ds].gdiName));
+        LoadValuesToSliders(*EnsureGameValuesForDisplay(*p,gDisplays[ds].gdiName,gDisplays[ds].monitorId));
     else
         LoadValuesToSliders(ValuesFromFlatProfile(*p));
 }
@@ -950,7 +1131,7 @@ void SaveSelected(){
     if(desktop){
         GameProfile* p=CurrentDesktopProfile();
         if(!p)return;
-        if(ds>=0&&ds<(int)gDisplays.size()) p->displayName=gDisplays[ds].gdiName;
+        if(ds>=0&&ds<(int)gDisplays.size()){ p->displayName=gDisplays[ds].gdiName; p->monitorId=gDisplays[ds].monitorId; }
         p->name=L"Windows";
         p->vibrance=(int)SendMessageW(H(IDC_VIB),TBM_GETPOS,0,0);
         p->hue=(int)SendMessageW(H(IDC_HUE),TBM_GETPOS,0,0);
@@ -972,7 +1153,8 @@ void SaveSelected(){
 
     if(ds>=0&&ds<(int)gDisplays.size()){
         p->displayName=gDisplays[ds].gdiName;
-        auto* v=EnsureGameValuesForDisplay(*p,p->displayName);
+        p->monitorId=gDisplays[ds].monitorId;
+        auto* v=EnsureGameValuesForDisplay(*p,p->displayName,p->monitorId);
         v->vibrance=(int)SendMessageW(H(IDC_VIB),TBM_GETPOS,0,0);
         v->hue=(int)SendMessageW(H(IDC_HUE),TBM_GETPOS,0,0);
         v->brightness=(double)(int)SendMessageW(H(IDC_BRI),TBM_GETPOS,0,0);
@@ -2234,7 +2416,7 @@ case WM_CTLCOLORSTATIC:{HDC dc=(HDC)wp;SetTextColor(dc,C_TEXT);SetBkColor(dc,C_P
         return TRUE;
     }
     break;
-}case WM_HSCROLL:UpdateSliderLabels();if((HWND)lp)InvalidateRect((HWND)lp,nullptr,FALSE);return 0;case WM_TIMER:CheckProcesses();return 0;case WM_COMMAND:{int id=LOWORD(wp);if(id==IDC_LIST&&HIWORD(wp)==LBN_SELCHANGE){LoadSelected();return 0;}if(id==IDC_DISPLAY&&HIWORD(wp)==CBN_SELCHANGE){int ds=(int)SendMessageW(H(IDC_DISPLAY),CB_GETCURSEL,0,0);if(ds>=0&&ds<(int)gDisplays.size()){if(IsDesktopSelected()){auto*p=EnsureDesktopProfile(gDisplays[ds].gdiName);LoadValuesToSliders(ValuesFromFlatProfile(*p));}else{auto*p=SelectedProfile();if(p){p->displayName=gDisplays[ds].gdiName;LoadValuesToSliders(*EnsureGameValuesForDisplay(*p,p->displayName));}}}return 0;}switch(id){case IDC_BROWSE:{OPENFILENAMEW o{sizeof(o)};wchar_t f[MAX_PATH]{};o.hwndOwner=w;o.lpstrFilter=L"Executables (*.exe)\0*.exe\0All files\0*.*\0";o.lpstrFile=f;o.nMaxFile=MAX_PATH;o.Flags=OFN_FILEMUSTEXIST;if(GetOpenFileNameW(&o)){Txt(IDC_EXE,f);auto* p=SelectedProfile();if(p&&!IsDesktopSelected()){p->exePath=f;InvalidateRect(H(IDC_LIST),nullptr,TRUE);}}break;}case IDC_SAVE:SaveSelected();break;case IDC_ADD:{GameProfile np{};if(!gDisplays.empty()){int pi=0;for(size_t di=0;di<gDisplays.size();++di)if(gDisplays[di].primary){pi=(int)di;break;}np.displayName=gDisplays[pi].gdiName;for(const auto&d:gDisplays)np.displayProfiles.push_back(ValuesFromDesktop(d.gdiName));}gSettings.profiles.push_back(np);gSelected=(int)gSettings.profiles.size();Save();RefreshList();LoadSelected();break;}case IDC_REMOVE:if(gSelected>0&&gSelected<=(int)gSettings.profiles.size()){gSettings.profiles.erase(gSettings.profiles.begin()+(gSelected-1));gSelected=std::max<int>(0,gSelected-1);Save();RefreshList();LoadSelected();}break;case IDC_STARTWIN:gSettings.startWindows=SendMessageW(H(IDC_STARTWIN),BM_GETCHECK,0,0)==BST_CHECKED;SetStartup(gSettings.startWindows);Save();break;case IDC_STARTMIN:gSettings.startMinimized=SendMessageW(H(IDC_STARTMIN),BM_GETCHECK,0,0)==BST_CHECKED;Save();break;case IDC_MINTRAY:
+}case WM_HSCROLL:UpdateSliderLabels();if((HWND)lp)InvalidateRect((HWND)lp,nullptr,FALSE);return 0;case WM_TIMER:CheckProcesses();return 0;case WM_COMMAND:{int id=LOWORD(wp);if(id==IDC_LIST&&HIWORD(wp)==LBN_SELCHANGE){LoadSelected();return 0;}if(id==IDC_DISPLAY&&HIWORD(wp)==CBN_SELCHANGE){int ds=(int)SendMessageW(H(IDC_DISPLAY),CB_GETCURSEL,0,0);if(ds>=0&&ds<(int)gDisplays.size()){if(IsDesktopSelected()){auto*p=EnsureDesktopProfile(gDisplays[ds].gdiName,gDisplays[ds].monitorId);LoadValuesToSliders(ValuesFromFlatProfile(*p));}else{auto*p=SelectedProfile();if(p){p->displayName=gDisplays[ds].gdiName;p->monitorId=gDisplays[ds].monitorId;LoadValuesToSliders(*EnsureGameValuesForDisplay(*p,p->displayName,p->monitorId));}}}return 0;}switch(id){case IDC_BROWSE:{OPENFILENAMEW o{sizeof(o)};wchar_t f[MAX_PATH]{};o.hwndOwner=w;o.lpstrFilter=L"Executables (*.exe)\0*.exe\0All files\0*.*\0";o.lpstrFile=f;o.nMaxFile=MAX_PATH;o.Flags=OFN_FILEMUSTEXIST;if(GetOpenFileNameW(&o)){Txt(IDC_EXE,f);auto* p=SelectedProfile();if(p&&!IsDesktopSelected()){p->exePath=f;InvalidateRect(H(IDC_LIST),nullptr,TRUE);}}break;}case IDC_SAVE:SaveSelected();break;case IDC_ADD:{GameProfile np{};if(!gDisplays.empty()){int pi=0;for(size_t di=0;di<gDisplays.size();++di)if(gDisplays[di].primary){pi=(int)di;break;}np.displayName=gDisplays[pi].gdiName;np.monitorId=gDisplays[pi].monitorId;for(const auto&d:gDisplays)np.displayProfiles.push_back(ValuesFromDesktop(d.gdiName,d.monitorId));}gSettings.profiles.push_back(np);gSelected=(int)gSettings.profiles.size();Save();RefreshList();LoadSelected();break;}case IDC_REMOVE:if(gSelected>0&&gSelected<=(int)gSettings.profiles.size()){gSettings.profiles.erase(gSettings.profiles.begin()+(gSelected-1));gSelected=std::max<int>(0,gSelected-1);Save();RefreshList();LoadSelected();}break;case IDC_STARTWIN:gSettings.startWindows=SendMessageW(H(IDC_STARTWIN),BM_GETCHECK,0,0)==BST_CHECKED;SetStartup(gSettings.startWindows);Save();break;case IDC_STARTMIN:gSettings.startMinimized=SendMessageW(H(IDC_STARTMIN),BM_GETCHECK,0,0)==BST_CHECKED;Save();break;case IDC_MINTRAY:
     gSettings.minimizeToTray=SendMessageW(H(IDC_MINTRAY),BM_GETCHECK,0,0)==BST_CHECKED;
     if(!gSettings.minimizeToTray)
         SetTrayIconVisible(false);
@@ -2275,7 +2457,7 @@ int mainW=mainWr.right-mainWr.left, mainH=mainWr.bottom-mainWr.top;
 int mainX=mainWork.left+((mainWork.right-mainWork.left)-mainW)/2;
 int mainY=mainWork.top+((mainWork.bottom-mainWork.top)-mainH)/2;
 SetWindowPos(gWnd,nullptr,mainX,mainY,0,0,SWP_NOSIZE|SWP_NOZORDER|SWP_NOACTIVATE);
-SetWindowLongPtrW(gWnd,GWLP_USERDATA,0);gTrayMenu=CreatePopupMenu();AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_OPEN,L"Open NvProfileSwitcher");AppendMenuW(gTrayMenu,MF_SEPARATOR,0,nullptr);AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_CHECK_UPDATE,L"Check for updates");AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_ABOUT,L"About NvProfileSwitcher");AppendMenuW(gTrayMenu,MF_SEPARATOR,0,nullptr);AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_EXIT,L"Exit");gNid.cbSize=sizeof(gNid);gNid.hWnd=gWnd;gNid.uID=1;gNid.uFlags=NIF_MESSAGE|NIF_ICON|NIF_TIP;gNid.uCallbackMessage=WM_TRAY;gNid.hIcon=gIcon;wcscpy_s(gNid.szTip,L"NvProfileSwitcher");gStatusOk=InitNv();if(gStatusOk){if(gSettings.desktopProfiles.empty()&&!gDisplays.empty()){DisplayTarget* pd=nullptr;for(auto&d:gDisplays)if(d.primary){pd=&d;break;}if(!pd)pd=&gDisplays.front();EnsureDesktopProfile(pd->gdiName);}EnsureAllGameDisplayProfiles();Save();if(auto* p=SelectedProfile())RefreshDisplayCombo(*p);RestoreAllDesktopProfiles();LoadSelected();}gActive=L"Windows";bool min=(wcsstr(cmd,L"--minimized")!=nullptr);
+SetWindowLongPtrW(gWnd,GWLP_USERDATA,0);gTrayMenu=CreatePopupMenu();AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_OPEN,L"Open NvProfileSwitcher");AppendMenuW(gTrayMenu,MF_SEPARATOR,0,nullptr);AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_CHECK_UPDATE,L"Check for updates");AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_ABOUT,L"About NvProfileSwitcher");AppendMenuW(gTrayMenu,MF_SEPARATOR,0,nullptr);AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_EXIT,L"Exit");gNid.cbSize=sizeof(gNid);gNid.hWnd=gWnd;gNid.uID=1;gNid.uFlags=NIF_MESSAGE|NIF_ICON|NIF_TIP;gNid.uCallbackMessage=WM_TRAY;gNid.hIcon=gIcon;wcscpy_s(gNid.szTip,L"NvProfileSwitcher");gStatusOk=InitNv();if(gStatusOk){MigrateProfilesToStableMonitorIds();if(gSettings.desktopProfiles.empty()&&!gDisplays.empty()){DisplayTarget* pd=nullptr;for(auto&d:gDisplays)if(d.primary){pd=&d;break;}if(!pd)pd=&gDisplays.front();EnsureDesktopProfile(pd->gdiName);}EnsureAllGameDisplayProfiles();Save();if(auto* p=SelectedProfile())RefreshDisplayCombo(*p);RestoreAllDesktopProfiles();LoadSelected();}gActive=L"Windows";bool min=(wcsstr(cmd,L"--minimized")!=nullptr);
 if(min) SetTrayIconVisible(true);
 ShowWindow(gWnd,min?SW_HIDE:SW_SHOW);
 UpdateWindow(gWnd);if(gSettings.checkUpdates){if(HANDLE h=CreateThread(nullptr,0,UpdateCheckThread,nullptr,0,nullptr))CloseHandle(h);}MSG msg;while(GetMessageW(&msg,nullptr,0,0)>0){TranslateMessage(&msg);DispatchMessageW(&msg);}DeleteObject(gFont);DeleteObject(gFontBold);DeleteObject(gFontTitle);DeleteObject(gIconFont);DeleteObject(gBackBrush);DeleteObject(gPanelBrush);DeleteObject(gPanel2Brush);DeleteObject(gFieldBrush);
