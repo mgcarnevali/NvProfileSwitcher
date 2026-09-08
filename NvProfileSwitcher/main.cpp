@@ -777,6 +777,8 @@ bool Apply(const GameProfile&p){
 }
 
 std::wstring ProcessName(const std::wstring&p){ const wchar_t* n=PathFindFileNameW(p.c_str()); std::wstring s=n?n:L""; auto dot=s.find_last_of(L'.'); if(dot!=std::wstring::npos)s.resize(dot); return s; }
+void LoadSelected();
+
 std::wstring ForegroundProcessName(){
     HWND fg=GetForegroundWindow();
     if(!fg)return{};
