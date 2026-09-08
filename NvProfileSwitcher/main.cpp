@@ -922,6 +922,24 @@ void UpdateProfileTooltip(POINT clientPt){
     SendMessageW(gProfileTooltip,TTM_UPDATETIPTEXTW,0,(LPARAM)&ti);
     SendMessageW(gProfileTooltip,TTM_TRACKPOSITION,0,MAKELPARAM(screenPt.x,screenPt.y));
     SendMessageW(gProfileTooltip,TTM_TRACKACTIVATE,TRUE,(LPARAM)&ti);
+
+    // The tooltip is custom-painted, so explicitly size the popup to the
+    // complete profile name instead of relying on the native tooltip layout.
+    HDC tipDc=GetDC(gProfileTooltip);
+    if(tipDc){
+        HFONT oldFont=(HFONT)SelectObject(tipDc,gFont);
+        SIZE textSize{};
+        GetTextExtentPoint32W(tipDc,gProfileTooltipText.c_str(),
+            (int)gProfileTooltipText.size(),&textSize);
+        SelectObject(tipDc,oldFont);
+        ReleaseDC(gProfileTooltip,tipDc);
+
+        const int tipW=std::min(500,textSize.cx+16);
+        const int tipH=textSize.cy+10;
+        SetWindowPos(gProfileTooltip,HWND_TOPMOST,screenPt.x,screenPt.y,
+            tipW,tipH,SWP_NOACTIVATE|SWP_SHOWWINDOW);
+    }
+
     gProfileTooltipItem=item;
 }
 
