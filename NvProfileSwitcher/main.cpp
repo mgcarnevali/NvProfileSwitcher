@@ -47,17 +47,11 @@ struct DisplayProfileValues {
 struct GameProfile {
     std::wstring name=L"New Profile";
     std::wstring exePath;
-    // Last-selected/default display. Kept for migration/backward compatibility.
-    std::wstring displayName;
-    std::wstring monitorId;
-    int vibrance=50;
-    int hue=0;
-    double brightness=100.0, contrast=100.0, gamma=1.00;
     bool enabled=true;
     std::vector<DisplayProfileValues> displayProfiles;
 };
 struct Settings {
-    GameProfile desktop{L"Windows",L"",L"",L"",50,0,100.0,100.0,1.00,true}; // default values for new Windows monitor profiles
+    GameProfile desktop{L"Windows",L"",true,{}}; // template metadata for Windows profiles
     std::vector<GameProfile> desktopProfiles;
     std::vector<GameProfile> profiles;
     bool startWindows=false, startMinimized=false, minimizeToTray=false, checkUpdates=true;
@@ -188,13 +182,6 @@ GameProfile ParseProfile(const std::string&o){
     GameProfile p;
     p.name=Unescape(FieldS(o,"Name","New Profile"));
     p.exePath=Unescape(FieldS(o,"ExePath"));
-    p.displayName=Unescape(FieldS(o,"DisplayName",""));
-    p.monitorId=Unescape(FieldS(o,"MonitorId",""));
-    p.vibrance=(int)FieldN(o,"DigitalVibrance",50);
-    p.hue=(int)FieldN(o,"Hue",0);
-    p.brightness=FieldN(o,"Brightness",100.0);
-    p.contrast=FieldN(o,"Contrast",100.0);
-    p.gamma=FieldN(o,"Gamma",1.0);
     p.enabled=FieldB(o,"Enabled",true);
 
     size_t dp=o.find("\"Display Profiles\"");
@@ -204,17 +191,9 @@ GameProfile ParseProfile(const std::string&o){
         if(a!=std::string::npos&&b!=std::string::npos){
             for(const auto& obj:JsonObjectsInArray(o,a,b)){
                 DisplayProfileValues v=ParseDisplayValues(obj);
-                if(!v.displayName.empty()) p.displayProfiles.push_back(v);
+                if(!v.monitorId.empty()) p.displayProfiles.push_back(v);
             }
         }
-    }
-
-    // Legacy migration: old single game value set becomes the set for its
-    // previously selected monitor.
-    if(p.displayProfiles.empty()&&!p.displayName.empty()){
-        p.displayProfiles.push_back({
-            p.displayName,p.monitorId,p.vibrance,p.hue,p.brightness,p.contrast,p.gamma
-        });
     }
     return p;
 }
@@ -222,60 +201,38 @@ bool SameMonitorId(const std::wstring&a,const std::wstring&b){
     return !a.empty()&&!b.empty()&&_wcsicmp(a.c_str(),b.c_str())==0;
 }
 GameProfile* DesktopProfileForMonitor(const std::wstring&id){
-    for(auto& p:gSettings.desktopProfiles) if(SameMonitorId(p.monitorId,id)) return &p;
+    for(auto& p:gSettings.desktopProfiles)
+        if(!p.displayProfiles.empty()&&SameMonitorId(p.displayProfiles.front().monitorId,id)) return &p;
     return nullptr;
 }
 const GameProfile* DesktopProfileForMonitorConst(const std::wstring&id){
-    for(const auto& p:gSettings.desktopProfiles) if(SameMonitorId(p.monitorId,id)) return &p;
-    return nullptr;
-}
-GameProfile* DesktopProfileForDisplay(const std::wstring& displayName){
-    for(auto& p:gSettings.desktopProfiles)
-        if(_wcsicmp(p.displayName.c_str(),displayName.c_str())==0) return &p;
-    return nullptr;
-}
-const GameProfile* DesktopProfileForDisplayConst(const std::wstring& displayName){
     for(const auto& p:gSettings.desktopProfiles)
-        if(_wcsicmp(p.displayName.c_str(),displayName.c_str())==0) return &p;
+        if(!p.displayProfiles.empty()&&SameMonitorId(p.displayProfiles.front().monitorId,id)) return &p;
     return nullptr;
 }
+
+
 GameProfile DesktopTemplate(){
     GameProfile p=gSettings.desktop;p.name=L"Windows";p.exePath=L"";p.enabled=true;return p;
 }
 DisplayProfileValues ValuesFromDesktop(const std::wstring&displayName,const std::wstring&monitorId=L""){
     DisplayProfileValues v;v.displayName=displayName;v.monitorId=monitorId;
     const GameProfile*d=!monitorId.empty()?DesktopProfileForMonitorConst(monitorId):nullptr;
-    if(!d){
-        const GameProfile*byDisplay=DesktopProfileForDisplayConst(displayName);
-        // DISPLAYx is only a safe fallback for legacy entries that do not yet
-        // have a stable monitor ID. Never inherit values from a different
-        // physical monitor that happens to reuse the same DISPLAYx.
-        if(byDisplay && (monitorId.empty() || byDisplay->monitorId.empty()))
-            d=byDisplay;
+    if(d&&!d->displayProfiles.empty()){
+        const auto& dv=d->displayProfiles.front();
+        v.vibrance=dv.vibrance;v.hue=dv.hue;v.brightness=dv.brightness;v.contrast=dv.contrast;v.gamma=dv.gamma;
     }
-    if(d){v.vibrance=d->vibrance;v.hue=d->hue;v.brightness=d->brightness;v.contrast=d->contrast;v.gamma=d->gamma;}
     return v;
 }
 DisplayProfileValues* GameValuesForMonitor(GameProfile&p,const std::wstring&id){
     for(auto&v:p.displayProfiles)if(SameMonitorId(v.monitorId,id))return &v;
     return nullptr;
 }
-DisplayProfileValues* GameValuesForDisplay(GameProfile&p,const std::wstring&displayName){
-    for(auto&v:p.displayProfiles)if(_wcsicmp(v.displayName.c_str(),displayName.c_str())==0)return &v;
-    return nullptr;
-}
+
 DisplayProfileValues* EnsureGameValuesForDisplay(GameProfile&p,const std::wstring&displayName,const std::wstring&monitorId=L""){
     if(!monitorId.empty())if(auto*v=GameValuesForMonitor(p,monitorId)){v->displayName=displayName;return v;}
-    if(auto*v=GameValuesForDisplay(p,displayName)){
-        // Reuse DISPLAYx only for legacy entries with no stable ID (or when
-        // the caller itself has no stable ID). A different non-empty ID means
-        // Windows reused the DISPLAYx for another physical monitor.
-        if(monitorId.empty() || v->monitorId.empty()){
-            if(v->monitorId.empty())v->monitorId=monitorId;
-            return v;
-        }
-    }
-    p.displayProfiles.push_back(ValuesFromDesktop(displayName,monitorId));return &p.displayProfiles.back();
+    p.displayProfiles.push_back(ValuesFromDesktop(displayName,monitorId));
+    return &p.displayProfiles.back();
 }
 std::wstring WindowsProfileJsonName(const std::wstring& displayName){
     size_t pos=displayName.rfind(L"DISPLAY");
@@ -287,22 +244,6 @@ std::wstring WindowsProfileJsonName(const std::wstring& displayName){
 }
 void Save(){
     std::ofstream f(AppDataFile(),std::ios::binary|std::ios::trunc);
-
-    auto dumpFlat=[&](const GameProfile&p,int ind){
-        std::string sp(ind,' ');
-        f<<sp<<"{\n"
-         <<sp<<"  \"Name\": \""<<Escape(p.name)<<"\",\n"
-         <<sp<<"  \"ExePath\": \""<<Escape(p.exePath)<<"\",\n"
-         <<sp<<"  \"DisplayName\": \""<<Escape(p.displayName)<<"\",\n"
-         <<sp<<"  \"MonitorId\": \""<<Escape(p.monitorId)<<"\",\n"
-         <<sp<<"  \"Brightness\": "<<p.brightness<<",\n"
-         <<sp<<"  \"Contrast\": "<<p.contrast<<",\n"
-         <<sp<<"  \"Gamma\": "<<p.gamma<<",\n"
-         <<sp<<"  \"DigitalVibrance\": "<<p.vibrance<<",\n"
-         <<sp<<"  \"Hue\": "<<p.hue<<",\n"
-         <<sp<<"  \"Enabled\": "<<(p.enabled?"true":"false")<<"\n"
-         <<sp<<"}";
-    };
 
     auto dumpDisplay=[&](const DisplayProfileValues&v,int ind){
         std::string sp(ind,' ');
@@ -319,9 +260,19 @@ void Save(){
 
     f<<"{\n  \"Windows Profiles\": [\n";
     for(size_t i=0;i<gSettings.desktopProfiles.size();++i){
-        GameProfile jsonProfile=gSettings.desktopProfiles[i];
-        jsonProfile.name=WindowsProfileJsonName(jsonProfile.displayName);
-        dumpFlat(jsonProfile,4);
+        const GameProfile& p=gSettings.desktopProfiles[i];
+        if(p.displayProfiles.empty()) continue;
+        const auto& v=p.displayProfiles.front();
+        f<<"    {\n"
+         <<"      \"Name\": \""<<Escape(WindowsProfileJsonName(v.displayName))<<"\",\n"
+         <<"      \"DisplayName\": \""<<Escape(v.displayName)<<"\",\n"
+         <<"      \"MonitorId\": \""<<Escape(v.monitorId)<<"\",\n"
+         <<"      \"Brightness\": "<<v.brightness<<",\n"
+         <<"      \"Contrast\": "<<v.contrast<<",\n"
+         <<"      \"Gamma\": "<<v.gamma<<",\n"
+         <<"      \"DigitalVibrance\": "<<v.vibrance<<",\n"
+         <<"      \"Hue\": "<<v.hue<<"\n"
+         <<"    }";
         if(i+1<gSettings.desktopProfiles.size())f<<",";
         f<<"\n";
     }
@@ -332,13 +283,6 @@ void Save(){
         f<<"    {\n"
          <<"      \"Name\": \""<<Escape(p.name)<<"\",\n"
          <<"      \"ExePath\": \""<<Escape(p.exePath)<<"\",\n"
-         <<"      \"DisplayName\": \""<<Escape(p.displayName)<<"\",\n"
-         <<"      \"MonitorId\": \""<<Escape(p.monitorId)<<"\",\n"
-         <<"      \"Brightness\": "<<p.brightness<<",\n"
-         <<"      \"Contrast\": "<<p.contrast<<",\n"
-         <<"      \"Gamma\": "<<p.gamma<<",\n"
-         <<"      \"DigitalVibrance\": "<<p.vibrance<<",\n"
-         <<"      \"Hue\": "<<p.hue<<",\n"
          <<"      \"Enabled\": "<<(p.enabled?"true":"false")<<",\n"
          <<"      \"Display Profiles\": [\n";
         for(size_t j=0;j<p.displayProfiles.size();++j){
@@ -369,9 +313,10 @@ void Load(){
         size_t a=s.find('[',wp), b=FindMatchingJson(s,a,'[',']');
         if(a!=std::string::npos&&b!=std::string::npos){
             for(const auto& obj:JsonObjectsInArray(s,a,b)){
-                GameProfile p=ParseProfile(obj);
-                p.name=L"Windows";p.exePath=L"";p.enabled=true;
-                p.displayProfiles.clear();
+                DisplayProfileValues v=ParseDisplayValues(obj);
+                if(v.monitorId.empty()) continue;
+                GameProfile p=DesktopTemplate();
+                p.displayProfiles.push_back(v);
                 gSettings.desktopProfiles.push_back(p);
             }
         }
@@ -539,16 +484,14 @@ void EnumerateNvDisplays(){
 bool Apply(const GameProfile& p);
 
 GameProfile* EnsureDesktopProfile(const std::wstring&displayName,const std::wstring&monitorId=L""){
-    if(!monitorId.empty())if(auto*p=DesktopProfileForMonitor(monitorId)){p->displayName=displayName;return p;}
-    if(auto*p=DesktopProfileForDisplay(displayName)){
-        // DISPLAYx is only a migration fallback. If it already belongs to a
-        // different stable monitor ID, create a new physical-monitor profile.
-        if(monitorId.empty() || p->monitorId.empty()){
-            if(p->monitorId.empty())p->monitorId=monitorId;
-            return p;
-        }
+    if(!monitorId.empty())if(auto*p=DesktopProfileForMonitor(monitorId)){
+        if(!p->displayProfiles.empty())p->displayProfiles.front().displayName=displayName;
+        return p;
     }
-    GameProfile p=DesktopTemplate();p.displayName=displayName;p.monitorId=monitorId;gSettings.desktopProfiles.push_back(p);return &gSettings.desktopProfiles.back();
+    GameProfile p=DesktopTemplate();
+    p.displayProfiles.push_back(ValuesFromDesktop(displayName,monitorId));
+    gSettings.desktopProfiles.push_back(p);
+    return &gSettings.desktopProfiles.back();
 }
 GameProfile* CurrentDesktopProfile(){
     if(gDisplays.empty())return &gSettings.desktop;
@@ -559,86 +502,38 @@ GameProfile* CurrentDesktopProfile(){
 void ApplyDesktopForDisplay(const std::wstring&displayName){
     for(const auto&d:gDisplays)if(_wcsicmp(d.gdiName.c_str(),displayName.c_str())==0){
         const GameProfile*p=!d.monitorId.empty()?DesktopProfileForMonitorConst(d.monitorId):nullptr;
-        if(!p){
-            const GameProfile*byDisplay=DesktopProfileForDisplayConst(displayName);
-            if(byDisplay && (d.monitorId.empty() || byDisplay->monitorId.empty()))
-                p=byDisplay;
-        }
-        if(p)Apply(*p);return;
+        if(p)Apply(*p);
+        return;
     }
 }
 void RestoreAllDesktopProfiles(){
     for(const auto&d:gDisplays){
         const GameProfile*p=!d.monitorId.empty()?DesktopProfileForMonitorConst(d.monitorId):nullptr;
-        if(!p){
-            const GameProfile*byDisplay=DesktopProfileForDisplayConst(d.gdiName);
-            if(byDisplay && (d.monitorId.empty() || byDisplay->monitorId.empty()))
-                p=byDisplay;
-        }
         if(p)Apply(*p);
-    }
-}
-void MigrateProfilesToStableIds(){
-    // Safe migration: only bind legacy DISPLAYx entries whose MonitorId is
-    // still empty. A stable entry with a different ID may simply be a
-    // disconnected monitor whose DISPLAYx was reused by Windows.
-    for(const auto&d:gDisplays){
-        if(d.monitorId.empty())continue;
-        if(auto*p=DesktopProfileForDisplay(d.gdiName)){
-            if(p->monitorId.empty()){p->monitorId=d.monitorId;p->displayName=d.gdiName;}
-        }
-        for(auto&game:gSettings.profiles){
-            if(auto*v=GameValuesForDisplay(game,d.gdiName)){
-                if(v->monitorId.empty()){v->monitorId=d.monitorId;v->displayName=d.gdiName;}
-            }
-            if(game.monitorId.empty()&&_wcsicmp(game.displayName.c_str(),d.gdiName.c_str())==0)game.monitorId=d.monitorId;
-        }
     }
 }
 void EnsureAllGameDisplayProfiles(){
     if(gDisplays.empty())return;
-    int primary=-1;for(size_t i=0;i<gDisplays.size();++i)if(gDisplays[i].primary){primary=(int)i;break;}if(primary<0)primary=0;
-    for(auto&p:gSettings.profiles){
-        if(p.displayProfiles.empty()){
-            const auto&d=gDisplays[primary];p.displayName=d.gdiName;p.monitorId=d.monitorId;
-            p.displayProfiles.push_back({d.gdiName,d.monitorId,p.vibrance,p.hue,p.brightness,p.contrast,p.gamma});
-        }
-        for(const auto&d:gDisplays)EnsureGameValuesForDisplay(p,d.gdiName,d.monitorId);
-        if(p.displayName.empty()){p.displayName=gDisplays[primary].gdiName;p.monitorId=gDisplays[primary].monitorId;}
-        else if(!p.monitorId.empty())if(auto*d=TargetForMonitorId(p.monitorId))p.displayName=d->gdiName;
-    }
-}
-
-GameProfile ApplyProfileForValues(const GameProfile& game,const DisplayProfileValues& v){
-    GameProfile p=game;
-    p.displayName=v.displayName;
-    p.monitorId=v.monitorId;
-    p.vibrance=v.vibrance;
-    p.hue=v.hue;
-    p.brightness=v.brightness;
-    p.contrast=v.contrast;
-    p.gamma=v.gamma;
-    p.displayProfiles.clear();
-    return p;
+    for(auto&p:gSettings.profiles)
+        for(const auto&d:gDisplays)
+            EnsureGameValuesForDisplay(p,d.gdiName,d.monitorId);
 }
 
 void ApplyGameProfile(const GameProfile& p){
-    for(const auto& v:p.displayProfiles)
-        Apply(ApplyProfileForValues(p,v));
+    for(const auto& v:p.displayProfiles){
+        DisplayTarget* t=TargetForMonitorId(v.monitorId);
+        if(!t) continue;
+        GameProfile one=p;
+        one.displayProfiles.clear();
+        one.displayProfiles.push_back(v);
+        Apply(one);
+    }
 }
 
 DisplayTarget* TargetForProfile(const GameProfile& p){
-    // Once a profile has a stable monitor ID, never fall back to DISPLAYx.
-    // The old DISPLAYx may now belong to a completely different monitor.
-    if(!p.monitorId.empty())
-        return TargetForMonitorId(p.monitorId);
-
-    if(!p.displayName.empty()){
-        for(auto& d:gDisplays)
-            if(_wcsicmp(d.gdiName.c_str(),p.displayName.c_str())==0) return &d;
-    }
-    for(auto& d:gDisplays) if(d.primary) return &d;
-    return gDisplays.empty()?nullptr:&gDisplays.front();
+    if(!p.displayProfiles.empty()&&!p.displayProfiles.front().monitorId.empty())
+        return TargetForMonitorId(p.displayProfiles.front().monitorId);
+    return nullptr;
 }
 
 void RefreshDisplayCombo(const GameProfile& p){
@@ -649,8 +544,7 @@ void RefreshDisplayCombo(const GameProfile& p){
     for(size_t i=0;i<gDisplays.size();++i){
         SendMessageW(c,CB_ADDSTRING,0,(LPARAM)gDisplays[i].label.c_str());
         if(gDisplays[i].primary) primary=(int)i;
-        if((!p.monitorId.empty()&&SameMonitorId(gDisplays[i].monitorId,p.monitorId))||
-           (p.monitorId.empty()&&!p.displayName.empty()&&_wcsicmp(gDisplays[i].gdiName.c_str(),p.displayName.c_str())==0))
+        if(!p.displayProfiles.empty()&&SameMonitorId(gDisplays[i].monitorId,p.displayProfiles.front().monitorId))
             selected=(int)i;
     }
     if(selected<0) selected=primary>=0?primary:(gDisplays.empty()?-1:0);
@@ -761,6 +655,10 @@ bool Apply(const GameProfile&p){
     if(!pSetDvc||!pGetDvc||!pSetHue||!pSetTargetGamma){
         gStatus=L"NVIDIA driver / NVAPI not initialized";gStatusOk=false;InvalidateRect(gWnd,nullptr,FALSE);return false;
     }
+    if(p.displayProfiles.empty()){
+        gStatus=L"Profile has no display values";gStatusOk=false;InvalidateRect(gWnd,nullptr,FALSE);return false;
+    }
+    const auto& v=p.displayProfiles.front();
     DisplayTarget* t=TargetForProfile(p);
     if(!t || !t->handle || !t->displayId){
         gStatus=L"Selected NVIDIA display is not available";gStatusOk=false;InvalidateRect(gWnd,nullptr,FALSE);return false;
@@ -768,11 +666,11 @@ bool Apply(const GameProfile&p){
     DVCINFOEX d{};
     d.version=(unsigned int)(sizeof(d)|(1u<<16));
     if(pGetDvc(t->handle,0,&d)!=0){gStatus=L"Could not read Digital Vibrance";gStatusOk=false;InvalidateRect(gWnd,nullptr,FALSE);return false;}
-    d.currentLevel=std::clamp(DvcRawFromPercent(p.vibrance,d),d.minLevel,d.maxLevel);
+    d.currentLevel=std::clamp(DvcRawFromPercent(v.vibrance,d),d.minLevel,d.maxLevel);
     if(pSetDvc(t->handle,0,&d)!=0){gStatus=L"Could not set Digital Vibrance";gStatusOk=false;InvalidateRect(gWnd,nullptr,FALSE);return false;}
-    unsigned int hue=(unsigned int)(((p.hue%360)+360)%360);
+    unsigned int hue=(unsigned int)(((v.hue%360)+360)%360);
     if(pSetHue(t->handle,0,hue)!=0){gStatus=L"Could not set Hue";gStatusOk=false;InvalidateRect(gWnd,nullptr,FALSE);return false;}
-    if(!SetNvGamma(t->displayId,p.brightness,p.contrast,p.gamma)){gStatus=L"Could not set NVIDIA color LUT";gStatusOk=false;InvalidateRect(gWnd,nullptr,FALSE);return false;}
+    if(!SetNvGamma(t->displayId,v.brightness,v.contrast,v.gamma)){gStatus=L"Could not set NVIDIA color LUT";gStatusOk=false;InvalidateRect(gWnd,nullptr,FALSE);return false;}
     gStatus=L"Ready";gStatusOk=true;InvalidateRect(gWnd,nullptr,FALSE);return true;
 }
 
@@ -825,7 +723,6 @@ void RefreshDisplayTopology(){
     // switch or hot-plug is still settling. This function is called only after
     // the short debounce timer expires.
     EnumerateNvDisplays();
-    MigrateProfilesToStableIds();
 
     // Persist every currently connected physical monitor immediately.
     // Stable MonitorId remains the identity; DISPLAYx is only the current route.
@@ -1041,7 +938,7 @@ void LoadValuesToSliders(const DisplayProfileValues& v){
 }
 
 DisplayProfileValues ValuesFromFlatProfile(const GameProfile& p){
-    return {p.displayName,p.monitorId,p.vibrance,p.hue,p.brightness,p.contrast,p.gamma};
+    return p.displayProfiles.empty()?DisplayProfileValues{}:p.displayProfiles.front();
 }
 bool IsDesktopSelected(){return gSelected==0;}
 GameProfile* SelectedProfile(){ if(gSelected==0)return CurrentDesktopProfile(); int i=gSelected-1; return (i>=0&&i<(int)gSettings.profiles.size())?&gSettings.profiles[i]:nullptr; }
@@ -1155,13 +1052,15 @@ void SaveSelected(){
     if(desktop){
         GameProfile* p=CurrentDesktopProfile();
         if(!p)return;
-        if(ds>=0&&ds<(int)gDisplays.size()){p->displayName=gDisplays[ds].gdiName;p->monitorId=gDisplays[ds].monitorId;}
         p->name=L"Windows";
-        p->vibrance=(int)SendMessageW(H(IDC_VIB),TBM_GETPOS,0,0);
-        p->hue=(int)SendMessageW(H(IDC_HUE),TBM_GETPOS,0,0);
-        p->brightness=(double)(int)SendMessageW(H(IDC_BRI),TBM_GETPOS,0,0);
-        p->contrast=(double)(int)SendMessageW(H(IDC_CON),TBM_GETPOS,0,0);
-        p->gamma=(int)SendMessageW(H(IDC_GAM),TBM_GETPOS,0,0)/100.0;
+        if(p->displayProfiles.empty())return;
+        auto& v=p->displayProfiles.front();
+        if(ds>=0&&ds<(int)gDisplays.size()){v.displayName=gDisplays[ds].gdiName;v.monitorId=gDisplays[ds].monitorId;}
+        v.vibrance=(int)SendMessageW(H(IDC_VIB),TBM_GETPOS,0,0);
+        v.hue=(int)SendMessageW(H(IDC_HUE),TBM_GETPOS,0,0);
+        v.brightness=(double)(int)SendMessageW(H(IDC_BRI),TBM_GETPOS,0,0);
+        v.contrast=(double)(int)SendMessageW(H(IDC_CON),TBM_GETPOS,0,0);
+        v.gamma=(int)SendMessageW(H(IDC_GAM),TBM_GETPOS,0,0)/100.0;
         Save();
         RefreshList();
         Apply(*p);
@@ -1176,21 +1075,13 @@ void SaveSelected(){
     p->enabled=SendMessageW(H(IDC_ENABLED),BM_GETCHECK,0,0)==BST_CHECKED;
 
     if(ds>=0&&ds<(int)gDisplays.size()){
-        p->displayName=gDisplays[ds].gdiName;
-        p->monitorId=gDisplays[ds].monitorId;
-        auto* v=EnsureGameValuesForDisplay(*p,p->displayName,p->monitorId);
+        auto* v=EnsureGameValuesForDisplay(*p,gDisplays[ds].gdiName,gDisplays[ds].monitorId);
         v->vibrance=(int)SendMessageW(H(IDC_VIB),TBM_GETPOS,0,0);
         v->hue=(int)SendMessageW(H(IDC_HUE),TBM_GETPOS,0,0);
         v->brightness=(double)(int)SendMessageW(H(IDC_BRI),TBM_GETPOS,0,0);
         v->contrast=(double)(int)SendMessageW(H(IDC_CON),TBM_GETPOS,0,0);
         v->gamma=(int)SendMessageW(H(IDC_GAM),TBM_GETPOS,0,0)/100.0;
 
-        // Keep legacy top-level values synchronized with the selected display.
-        p->vibrance=v->vibrance;
-        p->hue=v->hue;
-        p->brightness=v->brightness;
-        p->contrast=v->contrast;
-        p->gamma=v->gamma;
     }
 
     Save();
@@ -2462,7 +2353,7 @@ case WM_TIMER:
         return 0;
     }
     return 0;
-case WM_COMMAND:{int id=LOWORD(wp);if(id==IDC_LIST&&HIWORD(wp)==LBN_SELCHANGE){LoadSelected();return 0;}if(id==IDC_DISPLAY&&HIWORD(wp)==CBN_SELCHANGE){int ds=(int)SendMessageW(H(IDC_DISPLAY),CB_GETCURSEL,0,0);if(ds>=0&&ds<(int)gDisplays.size()){if(IsDesktopSelected()){auto*p=EnsureDesktopProfile(gDisplays[ds].gdiName,gDisplays[ds].monitorId);LoadValuesToSliders(ValuesFromFlatProfile(*p));}else{auto*p=SelectedProfile();if(p){p->displayName=gDisplays[ds].gdiName;p->monitorId=gDisplays[ds].monitorId;LoadValuesToSliders(*EnsureGameValuesForDisplay(*p,p->displayName,p->monitorId));}}}return 0;}switch(id){case IDC_BROWSE:{OPENFILENAMEW o{sizeof(o)};wchar_t f[MAX_PATH]{};o.hwndOwner=w;o.lpstrFilter=L"Executables (*.exe)\0*.exe\0All files\0*.*\0";o.lpstrFile=f;o.nMaxFile=MAX_PATH;o.Flags=OFN_FILEMUSTEXIST;if(GetOpenFileNameW(&o)){Txt(IDC_EXE,f);auto* p=SelectedProfile();if(p&&!IsDesktopSelected()){p->exePath=f;InvalidateRect(H(IDC_LIST),nullptr,TRUE);}}break;}case IDC_SAVE:SaveSelected();break;case IDC_ADD:{GameProfile np{};if(!gDisplays.empty()){int pi=0;for(size_t di=0;di<gDisplays.size();++di)if(gDisplays[di].primary){pi=(int)di;break;}np.displayName=gDisplays[pi].gdiName;np.monitorId=gDisplays[pi].monitorId;for(const auto&d:gDisplays)np.displayProfiles.push_back(ValuesFromDesktop(d.gdiName,d.monitorId));}gSettings.profiles.push_back(np);gSelected=(int)gSettings.profiles.size();Save();RefreshList();LoadSelected();break;}case IDC_REMOVE:if(gSelected>0&&gSelected<=(int)gSettings.profiles.size()){gSettings.profiles.erase(gSettings.profiles.begin()+(gSelected-1));gSelected=std::max<int>(0,gSelected-1);Save();RefreshList();LoadSelected();}break;case IDC_STARTWIN:gSettings.startWindows=SendMessageW(H(IDC_STARTWIN),BM_GETCHECK,0,0)==BST_CHECKED;SetStartup(gSettings.startWindows);Save();break;case IDC_STARTMIN:gSettings.startMinimized=SendMessageW(H(IDC_STARTMIN),BM_GETCHECK,0,0)==BST_CHECKED;Save();break;case IDC_MINTRAY:
+case WM_COMMAND:{int id=LOWORD(wp);if(id==IDC_LIST&&HIWORD(wp)==LBN_SELCHANGE){LoadSelected();return 0;}if(id==IDC_DISPLAY&&HIWORD(wp)==CBN_SELCHANGE){int ds=(int)SendMessageW(H(IDC_DISPLAY),CB_GETCURSEL,0,0);if(ds>=0&&ds<(int)gDisplays.size()){if(IsDesktopSelected()){auto*p=EnsureDesktopProfile(gDisplays[ds].gdiName,gDisplays[ds].monitorId);LoadValuesToSliders(ValuesFromFlatProfile(*p));}else{auto*p=SelectedProfile();if(p){LoadValuesToSliders(*EnsureGameValuesForDisplay(*p,gDisplays[ds].gdiName,gDisplays[ds].monitorId));}}}return 0;}switch(id){case IDC_BROWSE:{OPENFILENAMEW o{sizeof(o)};wchar_t f[MAX_PATH]{};o.hwndOwner=w;o.lpstrFilter=L"Executables (*.exe)\0*.exe\0All files\0*.*\0";o.lpstrFile=f;o.nMaxFile=MAX_PATH;o.Flags=OFN_FILEMUSTEXIST;if(GetOpenFileNameW(&o)){Txt(IDC_EXE,f);auto* p=SelectedProfile();if(p&&!IsDesktopSelected()){p->exePath=f;InvalidateRect(H(IDC_LIST),nullptr,TRUE);}}break;}case IDC_SAVE:SaveSelected();break;case IDC_ADD:{GameProfile np{};if(!gDisplays.empty()){for(const auto&d:gDisplays)np.displayProfiles.push_back(ValuesFromDesktop(d.gdiName,d.monitorId));}gSettings.profiles.push_back(np);gSelected=(int)gSettings.profiles.size();Save();RefreshList();LoadSelected();break;}case IDC_REMOVE:if(gSelected>0&&gSelected<=(int)gSettings.profiles.size()){gSettings.profiles.erase(gSettings.profiles.begin()+(gSelected-1));gSelected=std::max<int>(0,gSelected-1);Save();RefreshList();LoadSelected();}break;case IDC_STARTWIN:gSettings.startWindows=SendMessageW(H(IDC_STARTWIN),BM_GETCHECK,0,0)==BST_CHECKED;SetStartup(gSettings.startWindows);Save();break;case IDC_STARTMIN:gSettings.startMinimized=SendMessageW(H(IDC_STARTMIN),BM_GETCHECK,0,0)==BST_CHECKED;Save();break;case IDC_MINTRAY:
     gSettings.minimizeToTray=SendMessageW(H(IDC_MINTRAY),BM_GETCHECK,0,0)==BST_CHECKED;
     if(!gSettings.minimizeToTray)
         SetTrayIconVisible(false);
@@ -2503,7 +2394,7 @@ int mainW=mainWr.right-mainWr.left, mainH=mainWr.bottom-mainWr.top;
 int mainX=mainWork.left+((mainWork.right-mainWork.left)-mainW)/2;
 int mainY=mainWork.top+((mainWork.bottom-mainWork.top)-mainH)/2;
 SetWindowPos(gWnd,nullptr,mainX,mainY,0,0,SWP_NOSIZE|SWP_NOZORDER|SWP_NOACTIVATE);
-SetWindowLongPtrW(gWnd,GWLP_USERDATA,0);gTrayMenu=CreatePopupMenu();AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_OPEN,L"Open NvProfileSwitcher");AppendMenuW(gTrayMenu,MF_SEPARATOR,0,nullptr);AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_CHECK_UPDATE,L"Check for updates");AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_ABOUT,L"About NvProfileSwitcher");AppendMenuW(gTrayMenu,MF_SEPARATOR,0,nullptr);AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_EXIT,L"Exit");gNid.cbSize=sizeof(gNid);gNid.hWnd=gWnd;gNid.uID=1;gNid.uFlags=NIF_MESSAGE|NIF_ICON|NIF_TIP;gNid.uCallbackMessage=WM_TRAY;gNid.hIcon=gIcon;wcscpy_s(gNid.szTip,L"NvProfileSwitcher");gStatusOk=InitNv();if(gStatusOk){MigrateProfilesToStableIds();for(const auto&d:gDisplays)EnsureDesktopProfile(d.gdiName,d.monitorId);EnsureAllGameDisplayProfiles();Save();if(auto* p=SelectedProfile())RefreshDisplayCombo(*p);RestoreAllDesktopProfiles();LoadSelected();}gActive=L"Windows";bool min=(wcsstr(cmd,L"--minimized")!=nullptr);
+SetWindowLongPtrW(gWnd,GWLP_USERDATA,0);gTrayMenu=CreatePopupMenu();AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_OPEN,L"Open NvProfileSwitcher");AppendMenuW(gTrayMenu,MF_SEPARATOR,0,nullptr);AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_CHECK_UPDATE,L"Check for updates");AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_ABOUT,L"About NvProfileSwitcher");AppendMenuW(gTrayMenu,MF_SEPARATOR,0,nullptr);AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_EXIT,L"Exit");gNid.cbSize=sizeof(gNid);gNid.hWnd=gWnd;gNid.uID=1;gNid.uFlags=NIF_MESSAGE|NIF_ICON|NIF_TIP;gNid.uCallbackMessage=WM_TRAY;gNid.hIcon=gIcon;wcscpy_s(gNid.szTip,L"NvProfileSwitcher");gStatusOk=InitNv();if(gStatusOk){for(const auto&d:gDisplays)EnsureDesktopProfile(d.gdiName,d.monitorId);EnsureAllGameDisplayProfiles();Save();if(auto* p=SelectedProfile())RefreshDisplayCombo(*p);RestoreAllDesktopProfiles();LoadSelected();}gActive=L"Windows";bool min=(wcsstr(cmd,L"--minimized")!=nullptr);
 if(min) SetTrayIconVisible(true);
 ShowWindow(gWnd,min?SW_HIDE:SW_SHOW);
 UpdateWindow(gWnd);if(gSettings.checkUpdates){if(HANDLE h=CreateThread(nullptr,0,UpdateCheckThread,nullptr,0,nullptr))CloseHandle(h);}MSG msg;while(GetMessageW(&msg,nullptr,0,0)>0){TranslateMessage(&msg);DispatchMessageW(&msg);}DeleteObject(gFont);DeleteObject(gFontBold);DeleteObject(gFontTitle);DeleteObject(gIconFont);DeleteObject(gBackBrush);DeleteObject(gPanelBrush);DeleteObject(gPanel2Brush);DeleteObject(gFieldBrush);
