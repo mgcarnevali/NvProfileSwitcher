@@ -934,7 +934,7 @@ void UpdateProfileTooltip(POINT clientPt){
         SelectObject(tipDc,oldFont);
         ReleaseDC(gProfileTooltip,tipDc);
 
-        const int tipW=std::min(500,textSize.cx+16);
+        const int tipW=std::min(500,(int)textSize.cx+16);
         const int tipH=textSize.cy+10;
         SetWindowPos(gProfileTooltip,HWND_TOPMOST,screenPt.x,screenPt.y,
             tipW,tipH,SWP_NOACTIVATE|SWP_SHOWWINDOW);
