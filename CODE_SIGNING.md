@@ -14,7 +14,7 @@ Source code:
 
 [NvProfileSwitcher on GitHub](https://github.com/mgcarnevali/NvProfileSwitcher)
 
-NvProfileSwitcher is licensed under the MIT License.
+NvProfileSwitcher is licensed under the [GNU General Public License v3.0](LICENSE).
 
 ## Team roles
 
