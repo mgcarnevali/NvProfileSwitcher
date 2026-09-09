@@ -1237,7 +1237,7 @@ void DrawOwnerButton(const DRAWITEMSTRUCT* d){
     int cy=(r.top+r.bottom)/2;
 
     if(id==IDC_SAVE) { /* prototype save button uses text only */ }
-    else if(id==IDC_ADD) DrawAddButtonIcon(d->hDC,start+2,cy-9,icon);
+    else if(id==IDC_ADD) DrawAddButtonIcon(d->hDC,start,cy-9,icon);
     else if(id==IDC_REMOVE) DrawRemoveButtonIcon(d->hDC,start+2,cy-9,icon);
     else if(id==IDC_BROWSE) DrawFolderIcon(d->hDC,start,cy-12,icon);
 
