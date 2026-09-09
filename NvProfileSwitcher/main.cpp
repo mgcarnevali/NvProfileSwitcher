@@ -1706,7 +1706,7 @@ void BuildControls(){
 
     HWND lblName=Add(L"STATIC",L"Profile name",0,rightX,122,160,22,IDC_LBL_NAME);SendMessageW(lblName,WM_SETFONT,(WPARAM)gFontBold,TRUE);
     HWND eName=Add(L"EDIT",L"",WS_BORDER|ES_AUTOHSCROLL,rightX,146,rightW,28,IDC_NAME);SetWindowTheme(eName,L"DarkMode_Explorer",nullptr);
-    HWND lblExe=Add(L"STATIC",L"Game executable",0,rightX,185,160,22,IDC_LBL_EXE);SendMessageW(lblExe,WM_SETFONT,(WPARAM)gFontBold,TRUE);
+    HWND lblExe=Add(L"STATIC",L"Executable",0,rightX,185,160,22,IDC_LBL_EXE);SendMessageW(lblExe,WM_SETFONT,(WPARAM)gFontBold,TRUE);
     HWND eExe=Add(L"EDIT",L"",WS_BORDER|ES_AUTOHSCROLL,rightX,209,rightW-110,28,IDC_EXE);SetWindowTheme(eExe,L"DarkMode_Explorer",nullptr);
     Add(L"BUTTON",L"Browse...",BS_OWNERDRAW,rightX+rightW-100,204,100,36,IDC_BROWSE);
     Add(L"BUTTON",L"",BS_AUTOCHECKBOX,rightX,247,20,22,IDC_ENABLED);
@@ -1732,7 +1732,7 @@ void BuildControls(){
     slider(L"Hue (\x00B0)",IDC_LBL_HUE,IDC_HUE,IDC_VALHUE,580,0,359);
 
     Add(L"BUTTON",L"Save profile",BS_OWNERDRAW,rightX+rightW-110,654,110,32,IDC_SAVE);
-    Add(L"BUTTON",L"Add game",BS_OWNERDRAW,34,r.bottom-169,110,32,IDC_ADD);
+    Add(L"BUTTON",L"Add profile",BS_OWNERDRAW,34,r.bottom-169,110,32,IDC_ADD);
     Add(L"BUTTON",L"Remove",BS_OWNERDRAW,154,r.bottom-169,110,32,IDC_REMOVE);
 
     Add(L"BUTTON",L"",BS_AUTOCHECKBOX,rightX,r.bottom-75,20,22,IDC_STARTWIN);
@@ -2086,7 +2086,7 @@ LRESULT CALLBACK AboutProc(HWND w,UINT m,WPARAM wp,LPARAM lp){
         HWND version=CreateWindowExW(0,L"STATIC",ver.c_str(),WS_CHILD|WS_VISIBLE,76,48,260,22,w,nullptr,gInst,nullptr);
         SendMessageW(version,WM_SETFONT,(WPARAM)gFont,TRUE);
 
-        HWND desc=CreateWindowExW(0,L"STATIC",L"Automatic per-game NVIDIA display color profiles for Windows",
+        HWND desc=CreateWindowExW(0,L"STATIC",L"Automatic per-app NVIDIA display color profiles for Windows",
             WS_CHILD|WS_VISIBLE,22,84,430,22,w,nullptr,gInst,nullptr);
         SendMessageW(desc,WM_SETFONT,(WPARAM)gFont,TRUE);
 
