@@ -963,7 +963,7 @@ void UpdateResetTooltip(){
     MONITORINFO mi{sizeof(mi)};
     if(GetMonitorInfoW(mon,&mi)){
         if(x<mi.rcWork.left) x=rr.left;
-        y=std::clamp(y,mi.rcWork.top,mi.rcWork.bottom-tipH);
+        y=std::clamp(y,(int)mi.rcWork.top,(int)mi.rcWork.bottom-tipH);
     }
 
     SetWindowPos(gResetTooltip,HWND_TOPMOST,x,y,tipW,tipH,
