@@ -953,11 +953,11 @@ void UpdateResetTooltip(){
 
     const int tipW=sz.cx+16;
     const int tipH=sz.cy+10;
-    const int gap=6;
 
-    // Open to the left of Reset and slightly below the button.
-    int x=rr.left-tipW-gap;
-    int y=rr.bottom+gap;
+    // Match the profile-name tooltip placement: directly below Reset,
+    // overlapping the control's bottom edge by 2 px.
+    int x=rr.left;
+    int y=rr.bottom-2;
 
     HMONITOR mon=MonitorFromWindow(reset,MONITOR_DEFAULTTONEAREST);
     MONITORINFO mi{sizeof(mi)};
