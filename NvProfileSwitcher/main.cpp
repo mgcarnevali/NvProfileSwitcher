@@ -1234,6 +1234,7 @@ void DrawOwnerButton(const DRAWITEMSTRUCT* d){
     if(id==IDC_BROWSE) gap=7;
     int total=iconW+gap+sz.cx;
     int start=r.left+((r.right-r.left)-total)/2;
+    if(id==IDC_ADD) start-=2; // optical centering for the thin plus icon
     int cy=(r.top+r.bottom)/2;
 
     if(id==IDC_SAVE) { /* prototype save button uses text only */ }
