@@ -1,5 +1,7 @@
 name: Build NvProfileSwitcher Native
 
+run-name: Build NvProfileSwitcher ${{ github.ref_name }}
+
 on:
   workflow_dispatch:
   push:
