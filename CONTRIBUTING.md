@@ -75,5 +75,4 @@ configuration files.
 
 ## License
 
-By contributing to NvProfileSwitcher, you agree that your contributions will
-be released under the [MIT License](LICENSE).
+By contributing to NvProfileSwitcher, you agree that your contributions will be released under the [GNU General Public License v3.0](LICENSE).
