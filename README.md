@@ -33,7 +33,17 @@ It allows you to create individual profiles for applications and games, with ind
 
 ## Screenshots
 
-![NvProfileSwitcher](assets/branding/header.png)
+### Windows Profile
+
+![Windows Profile](docs/screenshots/windows-profile.png)
+
+### Application Profile
+
+![Application Profile](docs/screenshots/app-profile.png)
+
+### System Tray
+
+![System Tray](docs/screenshots/system-tray.png)
 
 ## How it works
 
