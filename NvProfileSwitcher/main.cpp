@@ -96,6 +96,7 @@ NOTIFYICONDATAW gNid{}; HMENU gTrayMenu{};
 HWND gFooterHover{};
 HWND gProfileTooltip{};
 HWND gResetTooltip{};
+bool gResetTooltipVisible=false;
 int gProfileTooltipItem=-1;
 std::wstring gProfileTooltipText;
 
@@ -921,6 +922,70 @@ LRESULT CALLBACK ProfileTooltipSubclassProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM 
     }
     case WM_NCDESTROY:
         RemoveWindowSubclass(hwnd,ProfileTooltipSubclassProc,subclassId);
+        break;
+    }
+    return DefSubclassProc(hwnd,msg,wp,lp);
+}
+
+void HideResetTooltip(){
+    if(gResetTooltip && gResetTooltipVisible){
+        ShowWindow(gResetTooltip,SW_HIDE);
+        gResetTooltipVisible=false;
+    }
+}
+
+void UpdateResetTooltip(){
+    if(!gResetTooltip) return;
+    HWND reset=H(IDC_DEFAULTS);
+    if(!reset) return;
+
+    RECT rr{};
+    GetWindowRect(reset,&rr);
+
+    static const wchar_t* text=L"Reset to NVIDIA defaults";
+    HDC dc=GetDC(gResetTooltip);
+    if(!dc) return;
+    HFONT old=(HFONT)SelectObject(dc,gFont);
+    SIZE sz{};
+    GetTextExtentPoint32W(dc,text,(int)wcslen(text),&sz);
+    SelectObject(dc,old);
+    ReleaseDC(gResetTooltip,dc);
+
+    const int tipW=sz.cx+16;
+    const int tipH=sz.cy+10;
+    const int gap=6;
+
+    // Open to the left of Reset so it never covers Save profile.
+    int x=rr.left-tipW-gap;
+    int y=rr.top+(rr.bottom-rr.top-tipH)/2;
+
+    HMONITOR mon=MonitorFromWindow(reset,MONITOR_DEFAULTTONEAREST);
+    MONITORINFO mi{sizeof(mi)};
+    if(GetMonitorInfoW(mon,&mi)){
+        if(x<mi.rcWork.left) x=rr.left;
+        y=std::clamp(y,mi.rcWork.top,mi.rcWork.bottom-tipH);
+    }
+
+    SetWindowPos(gResetTooltip,HWND_TOPMOST,x,y,tipW,tipH,
+        SWP_NOACTIVATE|SWP_SHOWWINDOW);
+    gResetTooltipVisible=true;
+}
+
+LRESULT CALLBACK ResetButtonSubclassProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp,
+                                        UINT_PTR subclassId,DWORD_PTR refData){
+    switch(msg){
+    case WM_MOUSEMOVE:{
+        UpdateResetTooltip();
+        TRACKMOUSEEVENT tme{sizeof(tme),TME_LEAVE,hwnd,0};
+        TrackMouseEvent(&tme);
+        break;
+    }
+    case WM_MOUSELEAVE:
+        HideResetTooltip();
+        break;
+    case WM_NCDESTROY:
+        HideResetTooltip();
+        RemoveWindowSubclass(hwnd,ResetButtonSubclassProc,subclassId);
         break;
     }
     return DefSubclassProc(hwnd,msg,wp,lp);
@@ -1889,22 +1954,12 @@ void BuildControls(){
     slider(L"Hue (\x00B0)",IDC_LBL_HUE,IDC_HUE,IDC_VALHUE,580,0,359);
 
     Add(L"BUTTON",L"Reset",BS_OWNERDRAW,rightX+rightW-210,654,90,32,IDC_DEFAULTS);
-    gResetTooltip=CreateWindowExW(WS_EX_TOPMOST,TOOLTIPS_CLASSW,nullptr,
-        WS_POPUP|TTS_ALWAYSTIP|TTS_NOPREFIX,
-        CW_USEDEFAULT,CW_USEDEFAULT,CW_USEDEFAULT,CW_USEDEFAULT,
-        gWnd,nullptr,gInst,nullptr);
+    gResetTooltip=CreateWindowExW(WS_EX_TOOLWINDOW|WS_EX_TOPMOST,L"STATIC",
+        L"Reset to NVIDIA defaults",WS_POPUP,0,0,0,0,gWnd,nullptr,gInst,nullptr);
     if(gResetTooltip){
-        SetWindowTheme(gResetTooltip,L"",L"");
         SendMessageW(gResetTooltip,WM_SETFONT,(WPARAM)gFont,FALSE);
-        SendMessageW(gResetTooltip,TTM_SETTIPBKCOLOR,(WPARAM)C_PANEL2,0);
-        SendMessageW(gResetTooltip,TTM_SETTIPTEXTCOLOR,(WPARAM)C_TEXT,0);
-
-        TOOLINFOW ti{sizeof(ti)};
-        ti.uFlags=TTF_IDISHWND|TTF_SUBCLASS;
-        ti.hwnd=gWnd;
-        ti.uId=(UINT_PTR)H(IDC_DEFAULTS);
-        ti.lpszText=(LPWSTR)L"Reset to NVIDIA defaults";
-        SendMessageW(gResetTooltip,TTM_ADDTOOLW,0,(LPARAM)&ti);
+        SetWindowSubclass(gResetTooltip,ProfileTooltipSubclassProc,2,0);
+        SetWindowSubclass(H(IDC_DEFAULTS),ResetButtonSubclassProc,1,0);
     }
     Add(L"BUTTON",L"Save profile",BS_OWNERDRAW,rightX+rightW-110,654,110,32,IDC_SAVE);
     Add(L"BUTTON",L"Add profile",BS_OWNERDRAW,39,r.bottom-169,122,32,IDC_ADD);
