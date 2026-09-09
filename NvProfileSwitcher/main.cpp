@@ -955,9 +955,9 @@ void UpdateResetTooltip(){
     const int tipH=sz.cy+10;
     const int gap=6;
 
-    // Open to the left of Reset so it never covers Save profile.
+    // Open to the left of Reset and slightly below the button.
     int x=rr.left-tipW-gap;
-    int y=rr.top+(rr.bottom-rr.top-tipH)/2;
+    int y=rr.bottom+gap;
 
     HMONITOR mon=MonitorFromWindow(reset,MONITOR_DEFAULTTONEAREST);
     MONITORINFO mi{sizeof(mi)};
