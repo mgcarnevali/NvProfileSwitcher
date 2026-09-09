@@ -95,6 +95,7 @@ Settings gSettings; int gSelected=-1; bool gReallyExit=false; std::wstring gActi
 NOTIFYICONDATAW gNid{}; HMENU gTrayMenu{};
 HWND gFooterHover{};
 HWND gProfileTooltip{};
+HWND gResetTooltip{};
 int gProfileTooltipItem=-1;
 std::wstring gProfileTooltipText;
 
@@ -1379,7 +1380,7 @@ void DrawOwnerButton(const DRAWITEMSTRUCT* d){
     wchar_t caption[128]{};
     GetWindowTextW(d->hwndItem,caption,128);
     SIZE sz{};
-    HFONT buttonFont=(id==IDC_SAVE||id==IDC_ADD||id==IDC_REMOVE)?gFontBold:gFont;
+    HFONT buttonFont=(id==IDC_SAVE||id==IDC_DEFAULTS||id==IDC_ADD||id==IDC_REMOVE)?gFontBold:gFont;
     SelectObject(d->hDC,buttonFont);
     GetTextExtentPoint32W(d->hDC,caption,(int)wcslen(caption),&sz);
 
@@ -1888,6 +1889,23 @@ void BuildControls(){
     slider(L"Hue (\x00B0)",IDC_LBL_HUE,IDC_HUE,IDC_VALHUE,580,0,359);
 
     Add(L"BUTTON",L"Reset",BS_OWNERDRAW,rightX+rightW-210,654,90,32,IDC_DEFAULTS);
+    gResetTooltip=CreateWindowExW(WS_EX_TOPMOST,TOOLTIPS_CLASSW,nullptr,
+        WS_POPUP|TTS_ALWAYSTIP|TTS_NOPREFIX,
+        CW_USEDEFAULT,CW_USEDEFAULT,CW_USEDEFAULT,CW_USEDEFAULT,
+        gWnd,nullptr,gInst,nullptr);
+    if(gResetTooltip){
+        SetWindowTheme(gResetTooltip,L"",L"");
+        SendMessageW(gResetTooltip,WM_SETFONT,(WPARAM)gFont,FALSE);
+        SendMessageW(gResetTooltip,TTM_SETTIPBKCOLOR,(WPARAM)C_PANEL2,0);
+        SendMessageW(gResetTooltip,TTM_SETTIPTEXTCOLOR,(WPARAM)C_TEXT,0);
+
+        TOOLINFOW ti{sizeof(ti)};
+        ti.uFlags=TTF_IDISHWND|TTF_SUBCLASS;
+        ti.hwnd=gWnd;
+        ti.uId=(UINT_PTR)H(IDC_DEFAULTS);
+        ti.lpszText=(LPWSTR)L"Reset to NVIDIA defaults";
+        SendMessageW(gResetTooltip,TTM_ADDTOOLW,0,(LPARAM)&ti);
+    }
     Add(L"BUTTON",L"Save profile",BS_OWNERDRAW,rightX+rightW-110,654,110,32,IDC_SAVE);
     Add(L"BUTTON",L"Add profile",BS_OWNERDRAW,39,r.bottom-169,122,32,IDC_ADD);
     Add(L"BUTTON",L"Remove",BS_OWNERDRAW,171,r.bottom-169,110,32,IDC_REMOVE);
