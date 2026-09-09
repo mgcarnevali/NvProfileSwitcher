@@ -1,6 +1,6 @@
 name: Build NvProfileSwitcher Native
 
-run-name: Build NvProfileSwitcher ${{ github.ref_name }}
+run-name: ${{ startsWith(github.ref, 'refs/tags/v') && format('Build NvProfileSwitcher {0}', github.ref_name) || github.event.head_commit.message }}
 
 on:
   workflow_dispatch:
