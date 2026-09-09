@@ -1734,8 +1734,8 @@ void BuildControls(){
     slider(L"Hue (\x00B0)",IDC_LBL_HUE,IDC_HUE,IDC_VALHUE,580,0,359);
 
     Add(L"BUTTON",L"Save profile",BS_OWNERDRAW,rightX+rightW-110,654,110,32,IDC_SAVE);
-    Add(L"BUTTON",L"Add profile",BS_OWNERDRAW,38,r.bottom-169,122,32,IDC_ADD);
-    Add(L"BUTTON",L"Remove",BS_OWNERDRAW,170,r.bottom-169,110,32,IDC_REMOVE);
+    Add(L"BUTTON",L"Add profile",BS_OWNERDRAW,39,r.bottom-169,122,32,IDC_ADD);
+    Add(L"BUTTON",L"Remove",BS_OWNERDRAW,171,r.bottom-169,110,32,IDC_REMOVE);
 
     Add(L"BUTTON",L"",BS_AUTOCHECKBOX,rightX,r.bottom-75,20,22,IDC_STARTWIN);
     Add(L"STATIC",L"Start with Windows",0,rightX+24,r.bottom-74,135,22,0);
@@ -1771,8 +1771,8 @@ void ResizeControls(){
     MoveWindow(H(IDC_NAME),rightX,146,rightW,28,TRUE);
     MoveWindow(H(IDC_EXE),rightX,209,rightW-110,28,TRUE);
     MoveWindow(H(IDC_BROWSE),rightX+rightW-100,204,100,36,TRUE);
-    MoveWindow(H(IDC_ADD),38,r.bottom-169,122,32,TRUE);
-    MoveWindow(H(IDC_REMOVE),170,r.bottom-169,110,32,TRUE);
+    MoveWindow(H(IDC_ADD),39,r.bottom-169,122,32,TRUE);
+    MoveWindow(H(IDC_REMOVE),171,r.bottom-169,110,32,TRUE);
     MoveWindow(H(IDC_FOOT_GITHUB),r.right-284,r.bottom-23,66,20,TRUE);
     MoveWindow(H(IDC_FOOT_SUPPORT),r.right-212,r.bottom-23,98,20,TRUE);
     MoveWindow(H(IDC_FOOT_ABOUT),r.right-108,r.bottom-23,64,20,TRUE);
