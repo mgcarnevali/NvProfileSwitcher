@@ -1348,23 +1348,6 @@ void DrawFolderIcon(HDC dc,int x,int y,COLORREF c){
     g.DrawPath(&pen,&path);
 }
 
-void DrawResetButtonIcon(HDC dc,int x,int y,COLORREF color){
-    Gdiplus::Graphics g(dc);
-    g.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
-    Gdiplus::Color c(255,GetRValue(color),GetGValue(color),GetBValue(color));
-    Gdiplus::Pen pen(c,1.6f);
-    pen.SetStartCap(Gdiplus::LineCapRound);
-    pen.SetEndCap(Gdiplus::LineCapRound);
-
-    // Compact counter-clockwise reset arrow.
-    Gdiplus::RectF arc((Gdiplus::REAL)x+2.0f,(Gdiplus::REAL)y+2.0f,12.0f,12.0f);
-    g.DrawArc(&pen,arc,35.0f,285.0f);
-    g.DrawLine(&pen,(Gdiplus::REAL)x+2.2f,(Gdiplus::REAL)y+3.0f,
-                    (Gdiplus::REAL)x+2.2f,(Gdiplus::REAL)y+8.0f);
-    g.DrawLine(&pen,(Gdiplus::REAL)x+2.2f,(Gdiplus::REAL)y+3.0f,
-                    (Gdiplus::REAL)x+7.2f,(Gdiplus::REAL)y+3.0f);
-}
-
 void DrawOwnerButton(const DRAWITEMSTRUCT* d){
     int id=(int)d->CtlID;
     bool down=(d->itemState&ODS_SELECTED)!=0;
@@ -1400,8 +1383,8 @@ void DrawOwnerButton(const DRAWITEMSTRUCT* d){
     SelectObject(d->hDC,buttonFont);
     GetTextExtentPoint32W(d->hDC,caption,(int)wcslen(caption),&sz);
 
-    int iconW=(id==IDC_SAVE)?0:(id==IDC_DEFAULTS?16:((id==IDC_ADD||id==IDC_REMOVE)?19:20));
-    int gap=(id==IDC_SAVE)?0:6;
+    int iconW=(id==IDC_SAVE||id==IDC_DEFAULTS)?0:((id==IDC_ADD||id==IDC_REMOVE)?19:20);
+    int gap=(id==IDC_SAVE||id==IDC_DEFAULTS)?0:6;
     if(id==IDC_BROWSE) gap=7;
     int total=iconW+gap+sz.cx;
     int start=r.left+((r.right-r.left)-total)/2;
@@ -1409,8 +1392,7 @@ void DrawOwnerButton(const DRAWITEMSTRUCT* d){
     if(id==IDC_REMOVE) start-=1; // optical centering for the trash icon + label
     int cy=(r.top+r.bottom)/2;
 
-    if(id==IDC_SAVE) { /* primary action uses text only */ }
-    else if(id==IDC_DEFAULTS) DrawResetButtonIcon(d->hDC,start,cy-8,icon);
+    if(id==IDC_SAVE||id==IDC_DEFAULTS) { /* text-only actions */ }
     else if(id==IDC_ADD) DrawAddButtonIcon(d->hDC,start+2,cy-9,icon);
     else if(id==IDC_REMOVE) DrawRemoveButtonIcon(d->hDC,start+2,cy-9,icon);
     else if(id==IDC_BROWSE) DrawFolderIcon(d->hDC,start,cy-12,icon);
@@ -1905,7 +1887,7 @@ void BuildControls(){
     slider(L"Digital Vibrance (%)",IDC_LBL_VIB,IDC_VIB,IDC_VALVIB,520,0,100);
     slider(L"Hue (\x00B0)",IDC_LBL_HUE,IDC_HUE,IDC_VALHUE,580,0,359);
 
-    Add(L"BUTTON",L"Defaults",BS_OWNERDRAW,rightX+rightW-210,654,90,32,IDC_DEFAULTS);
+    Add(L"BUTTON",L"Reset",BS_OWNERDRAW,rightX+rightW-210,654,90,32,IDC_DEFAULTS);
     Add(L"BUTTON",L"Save profile",BS_OWNERDRAW,rightX+rightW-110,654,110,32,IDC_SAVE);
     Add(L"BUTTON",L"Add profile",BS_OWNERDRAW,39,r.bottom-169,122,32,IDC_ADD);
     Add(L"BUTTON",L"Remove",BS_OWNERDRAW,171,r.bottom-169,110,32,IDC_REMOVE);
