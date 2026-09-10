@@ -305,7 +305,7 @@ void Save(){
         f<<"\n";
     }
 
-    f<<"  ],\n  \"Games Profiles\": [\n";
+    f<<"  ],\n  \"Application Profiles\": [\n";
     for(size_t i=0;i<gSettings.profiles.size();++i){
         const GameProfile& p=gSettings.profiles[i];
         f<<"    {\n"
@@ -350,7 +350,7 @@ void Load(){
         }
     }
 
-    size_t pr=s.find("\"Games Profiles\"");
+    size_t pr=s.find("\"Application Profiles\"");
     if(pr!=std::string::npos){
         size_t a=s.find('[',pr), b=FindMatchingJson(s,a,'[',']');
         if(a!=std::string::npos&&b!=std::string::npos){
