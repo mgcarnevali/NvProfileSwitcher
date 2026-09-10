@@ -876,6 +876,57 @@ void StyleRoundedField(HWND hwnd){
     SetWindowSubclass(hwnd,RoundedFieldSubclassProc,1,0);
     InvalidateRect(hwnd,nullptr,TRUE);
 }
+
+LRESULT CALLBACK CheckboxSubclassProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp,
+                                      UINT_PTR subclassId,DWORD_PTR refData){
+    switch(msg){
+    case BM_SETCHECK:{
+        LRESULT result=DefSubclassProc(hwnd,msg,wp,lp);
+        InvalidateRect(hwnd,nullptr,TRUE);
+        return result;
+    }
+    case WM_ERASEBKGND:
+        return 1;
+    case WM_PAINT:{
+        PAINTSTRUCT ps{};
+        HDC dc=BeginPaint(hwnd,&ps);
+        RECT client{};
+        GetClientRect(hwnd,&client);
+
+        HBRUSH panel=CreateSolidBrush(C_PANEL);
+        FillRect(dc,&client,panel);
+        DeleteObject(panel);
+
+        const bool checked=SendMessageW(hwnd,BM_GETCHECK,0,0)==BST_CHECKED;
+        RECT box{1,2,19,20};
+        FillRound(dc,box,checked?C_ACCENT:C_FIELD,checked?C_ACCENT:C_BORDER,5);
+
+        if(checked){
+            HPEN pen=CreatePen(PS_SOLID,2,RGB(9,30,12));
+            HGDIOBJ oldPen=SelectObject(dc,pen);
+            MoveToEx(dc,5,11,nullptr);
+            LineTo(dc,9,15);
+            LineTo(dc,16,7);
+            SelectObject(dc,oldPen);
+            DeleteObject(pen);
+        }
+
+        EndPaint(hwnd,&ps);
+        return 0;
+    }
+    case WM_NCDESTROY:
+        RemoveWindowSubclass(hwnd,CheckboxSubclassProc,subclassId);
+        break;
+    }
+    return DefSubclassProc(hwnd,msg,wp,lp);
+}
+
+void StyleCheckbox(HWND hwnd){
+    if(!hwnd) return;
+    SetWindowTheme(hwnd,L"",L"");
+    SetWindowSubclass(hwnd,CheckboxSubclassProc,1,0);
+    InvalidateRect(hwnd,nullptr,TRUE);
+}
 void RefreshList(){ HWND l=H(IDC_LIST); SendMessageW(l,LB_RESETCONTENT,0,0); SendMessageW(l,LB_ADDSTRING,0,(LPARAM)gSettings.desktop.name.c_str()); for(auto&p:gSettings.profiles)SendMessageW(l,LB_ADDSTRING,0,(LPARAM)p.name.c_str()); int maxSel=(int)gSettings.profiles.size(); gSelected=std::clamp(gSelected,0,maxSel); SendMessageW(l,LB_SETCURSEL,gSelected,0); }
 
 bool ProfileTitleIsTruncated(int item){
@@ -1244,7 +1295,7 @@ void SetDesktopUi(bool desktop){
     RECT r{}; GetClientRect(gWnd,&r);
 
     const int margin=18;
-    const int leftW=420;
+    const int leftW=360;
     const int gap=14;
     const int settingsW=330;
     const int centerPanelX=margin+leftW+gap;
@@ -1258,15 +1309,24 @@ void SetDesktopUi(bool desktop){
     ShowWindow(H(IDC_REMOVE),desktop?SW_HIDE:SW_SHOW);
 
     const int yDisplay=desktop?166:322;
-    const int yBri=desktop?238:392;
-    const int yCon=desktop?306:460;
-    const int yGam=desktop?374:528;
-    const int yVib=desktop?442:596;
-    const int yHue=desktop?510:664;
-    const int ySave=desktop?584:734;
+    const int yBri=desktop?248:404;
+    const int yCon=desktop?306:462;
+    const int yGam=desktop?364:520;
+    const int yVib=desktop?422:578;
+    const int yHue=desktop?480:636;
+    const int ySave=desktop?538:694;
 
+    // Display is one compact block: icon/label, then the combo directly below.
     MoveWindow(H(IDC_LBL_DISPLAY),rightX+31,yDisplay,150,22,TRUE);
-    MoveWindow(H(IDC_DISPLAY),rightX,yDisplay+25,rightW,34,TRUE);
+    MoveWindow(H(IDC_DISPLAY),rightX+2,yDisplay+26,rightW-4,32,TRUE);
+
+    // Fixed slider grid: icon | label | slider | value.
+    const int labelX=rightX+30;
+    const int labelW=154;
+    const int trackX=rightX+190;
+    const int valueW=76;
+    const int valueX=rightX+rightW-valueW;
+    const int trackW=valueX-trackX-16;
 
     struct SPos{int lbl,track,val,y;};
     for(auto sp:std::vector<SPos>{
@@ -1276,24 +1336,23 @@ void SetDesktopUi(bool desktop){
         {IDC_LBL_VIB,IDC_VIB,IDC_VALVIB,yVib},
         {IDC_LBL_HUE,IDC_HUE,IDC_VALHUE,yHue}
     }){
-        MoveWindow(H(sp.lbl),rightX+29,sp.y-2,180,22,TRUE);
-        MoveWindow(H(sp.track),rightX+178,sp.y-4,rightW-178-76-16,28,TRUE);
-        MoveWindow(H(sp.val),rightX+rightW-76,sp.y-7,76,32,TRUE);
+        MoveWindow(H(sp.lbl),labelX,sp.y-2,labelW,22,TRUE);
+        MoveWindow(H(sp.track),trackX,sp.y-4,trackW,28,TRUE);
+        MoveWindow(H(sp.val),valueX,sp.y-7,valueW,32,TRUE);
     }
 
     MoveWindow(H(IDC_DEFAULTS),rightX,ySave,132,38,TRUE);
     MoveWindow(H(IDC_SAVE),rightX+rightW-160,ySave,160,38,TRUE);
 
-    // Application Settings now has its own right-hand panel.
     const int appX=centerPanelX+centerPanelW+gap+22;
-    MoveWindow(H(IDC_STARTWIN),appX,207,20,22,TRUE);
-    MoveWindow(GetWindow(H(IDC_STARTWIN),GW_HWNDNEXT),appX+28,206,210,22,TRUE);
-    MoveWindow(H(IDC_STARTMIN),appX,253,20,22,TRUE);
-    MoveWindow(GetWindow(H(IDC_STARTMIN),GW_HWNDNEXT),appX+28,252,210,22,TRUE);
-    MoveWindow(H(IDC_MINTRAY),appX,299,20,22,TRUE);
-    MoveWindow(GetWindow(H(IDC_MINTRAY),GW_HWNDNEXT),appX+28,298,210,22,TRUE);
-    MoveWindow(H(IDC_CHECKUPDATES),appX,345,20,22,TRUE);
-    MoveWindow(GetWindow(H(IDC_CHECKUPDATES),GW_HWNDNEXT),appX+28,344,210,22,TRUE);
+    MoveWindow(H(IDC_STARTWIN),appX,171,20,22,TRUE);
+    MoveWindow(GetWindow(H(IDC_STARTWIN),GW_HWNDNEXT),appX+28,170,210,22,TRUE);
+    MoveWindow(H(IDC_STARTMIN),appX,217,20,22,TRUE);
+    MoveWindow(GetWindow(H(IDC_STARTMIN),GW_HWNDNEXT),appX+28,216,210,22,TRUE);
+    MoveWindow(H(IDC_MINTRAY),appX,263,20,22,TRUE);
+    MoveWindow(GetWindow(H(IDC_MINTRAY),GW_HWNDNEXT),appX+28,262,210,22,TRUE);
+    MoveWindow(H(IDC_CHECKUPDATES),appX,309,20,22,TRUE);
+    MoveWindow(GetWindow(H(IDC_CHECKUPDATES),GW_HWNDNEXT),appX+28,308,210,22,TRUE);
 
     InvalidateRect(gWnd,nullptr,TRUE);
 }
@@ -1869,11 +1928,13 @@ void Paint(HWND w){
     FillRect(dc,&rc,gBackBrush);
 
     const int margin=18, top=88, gap=14, footerH=56;
-    const int leftW=420, settingsW=330;
+    const int leftW=360, settingsW=330;
     const int panelBottom=rc.bottom-footerH-14;
     const int centerX=margin+leftW+gap;
     const int centerW=rc.right-(margin*2)-leftW-settingsW-(gap*2);
     const int settingsX=centerX+centerW+gap;
+    const int rightX=centerX+22;
+    const int rightW=centerW-44;
 
     RECT left{margin,top,margin+leftW,panelBottom};
     RECT center{centerX,top,centerX+centerW,panelBottom};
@@ -1882,7 +1943,6 @@ void Paint(HWND w){
     FillRound(dc,center,C_PANEL,C_BORDER,10);
     FillRound(dc,settings,C_PANEL,C_BORDER,10);
 
-    // Keep NvProfileSwitcher's existing branded header artwork.
     DrawHeaderImage(dc);
     Fill(dc,0,78,rc.right,1,C_BORDER);
 
@@ -1895,28 +1955,32 @@ void Paint(HWND w){
     DrawApplicationSettingsGear(dc,settingsX+22,107);
     DrawLabel(dc,L"Application Settings",settingsX+52,110,C_TEXT,gFontBold);
 
-    // Thin section separators below the panel headings.
     Fill(dc,margin+14,146,leftW-28,1,C_BORDER);
     Fill(dc,centerX+14,146,centerW-28,1,C_BORDER);
     Fill(dc,settingsX+14,146,settingsW-28,1,C_BORDER);
 
     const bool desktop=IsDesktopSelected();
     const int displayY=desktop?166:322;
+
     DrawDisplayPrototypeIcon(dc,centerX+22,displayY);
 
+    // Rounded outer frame for Display. The real COMBOBOX sits inset inside
+    // this frame, so its native dropdown is not clipped by a window region.
+    RECT displayFrame{rightX,displayY+24,rightX+rightW,displayY+60};
+    FillRound(dc,displayFrame,C_FIELD,C_BORDER,8);
+
     const int iconX=centerX+22;
-    const int iconBri=desktop?238:392;
-    const int iconCon=desktop?306:460;
-    const int iconGam=desktop?374:528;
-    const int iconVib=desktop?442:596;
-    const int iconHue=desktop?510:664;
+    const int iconBri=desktop?248:404;
+    const int iconCon=desktop?306:462;
+    const int iconGam=desktop?364:520;
+    const int iconVib=desktop?422:578;
+    const int iconHue=desktop?480:636;
     DrawSliderIcon(dc,gSliderBrightness,iconX,iconBri-2);
     DrawSliderIcon(dc,gSliderContrast,iconX,iconCon-2);
     DrawSliderIcon(dc,gSliderGamma,iconX,iconGam-2);
     DrawSliderIcon(dc,gSliderVibrance,iconX,iconVib-2);
     DrawSliderIcon(dc,gSliderHue,iconX,iconHue-2);
 
-    // Footer.
     const int footerTop=rc.bottom-footerH;
     Fill(dc,0,footerTop,rc.right,1,C_BORDER);
     const int footerY=footerTop+19;
@@ -1978,7 +2042,7 @@ void Paint(HWND w){
 void BuildControls(){
     RECT r{}; GetClientRect(gWnd,&r);
     const int margin=18, top=88, gap=14, footerH=56;
-    const int leftW=420, settingsW=330;
+    const int leftW=360, settingsW=330;
     const int centerPanelX=margin+leftW+gap;
     const int centerPanelW=r.right-(margin*2)-leftW-settingsW-(gap*2);
     const int rightX=centerPanelX+22;
@@ -1988,7 +2052,7 @@ void BuildControls(){
     HWND list=Add(L"LISTBOX",L"",LBS_NOTIFY|LBS_OWNERDRAWFIXED|WS_VSCROLL,
         margin+10,158,leftW-20,panelBottom-158-18,IDC_LIST);
     SetWindowTheme(list,L"DarkMode_Explorer",nullptr);
-    SendMessageW(list,LB_SETITEMHEIGHT,0,76);
+    SendMessageW(list,LB_SETITEMHEIGHT,0,58);
 
     gProfileTooltip=CreateWindowExW(WS_EX_TOPMOST,TOOLTIPS_CLASSW,nullptr,
         WS_POPUP|TTS_ALWAYSTIP|TTS_NOPREFIX,
@@ -2010,49 +2074,56 @@ void BuildControls(){
         SetWindowSubclass(list,ProfileListSubclassProc,1,0);
     }
 
-    Add(L"BUTTON",L"Add profile",BS_OWNERDRAW,margin+leftW-286,104,132,38,IDC_ADD);
-    Add(L"BUTTON",L"Remove",BS_OWNERDRAW,margin+leftW-144,104,126,38,IDC_REMOVE);
+    Add(L"BUTTON",L"Add profile",BS_OWNERDRAW,142,104,120,38,IDC_ADD);
+    Add(L"BUTTON",L"Remove",BS_OWNERDRAW,270,104,90,38,IDC_REMOVE);
 
-    HWND lblName=Add(L"STATIC",L"Profile name",0,rightX,166,160,22,IDC_LBL_NAME);
-    SendMessageW(lblName,WM_SETFONT,(WPARAM)gFontBold,TRUE);
-    HWND eName=Add(L"EDIT",L"",ES_AUTOHSCROLL,rightX+147,162,rightW-147,34,IDC_NAME);
+    // Compact Profile Settings layout.
+    Add(L"STATIC",L"Profile name",0,rightX,166,110,22,IDC_LBL_NAME);
+    HWND eName=Add(L"EDIT",L"",ES_AUTOHSCROLL,rightX+118,162,rightW-118,34,IDC_NAME);
     SetWindowTheme(eName,L"DarkMode_Explorer",nullptr);
     StyleRoundedField(eName);
     SendMessageW(eName,EM_SETMARGINS,EC_LEFTMARGIN|EC_RIGHTMARGIN,MAKELPARAM(10,10));
 
-    HWND lblExe=Add(L"STATIC",L"Executable",0,rightX,214,160,22,IDC_LBL_EXE);
-    SendMessageW(lblExe,WM_SETFONT,(WPARAM)gFontBold,TRUE);
-    HWND eExe=Add(L"EDIT",L"",ES_AUTOHSCROLL,rightX,240,rightW-126,34,IDC_EXE);
+    Add(L"STATIC",L"Executable",0,rightX,210,120,22,IDC_LBL_EXE);
+    const int browseW=128;
+    const int fieldGap=10;
+    HWND eExe=Add(L"EDIT",L"",ES_AUTOHSCROLL,rightX,232,rightW-browseW-fieldGap,36,IDC_EXE);
     SetWindowTheme(eExe,L"DarkMode_Explorer",nullptr);
     StyleRoundedField(eExe);
     SendMessageW(eExe,EM_SETMARGINS,EC_LEFTMARGIN|EC_RIGHTMARGIN,MAKELPARAM(10,10));
-    Add(L"BUTTON",L"Browse...",BS_OWNERDRAW,rightX+rightW-116,237,116,40,IDC_BROWSE);
+    Add(L"BUTTON",L"Browse...",BS_OWNERDRAW,
+        rightX+rightW-browseW,232,browseW,36,IDC_BROWSE);
 
-    Add(L"BUTTON",L"",BS_AUTOCHECKBOX,rightX,286,20,22,IDC_ENABLED);
-    Add(L"STATIC",L"Enable this profile",0,rightX+28,285,205,22,IDC_LBL_ENABLED);
+    HWND enabled=Add(L"BUTTON",L"",BS_AUTOCHECKBOX,rightX,278,20,22,IDC_ENABLED);
+    StyleCheckbox(enabled);
+    Add(L"STATIC",L"Enable this profile",0,rightX+28,277,205,22,IDC_LBL_ENABLED);
 
-    Add(L"STATIC",L"Display",0,rightX+31,300,150,22,IDC_LBL_DISPLAY);
-    SendMessageW(H(IDC_LBL_DISPLAY),WM_SETFONT,(WPARAM)gFontBold,TRUE);
+    Add(L"STATIC",L"Display",0,rightX+31,322,150,22,IDC_LBL_DISPLAY);
     HWND display=Add(L"COMBOBOX",L"",CBS_DROPDOWNLIST|CBS_OWNERDRAWFIXED|CBS_HASSTRINGS|WS_VSCROLL,
-        rightX,325,rightW,240,IDC_DISPLAY);
-    SendMessageW(display,CB_SETITEMHEIGHT,0,30);
+        rightX+2,348,rightW-4,240,IDC_DISPLAY);
+    SendMessageW(display,CB_SETITEMHEIGHT,0,28);
     SetWindowTheme(display,L"DarkMode_Explorer",nullptr);
-    StyleRoundedField(display);
+
+    const int labelX=rightX+30;
+    const int labelW=154;
+    const int trackX=rightX+190;
+    const int valueW=76;
+    const int valueX=rightX+rightW-valueW;
+    const int trackW=valueX-trackX-16;
 
     auto slider=[&](const wchar_t*t,int lid,int id,int vid,int y,int mn,int mx){
-        HWND lbl=Add(L"STATIC",t,0,rightX+29,y-2,180,22,lid);
-        SendMessageW(lbl,WM_SETFONT,(WPARAM)gFontBold,TRUE);
-        HWND tr=Add(TRACKBAR_CLASSW,L"",TBS_HORZ|TBS_NOTICKS,rightX+178,y-4,rightW-178-76-16,28,id);
+        Add(L"STATIC",t,0,labelX,y-2,labelW,22,lid);
+        HWND tr=Add(TRACKBAR_CLASSW,L"",TBS_HORZ|TBS_NOTICKS,trackX,y-4,trackW,28,id);
         SendMessageW(tr,TBM_SETRANGE,TRUE,MAKELONG(mn,mx));
-        Add(L"STATIC",L"",SS_OWNERDRAW,rightX+rightW-76,y-7,76,32,vid);
+        Add(L"STATIC",L"",SS_OWNERDRAW,valueX,y-7,valueW,32,vid);
     };
-    slider(L"Brightness",IDC_LBL_BRI,IDC_BRI,IDC_VALBRI,370,80,120);
-    slider(L"Contrast",IDC_LBL_CON,IDC_CON,IDC_VALCON,438,80,120);
-    slider(L"Gamma",IDC_LBL_GAM,IDC_GAM,IDC_VALGAM,506,30,280);
-    slider(L"Digital Vibrance (%)",IDC_LBL_VIB,IDC_VIB,IDC_VALVIB,574,0,100);
-    slider(L"Hue (\x00B0)",IDC_LBL_HUE,IDC_HUE,IDC_VALHUE,642,0,359);
+    slider(L"Brightness",IDC_LBL_BRI,IDC_BRI,IDC_VALBRI,404,80,120);
+    slider(L"Contrast",IDC_LBL_CON,IDC_CON,IDC_VALCON,462,80,120);
+    slider(L"Gamma",IDC_LBL_GAM,IDC_GAM,IDC_VALGAM,520,30,280);
+    slider(L"Digital Vibrance (%)",IDC_LBL_VIB,IDC_VIB,IDC_VALVIB,578,0,100);
+    slider(L"Hue (\x00B0)",IDC_LBL_HUE,IDC_HUE,IDC_VALHUE,636,0,359);
 
-    Add(L"BUTTON",L"Reset",BS_OWNERDRAW,rightX,714,132,38,IDC_DEFAULTS);
+    Add(L"BUTTON",L"Reset",BS_OWNERDRAW,rightX,694,132,38,IDC_DEFAULTS);
     gResetTooltip=CreateWindowExW(WS_EX_TOOLWINDOW|WS_EX_TOPMOST,L"STATIC",
         L"Reset to NVIDIA defaults",WS_POPUP,0,0,0,0,gWnd,nullptr,gInst,nullptr);
     if(gResetTooltip){
@@ -2060,16 +2131,18 @@ void BuildControls(){
         SetWindowSubclass(gResetTooltip,ProfileTooltipSubclassProc,2,0);
         SetWindowSubclass(H(IDC_DEFAULTS),ResetButtonSubclassProc,1,0);
     }
-    Add(L"BUTTON",L"Save profile",BS_OWNERDRAW,rightX+rightW-160,714,160,38,IDC_SAVE);
+    Add(L"BUTTON",L"Save profile",BS_OWNERDRAW,rightX+rightW-160,694,160,38,IDC_SAVE);
 
     const int appX=centerPanelX+centerPanelW+gap+22;
-    Add(L"BUTTON",L"",BS_AUTOCHECKBOX,appX,171,20,22,IDC_STARTWIN);
+    HWND startWin=Add(L"BUTTON",L"",BS_AUTOCHECKBOX,appX,171,20,22,IDC_STARTWIN);
+    HWND startMin=Add(L"BUTTON",L"",BS_AUTOCHECKBOX,appX,217,20,22,IDC_STARTMIN);
+    HWND minTray=Add(L"BUTTON",L"",BS_AUTOCHECKBOX,appX,263,20,22,IDC_MINTRAY);
+    HWND checkUpdates=Add(L"BUTTON",L"",BS_AUTOCHECKBOX,appX,309,20,22,IDC_CHECKUPDATES);
+    StyleCheckbox(startWin); StyleCheckbox(startMin); StyleCheckbox(minTray); StyleCheckbox(checkUpdates);
+
     Add(L"STATIC",L"Start with Windows",0,appX+28,170,210,22,0);
-    Add(L"BUTTON",L"",BS_AUTOCHECKBOX,appX,217,20,22,IDC_STARTMIN);
     Add(L"STATIC",L"Start minimized",0,appX+28,216,210,22,0);
-    Add(L"BUTTON",L"",BS_AUTOCHECKBOX,appX,263,20,22,IDC_MINTRAY);
     Add(L"STATIC",L"Minimize to tray",0,appX+28,262,210,22,0);
-    Add(L"BUTTON",L"",BS_AUTOCHECKBOX,appX,309,20,22,IDC_CHECKUPDATES);
     Add(L"STATIC",L"Check for updates",0,appX+28,308,210,22,0);
 
     SendMessageW(H(IDC_STARTWIN),BM_SETCHECK,gSettings.startWindows?BST_CHECKED:BST_UNCHECKED,0);
@@ -2088,7 +2161,7 @@ void BuildControls(){
 void ResizeControls(){
     RECT r{}; GetClientRect(gWnd,&r);
     const int margin=18, gap=14, footerH=56;
-    const int leftW=420, settingsW=330;
+    const int leftW=360, settingsW=330;
     const int centerPanelX=margin+leftW+gap;
     const int centerPanelW=r.right-(margin*2)-leftW-settingsW-(gap*2);
     const int rightX=centerPanelX+22;
@@ -2096,16 +2169,19 @@ void ResizeControls(){
     const int panelBottom=r.bottom-footerH-14;
 
     MoveWindow(H(IDC_LIST),margin+10,158,leftW-20,(int)std::max(300,panelBottom-158-18),TRUE);
-    MoveWindow(H(IDC_ADD),margin+leftW-286,104,132,38,TRUE);
-    MoveWindow(H(IDC_REMOVE),margin+leftW-144,104,126,38,TRUE);
+    MoveWindow(H(IDC_ADD),142,104,120,38,TRUE);
+    MoveWindow(H(IDC_REMOVE),270,104,90,38,TRUE);
 
-    MoveWindow(H(IDC_LBL_NAME),rightX,166,140,22,TRUE);
-    MoveWindow(H(IDC_NAME),rightX+147,162,rightW-147,34,TRUE);
-    MoveWindow(H(IDC_LBL_EXE),rightX,214,140,22,TRUE);
-    MoveWindow(H(IDC_EXE),rightX,240,rightW-126,34,TRUE);
-    MoveWindow(H(IDC_BROWSE),rightX+rightW-116,237,116,40,TRUE);
-    MoveWindow(H(IDC_ENABLED),rightX,286,20,22,TRUE);
-    MoveWindow(H(IDC_LBL_ENABLED),rightX+28,285,205,22,TRUE);
+    MoveWindow(H(IDC_LBL_NAME),rightX,166,110,22,TRUE);
+    MoveWindow(H(IDC_NAME),rightX+118,162,rightW-118,34,TRUE);
+
+    const int browseW=128;
+    const int fieldGap=10;
+    MoveWindow(H(IDC_LBL_EXE),rightX,210,120,22,TRUE);
+    MoveWindow(H(IDC_EXE),rightX,232,rightW-browseW-fieldGap,36,TRUE);
+    MoveWindow(H(IDC_BROWSE),rightX+rightW-browseW,232,browseW,36,TRUE);
+    MoveWindow(H(IDC_ENABLED),rightX,278,20,22,TRUE);
+    MoveWindow(H(IDC_LBL_ENABLED),rightX+28,277,205,22,TRUE);
 
     MoveWindow(H(IDC_FOOT_GITHUB),r.right-284,r.bottom-43,66,24,TRUE);
     MoveWindow(H(IDC_FOOT_SUPPORT),r.right-212,r.bottom-43,98,24,TRUE);
@@ -2113,7 +2189,6 @@ void ResizeControls(){
 
     ApplyRoundedRegion(H(IDC_NAME),8);
     ApplyRoundedRegion(H(IDC_EXE),8);
-    ApplyRoundedRegion(H(IDC_DISPLAY),8);
     SetDesktopUi(IsDesktopSelected());
 }
 
@@ -2619,15 +2694,19 @@ case WM_CTLCOLORSTATIC:{HDC dc=(HDC)wp;SetTextColor(dc,C_TEXT);SetBkColor(dc,C_P
 
     if(d->CtlID==IDC_LIST&&d->itemID!=(UINT)-1){
         bool selected=(d->itemState&ODS_SELECTED)!=0;
-        // Draw the row ourselves so selected items match the dark/green visual language.
-        if(selected) Fill(d->hDC,d->rcItem.left,d->rcItem.top,d->rcItem.right-d->rcItem.left,d->rcItem.bottom-d->rcItem.top,C_ACCENT_DARK);
-        else Fill(d->hDC,d->rcItem.left,d->rcItem.top,d->rcItem.right-d->rcItem.left,d->rcItem.bottom-d->rcItem.top,C_PANEL);
-        if(selected) Fill(d->hDC,d->rcItem.left,d->rcItem.top,4,d->rcItem.bottom-d->rcItem.top,C_ACCENT);
+
+        RECT row=d->rcItem;
+        row.left+=2; row.right-=2; row.top+=2; row.bottom-=2;
+        if(selected)
+            FillRound(d->hDC,row,RGB(17,42,25),C_ACCENT,7);
+        else
+            FillRound(d->hDC,row,C_PANEL,C_PANEL,7);
 
         bool desktop=d->itemID==0;
         ApplicationProfile*p=desktop?&gSettings.desktop:&gSettings.profiles[d->itemID-1];
+
         const int rowH=d->rcItem.bottom-d->rcItem.top;
-        const int iconSize=40;
+        const int iconSize=36;
         int x=d->rcItem.left+12;
         int y=d->rcItem.top+(rowH-iconSize)/2;
 
@@ -2635,14 +2714,14 @@ case WM_CTLCOLORSTATIC:{HDC dc=(HDC)wp;SetTextColor(dc,C_TEXT);SetBkColor(dc,C_P
             DrawWindowsLogo(d->hDC,x+1,y,iconSize);
         }else{
             HICON ic=LoadExeIcon(p->exePath);
-            if(ic){DrawIconEx(d->hDC,x,y,ic,iconSize,iconSize,0,nullptr,DI_NORMAL);DestroyIcon(ic);}
-            else{
-                // Placeholder for a profile without an EXE yet:
-                // outlined green circle with a centered plus.
+            if(ic){
+                DrawIconEx(d->hDC,x,y,ic,iconSize,iconSize,0,nullptr,DI_NORMAL);
+                DestroyIcon(ic);
+            }else{
                 Gdiplus::Graphics g(d->hDC);
                 g.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
                 Gdiplus::Color accent(255,GetRValue(C_ACCENT),GetGValue(C_ACCENT),GetBValue(C_ACCENT));
-                Gdiplus::Pen pen(accent,2.5f);
+                Gdiplus::Pen pen(accent,2.3f);
                 pen.SetStartCap(Gdiplus::LineCapRound);
                 pen.SetEndCap(Gdiplus::LineCapRound);
 
@@ -2653,29 +2732,19 @@ case WM_CTLCOLORSTATIC:{HDC dc=(HDC)wp;SetTextColor(dc,C_TEXT);SetBkColor(dc,C_P
 
                 const Gdiplus::REAL cx=(Gdiplus::REAL)x+iconSize/2.0f;
                 const Gdiplus::REAL cy=(Gdiplus::REAL)y+iconSize/2.0f;
-                const Gdiplus::REAL arm=8.0f;
+                const Gdiplus::REAL arm=7.0f;
                 g.DrawLine(&pen,cx-arm,cy,cx+arm,cy);
                 g.DrawLine(&pen,cx,cy-arm,cx,cy+arm);
             }
         }
 
         const wchar_t* title=desktop?L"Windows":p->name.c_str();
-        RECT titleRect{x+54,d->rcItem.top+14,d->rcItem.right-8,d->rcItem.top+38};
+        RECT titleRect{x+50,d->rcItem.top,d->rcItem.right-10,d->rcItem.bottom};
         SetBkMode(d->hDC,TRANSPARENT);
         SetTextColor(d->hDC,C_TEXT);
         SelectObject(d->hDC,gFontBold);
         DrawTextW(d->hDC,title,-1,&titleRect,
             DT_LEFT|DT_VCENTER|DT_SINGLELINE|DT_END_ELLIPSIS|DT_NOPREFIX);
-
-        std::wstring subtitle=desktop?L"Default profile":p->exePath;
-        if(!subtitle.empty()){
-            RECT subRect{x+54,d->rcItem.top+40,d->rcItem.right-8,d->rcItem.bottom-8};
-            SetTextColor(d->hDC,C_MUTED);
-            SelectObject(d->hDC,gFont);
-            DrawTextW(d->hDC,subtitle.c_str(),-1,&subRect,
-                DT_LEFT|DT_VCENTER|DT_SINGLELINE|DT_END_ELLIPSIS|DT_NOPREFIX);
-        }
-        Fill(d->hDC,d->rcItem.left,d->rcItem.bottom-1,d->rcItem.right-d->rcItem.left,1,C_BORDER);
         return TRUE;
     }
     break;
