@@ -1324,13 +1324,13 @@ void SetDesktopUi(bool desktop){
         ShowWindow(H(id),showApplication);
     ShowWindow(H(IDC_REMOVE),desktop?SW_HIDE:SW_SHOW);
 
-    const int yDisplay=desktop?180:334;
-    const int yBri=desktop?260:420;
-    const int yCon=desktop?328:488;
-    const int yGam=desktop?396:556;
-    const int yVib=desktop?464:624;
-    const int yHue=desktop?532:692;
-    const int ySave=desktop?596:756;
+    const int yDisplay=desktop?154:320;
+    const int yBri=desktop?230:406;
+    const int yCon=desktop?294:474;
+    const int yGam=desktop?358:542;
+    const int yVib=desktop?422:610;
+    const int yHue=desktop?486:678;
+    const int ySave=desktop?550:742;
 
     MoveWindow(H(IDC_LBL_DISPLAY),rightX+31,yDisplay,150,22,TRUE);
     MoveWindow(H(IDC_DISPLAY),rightX,yDisplay+24,rightW,34,TRUE);
@@ -1359,14 +1359,14 @@ void SetDesktopUi(bool desktop){
     MoveWindow(H(IDC_SAVE),rightX+rightW-160,ySave,160,38,TRUE);
 
     const int appX=centerPanelX+centerPanelW+gap+22;
-    MoveWindow(H(IDC_STARTWIN),appX,164,20,22,TRUE);
-    MoveWindow(GetWindow(H(IDC_STARTWIN),GW_HWNDNEXT),appX+24,164,220,22,TRUE);
-    MoveWindow(H(IDC_STARTMIN),appX,194,20,22,TRUE);
-    MoveWindow(GetWindow(H(IDC_STARTMIN),GW_HWNDNEXT),appX+24,194,220,22,TRUE);
-    MoveWindow(H(IDC_MINTRAY),appX,224,20,22,TRUE);
-    MoveWindow(GetWindow(H(IDC_MINTRAY),GW_HWNDNEXT),appX+24,224,220,22,TRUE);
-    MoveWindow(H(IDC_CHECKUPDATES),appX,254,20,22,TRUE);
-    MoveWindow(GetWindow(H(IDC_CHECKUPDATES),GW_HWNDNEXT),appX+24,254,220,22,TRUE);
+    MoveWindow(H(IDC_STARTWIN),appX,150,20,22,TRUE);
+    MoveWindow(GetWindow(H(IDC_STARTWIN),GW_HWNDNEXT),appX+24,150,220,22,TRUE);
+    MoveWindow(H(IDC_STARTMIN),appX,178,20,22,TRUE);
+    MoveWindow(GetWindow(H(IDC_STARTMIN),GW_HWNDNEXT),appX+24,178,220,22,TRUE);
+    MoveWindow(H(IDC_MINTRAY),appX,206,20,22,TRUE);
+    MoveWindow(GetWindow(H(IDC_MINTRAY),GW_HWNDNEXT),appX+24,206,220,22,TRUE);
+    MoveWindow(H(IDC_CHECKUPDATES),appX,234,20,22,TRUE);
+    MoveWindow(GetWindow(H(IDC_CHECKUPDATES),GW_HWNDNEXT),appX+24,234,220,22,TRUE);
 
     InvalidateRect(gWnd,nullptr,TRUE);
 }
@@ -1984,28 +1984,28 @@ void Paint(HWND w){
     Fill(dc,0,78,rc.right,1,C_BORDER);
 
     // Compact panel header strips, intentionally simpler than the main branded header.
-    RECT leftHeader{left.left+1,left.top+1,left.right-1,147};
-    RECT centerHeader{center.left+1,center.top+1,center.right-1,147};
-    RECT settingsHeader{settings.left+1,settings.top+1,settings.right-1,147};
+    RECT leftHeader{left.left+1,left.top+1,left.right-1,137};
+    RECT centerHeader{center.left+1,center.top+1,center.right-1,137};
+    RECT settingsHeader{settings.left+1,settings.top+1,settings.right-1,137};
     FillRound(dc,leftHeader,C_PANEL2,C_PANEL2,9);
     FillRound(dc,centerHeader,C_PANEL2,C_PANEL2,9);
     FillRound(dc,settingsHeader,C_PANEL2,C_PANEL2,9);
 
     // Square off the lower corners so only the top of each panel header is rounded.
-    Fill(dc,left.left+1,left.top+10,leftW-2,57,C_PANEL2);
-    Fill(dc,center.left+1,center.top+10,centerW-2,57,C_PANEL2);
-    Fill(dc,settings.left+1,settings.top+10,settingsW-2,57,C_PANEL2);
+    Fill(dc,left.left+1,left.top+10,leftW-2,47,C_PANEL2);
+    Fill(dc,center.left+1,center.top+10,centerW-2,47,C_PANEL2);
+    Fill(dc,settings.left+1,settings.top+10,settingsW-2,47,C_PANEL2);
 
-    DrawLabel(dc,L"Profiles",left.left+14,108,C_TEXT,gFontBold);
-    DrawLabel(dc,L"Profile Settings",center.left+14,108,C_TEXT,gFontBold);
-    DrawLabel(dc,L"Application Settings",settings.left+14,108,C_TEXT,gFontBold);
+    DrawLabel(dc,L"Profiles",left.left+14,101,C_TEXT,gFontBold);
+    DrawLabel(dc,L"Profile Settings",center.left+14,101,C_TEXT,gFontBold);
+    DrawLabel(dc,L"Application Settings",settings.left+14,101,C_TEXT,gFontBold);
 
-    Fill(dc,left.left+12,146,leftW-24,1,C_BORDER);
-    Fill(dc,center.left+12,146,centerW-24,1,C_BORDER);
-    Fill(dc,settings.left+12,146,settingsW-24,1,C_BORDER);
+    Fill(dc,left.left+12,136,leftW-24,1,C_BORDER);
+    Fill(dc,center.left+12,136,centerW-24,1,C_BORDER);
+    Fill(dc,settings.left+12,136,settingsW-24,1,C_BORDER);
 
     const bool desktop=IsDesktopSelected();
-    const int displayY=desktop?180:334;
+    const int displayY=desktop?154:320;
 
     DrawDisplayPrototypeIcon(dc,centerX+22,displayY);
 
@@ -2014,19 +2014,19 @@ void Paint(HWND w){
     if(!desktop){
         const int browseW=150;
         const int fieldGap=10;
-        RECT nameFrame{rightX+118,160,rightX+rightW,196};
+        RECT nameFrame{rightX+118,146,rightX+rightW,182};
         FillRound(dc,nameFrame,C_FIELD,C_BORDER,8);
 
-        RECT exeFrame{rightX,236,rightX+rightW-browseW-fieldGap,272};
+        RECT exeFrame{rightX,222,rightX+rightW-browseW-fieldGap,258};
         FillRound(dc,exeFrame,C_FIELD,C_BORDER,8);
     }
 
     const int iconX=centerX+22;
-    const int iconBri=desktop?260:420;
-    const int iconCon=desktop?328:488;
-    const int iconGam=desktop?396:556;
-    const int iconVib=desktop?464:624;
-    const int iconHue=desktop?532:692;
+    const int iconBri=desktop?230:406;
+    const int iconCon=desktop?294:474;
+    const int iconGam=desktop?358:542;
+    const int iconVib=desktop?422:610;
+    const int iconHue=desktop?486:678;
     DrawSliderIcon(dc,gSliderBrightness,iconX,iconBri-2);
     DrawSliderIcon(dc,gSliderContrast,iconX,iconCon-2);
     DrawSliderIcon(dc,gSliderGamma,iconX,iconGam-2);
@@ -2102,7 +2102,7 @@ void BuildControls(){
     const int panelBottom=r.bottom-footerH-14;
 
     HWND list=Add(L"LISTBOX",L"",LBS_NOTIFY|LBS_OWNERDRAWFIXED|WS_VSCROLL,
-        margin+10,164,leftW-20,panelBottom-164-18,IDC_LIST);
+        margin+10,144,leftW-20,panelBottom-144-18,IDC_LIST);
     SetWindowTheme(list,L"DarkMode_Explorer",nullptr);
     SendMessageW(list,LB_SETITEMHEIGHT,0,70);
 
@@ -2128,29 +2128,29 @@ void BuildControls(){
         SetWindowSubclass(list,ProfileListSubclassProc,1,0);
     }
 
-    Add(L"BUTTON",L"Add profile",BS_OWNERDRAW,174,99,96,32,IDC_ADD);
-    Add(L"BUTTON",L"Remove",BS_OWNERDRAW,278,99,86,32,IDC_REMOVE);
+    Add(L"BUTTON",L"Add profile",BS_OWNERDRAW,174,95,94,28,IDC_ADD);
+    Add(L"BUTTON",L"Remove",BS_OWNERDRAW,276,95,82,28,IDC_REMOVE);
 
-    Add(L"STATIC",L"Profile name",0,rightX,166,110,22,IDC_LBL_NAME);
-    HWND eName=Add(L"EDIT",L"",ES_AUTOHSCROLL,rightX+120,167,rightW-122,22,IDC_NAME);
+    Add(L"STATIC",L"Profile name",0,rightX,152,110,22,IDC_LBL_NAME);
+    HWND eName=Add(L"EDIT",L"",ES_AUTOHSCROLL,rightX+120,153,rightW-122,22,IDC_NAME);
     SetWindowTheme(eName,L"DarkMode_Explorer",nullptr);
     SendMessageW(eName,EM_SETMARGINS,EC_LEFTMARGIN|EC_RIGHTMARGIN,MAKELPARAM(8,8));
 
-    Add(L"STATIC",L"Executable",0,rightX,208,120,22,IDC_LBL_EXE);
+    Add(L"STATIC",L"Executable",0,rightX,194,120,22,IDC_LBL_EXE);
     const int browseW=150;
     const int fieldGap=10;
-    HWND eExe=Add(L"EDIT",L"",ES_AUTOHSCROLL,rightX+2,243,rightW-browseW-fieldGap-4,22,IDC_EXE);
+    HWND eExe=Add(L"EDIT",L"",ES_AUTOHSCROLL,rightX+2,229,rightW-browseW-fieldGap-4,22,IDC_EXE);
     SetWindowTheme(eExe,L"DarkMode_Explorer",nullptr);
     SendMessageW(eExe,EM_SETMARGINS,EC_LEFTMARGIN|EC_RIGHTMARGIN,MAKELPARAM(8,8));
-    Add(L"BUTTON",L"Browse...",BS_OWNERDRAW,rightX+rightW-browseW,236,browseW,36,IDC_BROWSE);
+    Add(L"BUTTON",L"Browse...",BS_OWNERDRAW,rightX+rightW-browseW,222,browseW,36,IDC_BROWSE);
 
-    HWND enabled=Add(L"BUTTON",L"",BS_AUTOCHECKBOX,rightX,286,20,22,IDC_ENABLED);
+    HWND enabled=Add(L"BUTTON",L"",BS_AUTOCHECKBOX,rightX,272,20,22,IDC_ENABLED);
     StyleFlatCheckbox(enabled);
-    Add(L"STATIC",L"Enable this profile",0,rightX+28,285,205,22,IDC_LBL_ENABLED);
+    Add(L"STATIC",L"Enable this profile",0,rightX+28,271,205,22,IDC_LBL_ENABLED);
 
-    Add(L"STATIC",L"Display",0,rightX+31,334,150,22,IDC_LBL_DISPLAY);
+    Add(L"STATIC",L"Display",0,rightX+31,320,150,22,IDC_LBL_DISPLAY);
     HWND display=Add(L"COMBOBOX",L"",CBS_DROPDOWNLIST|CBS_OWNERDRAWFIXED|CBS_HASSTRINGS|WS_VSCROLL,
-        rightX,358,rightW,240,IDC_DISPLAY);
+        rightX,344,rightW,240,IDC_DISPLAY);
     SendMessageW(display,CB_SETITEMHEIGHT,0,28);
     SendMessageW(display,CB_SETITEMHEIGHT,(WPARAM)-1,26);
     StyleFlatCombo(display);
@@ -2187,14 +2187,14 @@ void BuildControls(){
 
     const int appX=centerPanelX+centerPanelW+gap+22;
 
-    { HWND cb=Add(L"BUTTON",L"",BS_AUTOCHECKBOX,appX,164,20,22,IDC_STARTWIN); StyleFlatCheckbox(cb); }
-    Add(L"STATIC",L"Start with Windows",0,appX+24,164,220,22,0);
-    { HWND cb=Add(L"BUTTON",L"",BS_AUTOCHECKBOX,appX,194,20,22,IDC_STARTMIN); StyleFlatCheckbox(cb); }
-    Add(L"STATIC",L"Start minimized",0,appX+24,194,220,22,0);
-    { HWND cb=Add(L"BUTTON",L"",BS_AUTOCHECKBOX,appX,224,20,22,IDC_MINTRAY); StyleFlatCheckbox(cb); }
-    Add(L"STATIC",L"Minimize to tray",0,appX+24,224,220,22,0);
-    { HWND cb=Add(L"BUTTON",L"",BS_AUTOCHECKBOX,appX,254,20,22,IDC_CHECKUPDATES); StyleFlatCheckbox(cb); }
-    Add(L"STATIC",L"Check for updates",0,appX+24,254,220,22,0);
+    { HWND cb=Add(L"BUTTON",L"",BS_AUTOCHECKBOX,appX,150,20,22,IDC_STARTWIN); StyleFlatCheckbox(cb); }
+    Add(L"STATIC",L"Start with Windows",0,appX+24,150,220,22,0);
+    { HWND cb=Add(L"BUTTON",L"",BS_AUTOCHECKBOX,appX,178,20,22,IDC_STARTMIN); StyleFlatCheckbox(cb); }
+    Add(L"STATIC",L"Start minimized",0,appX+24,178,220,22,0);
+    { HWND cb=Add(L"BUTTON",L"",BS_AUTOCHECKBOX,appX,206,20,22,IDC_MINTRAY); StyleFlatCheckbox(cb); }
+    Add(L"STATIC",L"Minimize to tray",0,appX+24,206,220,22,0);
+    { HWND cb=Add(L"BUTTON",L"",BS_AUTOCHECKBOX,appX,234,20,22,IDC_CHECKUPDATES); StyleFlatCheckbox(cb); }
+    Add(L"STATIC",L"Check for updates",0,appX+24,234,220,22,0);
 
     SendMessageW(H(IDC_STARTWIN),BM_SETCHECK,gSettings.startWindows?BST_CHECKED:BST_UNCHECKED,0);
     SendMessageW(H(IDC_STARTMIN),BM_SETCHECK,gSettings.startMinimized?BST_CHECKED:BST_UNCHECKED,0);
@@ -2219,20 +2219,20 @@ void ResizeControls(){
     const int rightW=centerPanelW-44;
     const int panelBottom=r.bottom-footerH-14;
 
-    MoveWindow(H(IDC_LIST),margin+10,164,leftW-20,(int)std::max(300,panelBottom-164-18),TRUE);
-    MoveWindow(H(IDC_ADD),174,99,96,32,TRUE);
-    MoveWindow(H(IDC_REMOVE),278,99,86,32,TRUE);
+    MoveWindow(H(IDC_LIST),margin+10,144,leftW-20,(int)std::max(300,panelBottom-144-18),TRUE);
+    MoveWindow(H(IDC_ADD),174,95,94,28,TRUE);
+    MoveWindow(H(IDC_REMOVE),276,95,82,28,TRUE);
 
-    MoveWindow(H(IDC_LBL_NAME),rightX,166,110,22,TRUE);
-    MoveWindow(H(IDC_NAME),rightX+120,167,rightW-122,22,TRUE);
+    MoveWindow(H(IDC_LBL_NAME),rightX,152,110,22,TRUE);
+    MoveWindow(H(IDC_NAME),rightX+120,153,rightW-122,22,TRUE);
 
     const int browseW=150;
     const int fieldGap=10;
-    MoveWindow(H(IDC_LBL_EXE),rightX,208,120,22,TRUE);
-    MoveWindow(H(IDC_EXE),rightX+2,243,rightW-browseW-fieldGap-4,22,TRUE);
-    MoveWindow(H(IDC_BROWSE),rightX+rightW-browseW,236,browseW,36,TRUE);
-    MoveWindow(H(IDC_ENABLED),rightX,286,20,22,TRUE);
-    MoveWindow(H(IDC_LBL_ENABLED),rightX+28,285,205,22,TRUE);
+    MoveWindow(H(IDC_LBL_EXE),rightX,194,120,22,TRUE);
+    MoveWindow(H(IDC_EXE),rightX+2,229,rightW-browseW-fieldGap-4,22,TRUE);
+    MoveWindow(H(IDC_BROWSE),rightX+rightW-browseW,222,browseW,36,TRUE);
+    MoveWindow(H(IDC_ENABLED),rightX,272,20,22,TRUE);
+    MoveWindow(H(IDC_LBL_ENABLED),rightX+28,271,205,22,TRUE);
 
     MoveWindow(H(IDC_FOOT_GITHUB),r.right-284,r.bottom-43,66,24,TRUE);
     MoveWindow(H(IDC_FOOT_SUPPORT),r.right-212,r.bottom-43,98,24,TRUE);
