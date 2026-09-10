@@ -687,13 +687,7 @@ bool SetNvGamma(unsigned int displayId,double bri,double con,double gam){
     return pSetTargetGamma(displayId,&data)==0;
 }
 
-bool Apply(const GameProfile&p,bool updateUi){
-    EnterCriticalSection(&gNvApplyLock);
-    struct ApplyLockGuard{
-        CRITICAL_SECTION* cs;
-        ~ApplyLockGuard(){LeaveCriticalSection(cs);}
-    } applyLockGuard{&gNvApplyLock};
-
+bool ApplyUnlocked(const GameProfile&p,bool updateUi){
     auto setStatus=[&](const wchar_t* status,bool ok){
         if(!updateUi) return;
         gStatus=status;
@@ -737,6 +731,13 @@ bool Apply(const GameProfile&p,bool updateUi){
     }
     setStatus(L"Ready",true);
     return true;
+}
+
+bool Apply(const GameProfile&p,bool updateUi){
+    EnterCriticalSection(&gNvApplyLock);
+    bool ok=ApplyUnlocked(p,updateUi);
+    LeaveCriticalSection(&gNvApplyLock);
+    return ok;
 }
 
 std::wstring ProcessName(const std::wstring&p){ const wchar_t* n=PathFindFileNameW(p.c_str()); std::wstring s=n?n:L""; auto dot=s.find_last_of(L'.'); if(dot!=std::wstring::npos)s.resize(dot); return s; }
@@ -1141,10 +1142,18 @@ DWORD WINAPI PreviewThreadProc(LPVOID){
             preview.name=L"Preview";
             preview.displayProfiles.push_back(values);
 
+            // Serialize the generation check with the actual NVAPI apply.
+            // This prevents a stale preview that was already queued from
+            // applying after DiscardPreview() has restored the real profile.
+            EnterCriticalSection(&gNvApplyLock);
             EnterCriticalSection(&gPreviewLock);
             bool current=(generation==gPreviewGeneration);
             LeaveCriticalSection(&gPreviewLock);
-            if(current) Apply(preview,false);
+
+            if(current)
+                ApplyUnlocked(preview,false);
+
+            LeaveCriticalSection(&gNvApplyLock);
         }
     }
     return 0;
