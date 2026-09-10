@@ -1594,35 +1594,34 @@ void DrawOwnerButton(const DRAWITEMSTRUCT* d){
         textColor=disabled?C_MUTED:C_TEXT;
         icon=C_MUTED;
     }else if(id==IDC_ADD){
-        fill=down?RGB(31,37,43):RGB(27,32,38);
-        border=RGB(55,63,71);
-        textColor=disabled?C_MUTED:RGB(222,226,229);
-        icon=disabled?C_MUTED:RGB(205,210,214);
+        fill=down?RGB(34,40,46):RGB(31,37,43);
+        border=RGB(66,74,82);
+        textColor=disabled?C_MUTED:RGB(226,230,233);
+        icon=disabled?C_MUTED:RGB(211,216,220);
     }else if(id==IDC_REMOVE){
-        fill=down?RGB(31,37,43):RGB(27,32,38);
-        border=RGB(55,63,71);
-        textColor=disabled?C_MUTED:RGB(222,226,229);
+        fill=down?RGB(34,40,46):RGB(31,37,43);
+        border=RGB(66,74,82);
+        textColor=disabled?C_MUTED:RGB(226,230,233);
         icon=disabled?C_MUTED:C_DANGER;
     }else if(id==IDC_BROWSE){
         icon=C_TEXT;
     }
 
     RECT r=d->rcItem;
-    const int radius=(id==IDC_ADD||id==IDC_REMOVE)?5:8;
+    const int radius=(id==IDC_ADD||id==IDC_REMOVE)?8:8;
     FillRound(d->hDC,r,fill,border,radius);
 
     wchar_t caption[128]{};
     GetWindowTextW(d->hwndItem,caption,128);
     SIZE sz{};
-    HFONT buttonFont=(id==IDC_SAVE||id==IDC_DEFAULTS)?gFontBold:
-                     ((id==IDC_ADD||id==IDC_REMOVE)?gFontSmall:gFont);
+    HFONT buttonFont=(id==IDC_SAVE||id==IDC_DEFAULTS)?gFontBold:gFont;
     SelectObject(d->hDC,buttonFont);
     GetTextExtentPoint32W(d->hDC,caption,(int)wcslen(caption),&sz);
 
     int iconW=0;
     int gap=0;
-    if(id==IDC_ADD){ iconW=14; gap=5; }
-    else if(id==IDC_REMOVE){ iconW=15; gap=5; }
+    if(id==IDC_ADD){ iconW=20; gap=9; }
+    else if(id==IDC_REMOVE){ iconW=20; gap=9; }
     else if(id==IDC_BROWSE){ iconW=20; gap=7; }
 
     int total=iconW+gap+sz.cx;
@@ -1630,8 +1629,8 @@ void DrawOwnerButton(const DRAWITEMSTRUCT* d){
     int cy=(r.top+r.bottom)/2;
 
     if(id==IDC_SAVE||id==IDC_DEFAULTS) { /* text-only actions */ }
-    else if(id==IDC_ADD) DrawAddButtonIcon(d->hDC,start,cy-8,icon);
-    else if(id==IDC_REMOVE) DrawRemoveButtonIcon(d->hDC,start,cy-9,icon);
+    else if(id==IDC_ADD) DrawAddButtonIcon(d->hDC,start,cy-10,icon);
+    else if(id==IDC_REMOVE) DrawRemoveButtonIcon(d->hDC,start,cy-10,icon);
     else if(id==IDC_BROWSE) DrawFolderIcon(d->hDC,start,cy-12,icon);
 
     SetBkMode(d->hDC,TRANSPARENT);
@@ -1987,17 +1986,17 @@ void Paint(HWND w){
     Fill(dc,0,78,rc.right,1,C_BORDER);
 
     // Compact panel header strips, intentionally simpler than the main branded header.
-    RECT leftHeader{left.left+1,left.top+1,left.right-1,137};
-    RECT centerHeader{center.left+1,center.top+1,center.right-1,137};
-    RECT settingsHeader{settings.left+1,settings.top+1,settings.right-1,137};
+    RECT leftHeader{left.left+1,left.top+1,left.right-1,136};
+    RECT centerHeader{center.left+1,center.top+1,center.right-1,136};
+    RECT settingsHeader{settings.left+1,settings.top+1,settings.right-1,136};
     FillRound(dc,leftHeader,C_PANEL2,C_PANEL2,9);
     FillRound(dc,centerHeader,C_PANEL2,C_PANEL2,9);
     FillRound(dc,settingsHeader,C_PANEL2,C_PANEL2,9);
 
-    // Square off the lower corners so only the top of each panel header is rounded.
-    Fill(dc,left.left+1,left.top+10,leftW-2,47,C_PANEL2);
-    Fill(dc,center.left+1,center.top+10,centerW-2,47,C_PANEL2);
-    Fill(dc,settings.left+1,settings.top+10,settingsW-2,47,C_PANEL2);
+    // Square off the lower corners and stop the lighter header fill exactly at the separator.
+    Fill(dc,left.left+1,left.top+10,leftW-2,46,C_PANEL2);
+    Fill(dc,center.left+1,center.top+10,centerW-2,46,C_PANEL2);
+    Fill(dc,settings.left+1,settings.top+10,settingsW-2,46,C_PANEL2);
 
     DrawLabel(dc,L"Profiles",left.left+14,101,C_TEXT,gFontBold);
     DrawLabel(dc,L"Profile Settings",center.left+14,101,C_TEXT,gFontBold);
@@ -2131,8 +2130,8 @@ void BuildControls(){
         SetWindowSubclass(list,ProfileListSubclassProc,1,0);
     }
 
-    Add(L"BUTTON",L"Add profile",BS_OWNERDRAW,182,96,88,26,IDC_ADD);
-    Add(L"BUTTON",L"Remove",BS_OWNERDRAW,276,96,78,26,IDC_REMOVE);
+    Add(L"BUTTON",L"Add profile",BS_OWNERDRAW,160,92,120,38,IDC_ADD);
+    Add(L"BUTTON",L"Remove",BS_OWNERDRAW,288,92,100,38,IDC_REMOVE);
 
     Add(L"STATIC",L"Profile name",0,rightX,152,110,22,IDC_LBL_NAME);
     HWND eName=Add(L"EDIT",L"",ES_AUTOHSCROLL,rightX+120,153,rightW-122,22,IDC_NAME);
@@ -2223,8 +2222,8 @@ void ResizeControls(){
     const int panelBottom=r.bottom-footerH-14;
 
     MoveWindow(H(IDC_LIST),margin+10,144,leftW-20,(int)std::max(300,panelBottom-144-18),TRUE);
-    MoveWindow(H(IDC_ADD),182,96,88,26,TRUE);
-    MoveWindow(H(IDC_REMOVE),276,96,78,26,TRUE);
+    MoveWindow(H(IDC_ADD),160,92,120,38,TRUE);
+    MoveWindow(H(IDC_REMOVE),288,92,100,38,TRUE);
 
     MoveWindow(H(IDC_LBL_NAME),rightX,152,110,22,TRUE);
     MoveWindow(H(IDC_NAME),rightX+120,153,rightW-122,22,TRUE);
