@@ -21,7 +21,6 @@
 #include <shellapi.h>
 #include <commdlg.h>
 #include <shlobj.h>
-#include <tlhelp32.h>
 #include <shlwapi.h>
 #include <uxtheme.h>
 #include <dwmapi.h>
@@ -32,7 +31,6 @@
 #include <string>
 #include <vector>
 #include <fstream>
-#include <sstream>
 #include <regex>
 #include <algorithm>
 #include <cmath>
@@ -85,13 +83,13 @@ constexpr wchar_t APP_URL[]=L"https://github.com/mgcarnevali/NvProfileSwitcher";
 constexpr wchar_t SUPPORT_URL[]=L"https://ko-fi.com/mgcarnevali";
 constexpr wchar_t UPDATE_HOST[]=L"api.github.com";
 constexpr wchar_t UPDATE_PATH[]=L"/repos/mgcarnevali/NvProfileSwitcher/releases/latest";
-enum {IDC_LIST=1001,IDC_NAME,IDC_EXE,IDC_BROWSE,IDC_ENABLED,IDC_DISPLAY,IDC_LBL_DISPLAY,IDC_VIB,IDC_HUE,IDC_BRI,IDC_CON,IDC_GAM,IDC_SAVE,IDC_APPLY,IDC_ADD,IDC_REMOVE,IDC_RESTORE,IDC_STARTWIN,IDC_STARTMIN,IDC_VALVIB,IDC_VALHUE,IDC_VALBRI,IDC_VALCON,IDC_VALGAM,IDC_LBL_NAME,IDC_LBL_EXE,IDC_LBL_ENABLED,IDC_LBL_VIB,IDC_LBL_HUE,IDC_LBL_BRI,IDC_LBL_CON,IDC_LBL_GAM,IDC_DEFAULTS,IDC_MINTRAY,IDC_CHECKUPDATES,IDC_FOOT_GITHUB,IDC_FOOT_SUPPORT,IDC_FOOT_ABOUT};
+enum {IDC_LIST=1001,IDC_NAME,IDC_EXE,IDC_BROWSE,IDC_ENABLED,IDC_DISPLAY,IDC_LBL_DISPLAY,IDC_VIB,IDC_HUE,IDC_BRI,IDC_CON,IDC_GAM,IDC_SAVE,IDC_ADD=1015,IDC_REMOVE,IDC_STARTWIN=1018,IDC_STARTMIN,IDC_VALVIB,IDC_VALHUE,IDC_VALBRI,IDC_VALCON,IDC_VALGAM,IDC_LBL_NAME,IDC_LBL_EXE,IDC_LBL_ENABLED,IDC_LBL_VIB,IDC_LBL_HUE,IDC_LBL_BRI,IDC_LBL_CON,IDC_LBL_GAM,IDC_DEFAULTS,IDC_MINTRAY,IDC_CHECKUPDATES,IDC_FOOT_GITHUB,IDC_FOOT_SUPPORT,IDC_FOOT_ABOUT};
 enum {ID_TRAY_OPEN=2001,ID_TRAY_CHECK_UPDATE,ID_TRAY_ABOUT,ID_TRAY_EXIT};
 
 HINSTANCE gInst{}; HWND gWnd{}; HFONT gFont{},gFontBold{},gFontTitle{},gIconFont{}; HBRUSH gBackBrush{},gPanelBrush{},gPanel2Brush{},gFieldBrush{}; HICON gIcon{};
 ULONG_PTR gGdiPlusToken{}; Gdiplus::Image* gHeaderImage{};
 Gdiplus::Image *gSliderBrightness{},*gSliderContrast{},*gSliderGamma{},*gSliderVibrance{},*gSliderHue{},*gNvidiaDriverIcon{};
-Settings gSettings; int gSelected=-1; bool gReallyExit=false; std::wstring gActive=L"Windows", gStatus=L"Not initialized", gDriverVersion=L"--"; bool gStatusOk=false;
+Settings gSettings; int gSelected=-1; std::wstring gActive=L"Windows", gStatus=L"Not initialized", gDriverVersion=L"--"; bool gStatusOk=false;
 NOTIFYICONDATAW gNid{}; HMENU gTrayMenu{};
 HWND gFooterHover{};
 HWND gProfileTooltip{};
@@ -111,7 +109,6 @@ unsigned long long gPreviewGeneration=0;
 bool gPreviewPending=false;
 bool gPreviewDirty=false;
 DisplayProfileValues gPreviewValues{};
-std::wstring gPreviewMonitorId;
 
 using NvQueryInterface=void* (__cdecl*)(unsigned int);
 using NvInit=int (__cdecl*)(); using NvUnload=int (__cdecl*)(); using NvEnumDisplay=int (__cdecl*)(int,void**);
@@ -548,13 +545,6 @@ ApplicationProfile* CurrentDesktopProfile(){
     int ds=(int)SendMessageW(GetDlgItem(gWnd,IDC_DISPLAY),CB_GETCURSEL,0,0);
     if(ds<0||ds>=(int)gDisplays.size()){for(size_t i=0;i<gDisplays.size();++i)if(gDisplays[i].primary){ds=(int)i;break;}if(ds<0)ds=0;}
     return EnsureDesktopProfile(gDisplays[ds].gdiName,gDisplays[ds].monitorId);
-}
-void ApplyDesktopForDisplay(const std::wstring&displayName){
-    for(const auto&d:gDisplays)if(_wcsicmp(d.gdiName.c_str(),displayName.c_str())==0){
-        const ApplicationProfile*p=!d.monitorId.empty()?DesktopProfileForMonitorConst(d.monitorId):nullptr;
-        if(p)Apply(*p);
-        return;
-    }
 }
 void RestoreAllDesktopProfiles(){
     for(const auto&d:gDisplays){
@@ -1180,7 +1170,6 @@ void RequestPreview(){
     EnterCriticalSection(&gPreviewLock);
     ++gPreviewGeneration;
     gPreviewValues=values;
-    gPreviewMonitorId=values.monitorId;
     gPreviewPending=true;
     gPreviewDirty=true;
     LeaveCriticalSection(&gPreviewLock);
@@ -1411,15 +1400,6 @@ void FillRound(HDC dc,const RECT& r,COLORREF fill,COLORREF border,int radius=8){
     DeleteObject(b);DeleteObject(p);
 }
 
-void DrawGlyphIcon(HDC dc,const wchar_t* glyph,int x,int y,COLORREF c){
-    HFONT oldFont=(HFONT)SelectObject(dc,gIconFont);
-    SetBkMode(dc,TRANSPARENT);
-    SetTextColor(dc,c);
-    TextOutW(dc,x,y,glyph,1);
-    SelectObject(dc,oldFont);
-}
-
-
 void DrawAddButtonIcon(HDC dc,int x,int y,COLORREF c){
     Gdiplus::Graphics g(dc);
     g.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
@@ -1447,13 +1427,6 @@ void DrawRemoveButtonIcon(HDC dc,int x,int y,COLORREF c){
     g.DrawLine(&pen,x+9.5f,y+8.0f,x+9.2f,y+14.5f);
 }
 
-void DrawSaveIcon(HDC dc,int x,int y,COLORREF c){
-    HPEN p=CreatePen(PS_SOLID,2,c);HGDIOBJ old=SelectObject(dc,p);
-    Rectangle(dc,x+2,y+2,x+18,y+19);
-    Rectangle(dc,x+5,y+3,x+14,y+9);
-    Rectangle(dc,x+6,y+13,x+14,y+19);
-    SelectObject(dc,old);DeleteObject(p);
-}
 void DrawFolderIcon(HDC dc,int x,int y,COLORREF c){
     Gdiplus::Graphics g(dc);
     g.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
@@ -1898,7 +1871,6 @@ void Paint(HWND w){
 
     // Prototype-inspired compact footer: status + driver on the left,
     // navigation links on the right.
-    const int footerTop=rc.bottom-24;
     const int footerY=rc.bottom-20;
 
     // NVIDIA API status.
@@ -2648,8 +2620,7 @@ case WM_COMMAND:{int id=LOWORD(wp);if(id==IDC_LIST&&HIWORD(wp)==LBN_SELCHANGE){D
     break;case IDC_CHECKUPDATES:gSettings.checkUpdates=SendMessageW(H(IDC_CHECKUPDATES),BM_GETCHECK,0,0)==BST_CHECKED;Save();break;case IDC_FOOT_GITHUB:ShellExecuteW(w,L"open",APP_URL,nullptr,nullptr,SW_SHOWNORMAL);break;
 case IDC_FOOT_SUPPORT:ShellExecuteW(w,L"open",SUPPORT_URL,nullptr,nullptr,SW_SHOWNORMAL);break;
 case IDC_FOOT_ABOUT:ShowAbout();break;
-case ID_TRAY_OPEN:ShowMain();break;case ID_TRAY_CHECK_UPDATE:{if(HANDLE h=CreateThread(nullptr,0,UpdateCheckThread,(LPVOID)1,0,nullptr))CloseHandle(h);break;}case ID_TRAY_ABOUT:ShowAbout();break;case ID_TRAY_EXIT:gReallyExit=true;DestroyWindow(w);break;}return 0;}case WM_CLOSE:
-    gReallyExit=true;
+case ID_TRAY_OPEN:ShowMain();break;case ID_TRAY_CHECK_UPDATE:{if(HANDLE h=CreateThread(nullptr,0,UpdateCheckThread,(LPVOID)1,0,nullptr))CloseHandle(h);break;}case ID_TRAY_ABOUT:ShowAbout();break;case ID_TRAY_EXIT:DestroyWindow(w);break;}return 0;}case WM_CLOSE:
     DestroyWindow(w);
     return 0;case WM_TRAY:if(lp==WM_LBUTTONDBLCLK){ShowMain();return 0;}if(lp==WM_RBUTTONUP||lp==WM_CONTEXTMENU){POINT p;GetCursorPos(&p);SetForegroundWindow(w);TrackPopupMenu(gTrayMenu,TPM_RIGHTBUTTON,p.x,p.y,0,w,nullptr);return 0;}break;case WM_DESTROY:KillTimer(w,1);KillTimer(w,2);SetTrayIconVisible(false);if(pUnload)pUnload();if(gNv)FreeLibrary(gNv);PostQuitMessage(0);return 0;}return DefWindowProcW(w,m,wp,lp);} 
 
