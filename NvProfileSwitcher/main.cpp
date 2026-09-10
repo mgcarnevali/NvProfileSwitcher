@@ -831,6 +831,113 @@ void SetStartup(bool on){
 HWND H(int id){return GetDlgItem(gWnd,id);} void Txt(int id,const std::wstring&s){SetWindowTextW(H(id),s.c_str());} std::wstring GetTxt(int id){int n=GetWindowTextLengthW(H(id));std::wstring s(n+1,0);GetWindowTextW(H(id),s.data(),n+1);s.resize(n);return s;}
 HWND Add(const wchar_t*cls,const wchar_t*txt,DWORD style,int x,int y,int w,int h,int id){ HWND c=CreateWindowExW(0,cls,txt,WS_CHILD|WS_VISIBLE|style,x,y,w,h,gWnd,(HMENU)(INT_PTR)id,gInst,nullptr); SendMessageW(c,WM_SETFONT,(WPARAM)gFont,TRUE); return c; }
 
+LRESULT CALLBACK FlatCheckboxSubclassProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp,
+                                          UINT_PTR subclassId,DWORD_PTR refData){
+    switch(msg){
+    case BM_SETCHECK:{
+        LRESULT result=DefSubclassProc(hwnd,msg,wp,lp);
+        InvalidateRect(hwnd,nullptr,TRUE);
+        return result;
+    }
+    case WM_ERASEBKGND:
+        return 1;
+    case WM_PAINT:{
+        PAINTSTRUCT ps{};
+        HDC dc=BeginPaint(hwnd,&ps);
+        RECT r{};
+        GetClientRect(hwnd,&r);
+
+        HBRUSH bg=CreateSolidBrush(C_PANEL);
+        FillRect(dc,&r,bg);
+        DeleteObject(bg);
+
+        const bool checked=SendMessageW(hwnd,BM_GETCHECK,0,0)==BST_CHECKED;
+        RECT box{2,4,16,18};
+        FillRound(dc,box,checked?C_ACCENT:C_FIELD,checked?C_ACCENT:C_BORDER,4);
+
+        if(checked){
+            HPEN pen=CreatePen(PS_SOLID,2,RGB(8,28,11));
+            HGDIOBJ old=SelectObject(dc,pen);
+            MoveToEx(dc,5,11,nullptr);
+            LineTo(dc,8,14);
+            LineTo(dc,13,8);
+            SelectObject(dc,old);
+            DeleteObject(pen);
+        }
+
+        EndPaint(hwnd,&ps);
+        return 0;
+    }
+    case WM_NCDESTROY:
+        RemoveWindowSubclass(hwnd,FlatCheckboxSubclassProc,subclassId);
+        break;
+    }
+    return DefSubclassProc(hwnd,msg,wp,lp);
+}
+
+void StyleFlatCheckbox(HWND hwnd){
+    if(!hwnd) return;
+    SetWindowTheme(hwnd,L"",L"");
+    SetWindowSubclass(hwnd,FlatCheckboxSubclassProc,1,0);
+    InvalidateRect(hwnd,nullptr,TRUE);
+}
+
+void DrawComboArrow(HDC dc,const RECT& r){
+    HPEN pen=CreatePen(PS_SOLID,2,C_MUTED);
+    HGDIOBJ old=SelectObject(dc,pen);
+    const int cx=r.right-18;
+    const int cy=(r.top+r.bottom)/2;
+    MoveToEx(dc,cx-4,cy-2,nullptr);
+    LineTo(dc,cx,cy+2);
+    LineTo(dc,cx+4,cy-2);
+    SelectObject(dc,old);
+    DeleteObject(pen);
+}
+
+LRESULT CALLBACK FlatComboSubclassProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp,
+                                       UINT_PTR subclassId,DWORD_PTR refData){
+    switch(msg){
+    case WM_ERASEBKGND:
+        return 1;
+    case WM_PAINT:{
+        PAINTSTRUCT ps{};
+        HDC dc=BeginPaint(hwnd,&ps);
+        RECT r{};
+        GetClientRect(hwnd,&r);
+
+        FillRound(dc,r,C_FIELD,C_BORDER,8);
+
+        int sel=(int)SendMessageW(hwnd,CB_GETCURSEL,0,0);
+        if(sel>=0){
+            wchar_t txt[256]{};
+            SendMessageW(hwnd,CB_GETLBTEXT,sel,(LPARAM)txt);
+            RECT tr=r;
+            tr.left+=12;
+            tr.right-=34;
+            SetBkMode(dc,TRANSPARENT);
+            SetTextColor(dc,C_TEXT);
+            SelectObject(dc,gFont);
+            DrawTextW(dc,txt,-1,&tr,DT_LEFT|DT_VCENTER|DT_SINGLELINE|DT_END_ELLIPSIS|DT_NOPREFIX);
+        }
+        DrawComboArrow(dc,r);
+
+        EndPaint(hwnd,&ps);
+        return 0;
+    }
+    case WM_NCDESTROY:
+        RemoveWindowSubclass(hwnd,FlatComboSubclassProc,subclassId);
+        break;
+    }
+    return DefSubclassProc(hwnd,msg,wp,lp);
+}
+
+void StyleFlatCombo(HWND hwnd){
+    if(!hwnd) return;
+    SetWindowTheme(hwnd,L"",L"");
+    SetWindowSubclass(hwnd,FlatComboSubclassProc,1,0);
+    InvalidateRect(hwnd,nullptr,TRUE);
+}
+
 void RefreshList(){ HWND l=H(IDC_LIST); SendMessageW(l,LB_RESETCONTENT,0,0); SendMessageW(l,LB_ADDSTRING,0,(LPARAM)gSettings.desktop.name.c_str()); for(auto&p:gSettings.profiles)SendMessageW(l,LB_ADDSTRING,0,(LPARAM)p.name.c_str()); int maxSel=(int)gSettings.profiles.size(); gSelected=std::clamp(gSelected,0,maxSel); SendMessageW(l,LB_SETCURSEL,gSelected,0); }
 
 bool ProfileTitleIsTruncated(int item){
@@ -849,7 +956,7 @@ bool ProfileTitleIsTruncated(int item){
     SelectObject(dc,oldFont);
     ReleaseDC(list,dc);
 
-    const int textLeft=itemRect.left+12+54;
+    const int textLeft=itemRect.left+16+58;
     const int textRight=itemRect.right-8;
     return titleSize.cx>(textRight-textLeft);
 }
@@ -1212,19 +1319,17 @@ void SetDesktopUi(bool desktop){
         ShowWindow(H(id),showApplication);
     ShowWindow(H(IDC_REMOVE),desktop?SW_HIDE:SW_SHOW);
 
-    const int yDisplay=desktop?166:322;
-    const int yBri=desktop?248:404;
-    const int yCon=desktop?306:462;
-    const int yGam=desktop?364:520;
-    const int yVib=desktop?422:578;
-    const int yHue=desktop?480:636;
-    const int ySave=desktop?538:694;
+    const int yDisplay=desktop?172:320;
+    const int yBri=desktop?252:406;
+    const int yCon=desktop?318:474;
+    const int yGam=desktop?384:542;
+    const int yVib=desktop?450:610;
+    const int yHue=desktop?516:678;
+    const int ySave=desktop?580:736;
 
-    // Display is one compact block: icon/label, then the combo directly below.
     MoveWindow(H(IDC_LBL_DISPLAY),rightX+31,yDisplay,150,22,TRUE);
     MoveWindow(H(IDC_DISPLAY),rightX,yDisplay+24,rightW,34,TRUE);
 
-    // Fixed slider grid: icon | label | slider | value.
     const int labelX=rightX+30;
     const int labelW=154;
     const int trackX=rightX+190;
@@ -1242,7 +1347,7 @@ void SetDesktopUi(bool desktop){
     }){
         MoveWindow(H(sp.lbl),labelX,sp.y-2,labelW,22,TRUE);
         MoveWindow(H(sp.track),trackX,sp.y-4,trackW,28,TRUE);
-        MoveWindow(H(sp.val),valueX,sp.y-7,valueW,32,TRUE);
+        MoveWindow(H(sp.val),valueX,sp.y-5,valueW,28,TRUE);
     }
 
     MoveWindow(H(IDC_DEFAULTS),rightX,ySave,132,38,TRUE);
@@ -1527,18 +1632,26 @@ void DrawOwnerButton(const DRAWITEMSTRUCT* d){
 void DrawValueBox(const DRAWITEMSTRUCT* d){
     RECT r=d->rcItem;
     FillRound(d->hDC,r,C_FIELD,C_BORDER,7);
-    wchar_t text[64]{};GetWindowTextW(d->hwndItem,text,64);
-    RECT tr=r;tr.right-=10;
-    SetBkMode(d->hDC,TRANSPARENT);SetTextColor(d->hDC,C_TEXT);SelectObject(d->hDC,gFontBold);
-    DrawTextW(d->hDC,text,-1,&tr,DT_RIGHT|DT_VCENTER|DT_SINGLELINE);
+    wchar_t text[64]{};
+    GetWindowTextW(d->hwndItem,text,64);
+
+    RECT tr=r;
+    tr.left+=8;
+    tr.right-=8;
+    SetBkMode(d->hDC,TRANSPARENT);
+    SetTextColor(d->hDC,C_TEXT);
+    SelectObject(d->hDC,gFont);
+    DrawTextW(d->hDC,text,-1,&tr,DT_CENTER|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);
 }
 
 LRESULT CustomDrawSlider(NMCUSTOMDRAW* cd){
     HWND h=cd->hdr.hwndFrom;
     if(cd->dwDrawStage!=CDDS_PREPAINT) return CDRF_DODEFAULT;
 
-    RECT r{};GetClientRect(h,&r);
+    RECT r{};
+    GetClientRect(h,&r);
     HDC dc=cd->hdc;
+
     HBRUSH panelBrush=CreateSolidBrush(C_PANEL);
     FillRect(dc,&r,panelBrush);
     DeleteObject(panelBrush);
@@ -1548,20 +1661,30 @@ LRESULT CustomDrawSlider(NMCUSTOMDRAW* cd){
     int pos=(int)SendMessageW(h,TBM_GETPOS,0,0);
     double t=maxv==minv?0.0:(double)(pos-minv)/(double)(maxv-minv);
 
-    int x1=8,x2=(int)std::max<LONG>(9L,r.right-8),cy=(int)((r.top+r.bottom)/2);
-    int active=x1+(int)llround((x2-x1)*t);
+    const int x1=8;
+    const int x2=(int)std::max<LONG>(9L,r.right-8);
+    const int cy=(r.top+r.bottom)/2;
+    const int active=x1+(int)llround((x2-x1)*t);
 
-    RECT bg{x1,cy-2,x2,cy+2};FillRound(dc,bg,C_TRACK,C_TRACK,4);
+    RECT bg{x1,cy-3,x2,cy+3};
+    FillRound(dc,bg,RGB(63,69,75),RGB(63,69,75),6);
+
     if(active>x1){
-        RECT fg{x1,cy-2,active,cy+2};FillRound(dc,fg,C_ACCENT2,C_ACCENT2,4);
+        RECT fg{x1,cy-3,active,cy+3};
+        FillRound(dc,fg,C_ACCENT2,C_ACCENT2,6);
     }
 
-    int rad=7;
-    HBRUSH b=CreateSolidBrush(C_ACCENT);
-    HPEN p=CreatePen(PS_SOLID,1,RGB(111,235,71));
-    HGDIOBJ ob=SelectObject(dc,b),op=SelectObject(dc,p);
+    const int rad=8;
+    HBRUSH knob=CreateSolidBrush(RGB(211,216,220));
+    HPEN outline=CreatePen(PS_SOLID,1,RGB(168,176,182));
+    HGDIOBJ oldBrush=SelectObject(dc,knob);
+    HGDIOBJ oldPen=SelectObject(dc,outline);
     Ellipse(dc,active-rad,cy-rad,active+rad+1,cy+rad+1);
-    SelectObject(dc,ob);SelectObject(dc,op);DeleteObject(b);DeleteObject(p);
+    SelectObject(dc,oldBrush);
+    SelectObject(dc,oldPen);
+    DeleteObject(knob);
+    DeleteObject(outline);
+
     return CDRF_SKIPDEFAULT;
 }
 
@@ -1864,7 +1987,7 @@ void Paint(HWND w){
     Fill(dc,settingsX+14,146,settingsW-28,1,C_BORDER);
 
     const bool desktop=IsDesktopSelected();
-    const int displayY=desktop?166:322;
+    const int displayY=desktop?172:320;
 
     DrawDisplayPrototypeIcon(dc,centerX+22,displayY);
 
@@ -1873,19 +1996,19 @@ void Paint(HWND w){
     if(!desktop){
         const int browseW=150;
         const int fieldGap=10;
-        RECT nameFrame{rightX+118,162,rightX+rightW,196};
+        RECT nameFrame{rightX+118,160,rightX+rightW,196};
         FillRound(dc,nameFrame,C_FIELD,C_BORDER,8);
 
-        RECT exeFrame{rightX,230,rightX+rightW-browseW-fieldGap,264};
+        RECT exeFrame{rightX,228,rightX+rightW-browseW-fieldGap,264};
         FillRound(dc,exeFrame,C_FIELD,C_BORDER,8);
     }
 
     const int iconX=centerX+22;
-    const int iconBri=desktop?248:404;
-    const int iconCon=desktop?306:462;
-    const int iconGam=desktop?364:520;
-    const int iconVib=desktop?422:578;
-    const int iconHue=desktop?480:636;
+    const int iconBri=desktop?252:406;
+    const int iconCon=desktop?318:474;
+    const int iconGam=desktop?384:542;
+    const int iconVib=desktop?450:610;
+    const int iconHue=desktop?516:678;
     DrawSliderIcon(dc,gSliderBrightness,iconX,iconBri-2);
     DrawSliderIcon(dc,gSliderContrast,iconX,iconCon-2);
     DrawSliderIcon(dc,gSliderGamma,iconX,iconGam-2);
@@ -1961,9 +2084,9 @@ void BuildControls(){
     const int panelBottom=r.bottom-footerH-14;
 
     HWND list=Add(L"LISTBOX",L"",LBS_NOTIFY|LBS_OWNERDRAWFIXED|WS_VSCROLL,
-        margin+10,158,leftW-20,panelBottom-158-18,IDC_LIST);
+        margin+10,164,leftW-20,panelBottom-164-18,IDC_LIST);
     SetWindowTheme(list,L"DarkMode_Explorer",nullptr);
-    SendMessageW(list,LB_SETITEMHEIGHT,0,50);
+    SendMessageW(list,LB_SETITEMHEIGHT,0,70);
 
     gProfileTooltip=CreateWindowExW(WS_EX_TOPMOST,TOOLTIPS_CLASSW,nullptr,
         WS_POPUP|TTS_ALWAYSTIP|TTS_NOPREFIX,
@@ -1980,38 +2103,39 @@ void BuildControls(){
         SetWindowSubclass(gProfileTooltip,ProfileTooltipSubclassProc,1,0);
         TOOLINFOW ti{sizeof(ti)};
         ti.uFlags=TTF_TRACK|TTF_ABSOLUTE;
-        ti.hwnd=list; ti.uId=1; ti.lpszText=(LPWSTR)L"";
+        ti.hwnd=list;
+        ti.uId=1;
+        ti.lpszText=(LPWSTR)L"";
         SendMessageW(gProfileTooltip,TTM_ADDTOOLW,0,(LPARAM)&ti);
         SetWindowSubclass(list,ProfileListSubclassProc,1,0);
     }
 
-    Add(L"BUTTON",L"Add profile",BS_OWNERDRAW,142,104,120,38,IDC_ADD);
-    Add(L"BUTTON",L"Remove",BS_OWNERDRAW,270,104,90,38,IDC_REMOVE);
+    Add(L"BUTTON",L"Add profile",BS_OWNERDRAW,134,104,126,38,IDC_ADD);
+    Add(L"BUTTON",L"Remove",BS_OWNERDRAW,268,104,92,38,IDC_REMOVE);
 
-    // Compact Profile Settings layout.
     Add(L"STATIC",L"Profile name",0,rightX,166,110,22,IDC_LBL_NAME);
-    HWND eName=Add(L"EDIT",L"",ES_AUTOHSCROLL,rightX+120,168,rightW-122,22,IDC_NAME);
+    HWND eName=Add(L"EDIT",L"",ES_AUTOHSCROLL,rightX+120,167,rightW-122,22,IDC_NAME);
     SetWindowTheme(eName,L"DarkMode_Explorer",nullptr);
     SendMessageW(eName,EM_SETMARGINS,EC_LEFTMARGIN|EC_RIGHTMARGIN,MAKELPARAM(8,8));
 
     Add(L"STATIC",L"Executable",0,rightX,208,120,22,IDC_LBL_EXE);
     const int browseW=150;
     const int fieldGap=10;
-    HWND eExe=Add(L"EDIT",L"",ES_AUTOHSCROLL,rightX+2,236,rightW-browseW-fieldGap-4,22,IDC_EXE);
+    HWND eExe=Add(L"EDIT",L"",ES_AUTOHSCROLL,rightX+2,235,rightW-browseW-fieldGap-4,22,IDC_EXE);
     SetWindowTheme(eExe,L"DarkMode_Explorer",nullptr);
     SendMessageW(eExe,EM_SETMARGINS,EC_LEFTMARGIN|EC_RIGHTMARGIN,MAKELPARAM(8,8));
-    Add(L"BUTTON",L"Browse...",BS_OWNERDRAW,
-        rightX+rightW-browseW,228,browseW,38,IDC_BROWSE);
+    Add(L"BUTTON",L"Browse...",BS_OWNERDRAW,rightX+rightW-browseW,228,browseW,38,IDC_BROWSE);
 
-    Add(L"BUTTON",L"",BS_AUTOCHECKBOX,rightX,274,20,22,IDC_ENABLED);
+    HWND enabled=Add(L"BUTTON",L"",BS_AUTOCHECKBOX,rightX,274,20,22,IDC_ENABLED);
+    StyleFlatCheckbox(enabled);
     Add(L"STATIC",L"Enable this profile",0,rightX+28,273,205,22,IDC_LBL_ENABLED);
 
-    Add(L"STATIC",L"Display",0,rightX+31,322,150,22,IDC_LBL_DISPLAY);
+    Add(L"STATIC",L"Display",0,rightX+31,320,150,22,IDC_LBL_DISPLAY);
     HWND display=Add(L"COMBOBOX",L"",CBS_DROPDOWNLIST|CBS_OWNERDRAWFIXED|CBS_HASSTRINGS|WS_VSCROLL,
-        rightX,346,rightW,240,IDC_DISPLAY);
-    SendMessageW(display,CB_SETITEMHEIGHT,0,26);
-    SendMessageW(display,CB_SETITEMHEIGHT,(WPARAM)-1,24);
-    SetWindowTheme(display,L"DarkMode_Explorer",nullptr);
+        rightX,344,rightW,240,IDC_DISPLAY);
+    SendMessageW(display,CB_SETITEMHEIGHT,0,28);
+    SendMessageW(display,CB_SETITEMHEIGHT,(WPARAM)-1,26);
+    StyleFlatCombo(display);
 
     const int labelX=rightX+30;
     const int labelW=154;
@@ -2024,15 +2148,16 @@ void BuildControls(){
         Add(L"STATIC",t,0,labelX,y-2,labelW,22,lid);
         HWND tr=Add(TRACKBAR_CLASSW,L"",TBS_HORZ|TBS_NOTICKS,trackX,y-4,trackW,28,id);
         SendMessageW(tr,TBM_SETRANGE,TRUE,MAKELONG(mn,mx));
-        Add(L"STATIC",L"",SS_OWNERDRAW,valueX,y-7,valueW,32,vid);
+        Add(L"STATIC",L"",SS_OWNERDRAW,valueX,y-5,valueW,28,vid);
     };
-    slider(L"Brightness",IDC_LBL_BRI,IDC_BRI,IDC_VALBRI,404,80,120);
-    slider(L"Contrast",IDC_LBL_CON,IDC_CON,IDC_VALCON,462,80,120);
-    slider(L"Gamma",IDC_LBL_GAM,IDC_GAM,IDC_VALGAM,520,30,280);
-    slider(L"Digital Vibrance (%)",IDC_LBL_VIB,IDC_VIB,IDC_VALVIB,578,0,100);
-    slider(L"Hue (\x00B0)",IDC_LBL_HUE,IDC_HUE,IDC_VALHUE,636,0,359);
 
-    Add(L"BUTTON",L"Reset",BS_OWNERDRAW,rightX,694,132,38,IDC_DEFAULTS);
+    slider(L"Brightness",IDC_LBL_BRI,IDC_BRI,IDC_VALBRI,406,80,120);
+    slider(L"Contrast",IDC_LBL_CON,IDC_CON,IDC_VALCON,474,80,120);
+    slider(L"Gamma",IDC_LBL_GAM,IDC_GAM,IDC_VALGAM,542,30,280);
+    slider(L"Digital Vibrance (%)",IDC_LBL_VIB,IDC_VIB,IDC_VALVIB,610,0,100);
+    slider(L"Hue (\x00B0)",IDC_LBL_HUE,IDC_HUE,IDC_VALHUE,678,0,359);
+
+    Add(L"BUTTON",L"Reset",BS_OWNERDRAW,rightX,736,132,38,IDC_DEFAULTS);
     gResetTooltip=CreateWindowExW(WS_EX_TOOLWINDOW|WS_EX_TOPMOST,L"STATIC",
         L"Reset to NVIDIA defaults",WS_POPUP,0,0,0,0,gWnd,nullptr,gInst,nullptr);
     if(gResetTooltip){
@@ -2040,16 +2165,17 @@ void BuildControls(){
         SetWindowSubclass(gResetTooltip,ProfileTooltipSubclassProc,2,0);
         SetWindowSubclass(H(IDC_DEFAULTS),ResetButtonSubclassProc,1,0);
     }
-    Add(L"BUTTON",L"Save profile",BS_OWNERDRAW,rightX+rightW-160,694,160,38,IDC_SAVE);
+    Add(L"BUTTON",L"Save profile",BS_OWNERDRAW,rightX+rightW-160,736,160,38,IDC_SAVE);
 
     const int appX=centerPanelX+centerPanelW+gap+22;
-    Add(L"BUTTON",L"",BS_AUTOCHECKBOX,appX,171,20,22,IDC_STARTWIN);
+
+    { HWND cb=Add(L"BUTTON",L"",BS_AUTOCHECKBOX,appX,171,20,22,IDC_STARTWIN); StyleFlatCheckbox(cb); }
     Add(L"STATIC",L"Start with Windows",0,appX+28,170,210,22,0);
-    Add(L"BUTTON",L"",BS_AUTOCHECKBOX,appX,217,20,22,IDC_STARTMIN);
+    { HWND cb=Add(L"BUTTON",L"",BS_AUTOCHECKBOX,appX,217,20,22,IDC_STARTMIN); StyleFlatCheckbox(cb); }
     Add(L"STATIC",L"Start minimized",0,appX+28,216,210,22,0);
-    Add(L"BUTTON",L"",BS_AUTOCHECKBOX,appX,263,20,22,IDC_MINTRAY);
+    { HWND cb=Add(L"BUTTON",L"",BS_AUTOCHECKBOX,appX,263,20,22,IDC_MINTRAY); StyleFlatCheckbox(cb); }
     Add(L"STATIC",L"Minimize to tray",0,appX+28,262,210,22,0);
-    Add(L"BUTTON",L"",BS_AUTOCHECKBOX,appX,309,20,22,IDC_CHECKUPDATES);
+    { HWND cb=Add(L"BUTTON",L"",BS_AUTOCHECKBOX,appX,309,20,22,IDC_CHECKUPDATES); StyleFlatCheckbox(cb); }
     Add(L"STATIC",L"Check for updates",0,appX+28,308,210,22,0);
 
     SendMessageW(H(IDC_STARTWIN),BM_SETCHECK,gSettings.startWindows?BST_CHECKED:BST_UNCHECKED,0);
@@ -2075,17 +2201,17 @@ void ResizeControls(){
     const int rightW=centerPanelW-44;
     const int panelBottom=r.bottom-footerH-14;
 
-    MoveWindow(H(IDC_LIST),margin+10,158,leftW-20,(int)std::max(300,panelBottom-158-18),TRUE);
-    MoveWindow(H(IDC_ADD),142,104,120,38,TRUE);
-    MoveWindow(H(IDC_REMOVE),270,104,90,38,TRUE);
+    MoveWindow(H(IDC_LIST),margin+10,164,leftW-20,(int)std::max(300,panelBottom-164-18),TRUE);
+    MoveWindow(H(IDC_ADD),134,104,126,38,TRUE);
+    MoveWindow(H(IDC_REMOVE),268,104,92,38,TRUE);
 
     MoveWindow(H(IDC_LBL_NAME),rightX,166,110,22,TRUE);
-    MoveWindow(H(IDC_NAME),rightX+120,168,rightW-122,22,TRUE);
+    MoveWindow(H(IDC_NAME),rightX+120,167,rightW-122,22,TRUE);
 
     const int browseW=150;
     const int fieldGap=10;
     MoveWindow(H(IDC_LBL_EXE),rightX,208,120,22,TRUE);
-    MoveWindow(H(IDC_EXE),rightX+2,236,rightW-browseW-fieldGap-4,22,TRUE);
+    MoveWindow(H(IDC_EXE),rightX+2,235,rightW-browseW-fieldGap-4,22,TRUE);
     MoveWindow(H(IDC_BROWSE),rightX+rightW-browseW,228,browseW,38,TRUE);
     MoveWindow(H(IDC_ENABLED),rightX,274,20,22,TRUE);
     MoveWindow(H(IDC_LBL_ENABLED),rightX+28,273,205,22,TRUE);
@@ -2598,22 +2724,25 @@ case WM_CTLCOLORSTATIC:{HDC dc=(HDC)wp;SetTextColor(dc,C_TEXT);SetBkColor(dc,C_P
     }
 
     if(d->CtlID==IDC_LIST&&d->itemID!=(UINT)-1){
-        bool selected=(d->itemState&ODS_SELECTED)!=0;
+        const bool selected=(d->itemState&ODS_SELECTED)!=0;
 
         RECT row=d->rcItem;
-        row.left+=2; row.right-=2; row.top+=2; row.bottom-=2;
+        row.left+=5;
+        row.right-=5;
+        row.top+=5;
+        row.bottom-=5;
+
         if(selected)
-            FillRound(d->hDC,row,RGB(17,42,25),C_ACCENT,7);
+            FillRound(d->hDC,row,RGB(15,34,20),C_ACCENT,9);
         else
-            FillRound(d->hDC,row,C_PANEL,C_PANEL,7);
+            FillRound(d->hDC,row,C_PANEL,C_PANEL,9);
 
         bool desktop=d->itemID==0;
-        ApplicationProfile*p=desktop?&gSettings.desktop:&gSettings.profiles[d->itemID-1];
+        ApplicationProfile* p=desktop?&gSettings.desktop:&gSettings.profiles[d->itemID-1];
 
-        const int rowH=d->rcItem.bottom-d->rcItem.top;
-        const int iconSize=32;
-        int x=d->rcItem.left+12;
-        int y=d->rcItem.top+(rowH-iconSize)/2;
+        const int iconSize=44;
+        const int x=d->rcItem.left+16;
+        const int y=d->rcItem.top+(d->rcItem.bottom-d->rcItem.top-iconSize)/2;
 
         if(desktop){
             DrawWindowsLogo(d->hDC,x+1,y,iconSize);
@@ -2626,30 +2755,35 @@ case WM_CTLCOLORSTATIC:{HDC dc=(HDC)wp;SetTextColor(dc,C_TEXT);SetBkColor(dc,C_P
                 Gdiplus::Graphics g(d->hDC);
                 g.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
                 Gdiplus::Color accent(255,GetRValue(C_ACCENT),GetGValue(C_ACCENT),GetBValue(C_ACCENT));
-                Gdiplus::Pen pen(accent,2.3f);
+                Gdiplus::Pen pen(accent,2.4f);
                 pen.SetStartCap(Gdiplus::LineCapRound);
                 pen.SetEndCap(Gdiplus::LineCapRound);
 
-                const Gdiplus::REAL inset=2.5f;
+                const Gdiplus::REAL inset=3.0f;
                 g.DrawEllipse(&pen,
                     (Gdiplus::REAL)x+inset,(Gdiplus::REAL)y+inset,
                     (Gdiplus::REAL)iconSize-inset*2,(Gdiplus::REAL)iconSize-inset*2);
 
                 const Gdiplus::REAL cx=(Gdiplus::REAL)x+iconSize/2.0f;
                 const Gdiplus::REAL cy=(Gdiplus::REAL)y+iconSize/2.0f;
-                const Gdiplus::REAL arm=7.0f;
+                const Gdiplus::REAL arm=8.0f;
                 g.DrawLine(&pen,cx-arm,cy,cx+arm,cy);
                 g.DrawLine(&pen,cx,cy-arm,cx,cy+arm);
             }
         }
 
         const wchar_t* title=desktop?L"Windows":p->name.c_str();
-        RECT titleRect{x+50,d->rcItem.top,d->rcItem.right-10,d->rcItem.bottom};
+        RECT titleRect{x+58,d->rcItem.top,d->rcItem.right-14,d->rcItem.bottom};
         SetBkMode(d->hDC,TRANSPARENT);
         SetTextColor(d->hDC,C_TEXT);
         SelectObject(d->hDC,gFontBold);
         DrawTextW(d->hDC,title,-1,&titleRect,
             DT_LEFT|DT_VCENTER|DT_SINGLELINE|DT_END_ELLIPSIS|DT_NOPREFIX);
+
+        if(!selected){
+            Fill(d->hDC,d->rcItem.left+12,d->rcItem.bottom-1,
+                 d->rcItem.right-d->rcItem.left-24,1,C_BORDER);
+        }
         return TRUE;
     }
     break;
