@@ -854,17 +854,23 @@ LRESULT CALLBACK FlatCheckboxSubclassProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp
         DeleteObject(bg);
 
         const bool checked=SendMessageW(hwnd,BM_GETCHECK,0,0)==BST_CHECKED;
-        RECT box{1,3,17,19};
-        const COLORREF offBorder=RGB(61,69,77);
-        const COLORREF onFill=RGB(74,204,88);
-        FillRound(dc,box,checked?onFill:C_FIELD,checked?onFill:offBorder,4);
+
+        // Compact mockup-style checkbox: controlled 15x15 box, subtle dark
+        // unchecked state and a softer green checked state.
+        RECT box{2,4,17,19};
+        const COLORREF offFill=RGB(24,30,35);
+        const COLORREF offBorder=RGB(58,67,75);
+        const COLORREF onFill=RGB(72,198,86);
+        const COLORREF onBorder=RGB(83,216,96);
+        FillRound(dc,box,checked?onFill:offFill,checked?onBorder:offBorder,3);
 
         if(checked){
-            HPEN pen=CreatePen(PS_SOLID,2,RGB(13,35,18));
+            // Small, crisp dark check centered inside the 15x15 box.
+            HPEN pen=CreatePen(PS_SOLID,2,RGB(15,39,20));
             HGDIOBJ old=SelectObject(dc,pen);
-            MoveToEx(dc,5,11,nullptr);
-            LineTo(dc,8,14);
-            LineTo(dc,14,7);
+            MoveToEx(dc,6,11,nullptr);
+            LineTo(dc,9,14);
+            LineTo(dc,14,8);
             SelectObject(dc,old);
             DeleteObject(pen);
         }
