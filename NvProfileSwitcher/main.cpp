@@ -507,6 +507,13 @@ void EnumerateNvDisplays(){
         gDisplays.push_back({L"",L"Primary NVIDIA display",gDisplay,gDisplayId,true,L""});
     }
 
+    // Keep the Windows primary display at the top of the combo box while
+    // preserving the relative order of all other displays.
+    std::stable_sort(gDisplays.begin(),gDisplays.end(),
+        [](const DisplayTarget& a,const DisplayTarget& b){
+            return a.primary && !b.primary;
+        });
+
 }
 
 bool Apply(const GameProfile& p,bool updateUi=true);
