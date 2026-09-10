@@ -854,15 +854,17 @@ LRESULT CALLBACK FlatCheckboxSubclassProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp
         DeleteObject(bg);
 
         const bool checked=SendMessageW(hwnd,BM_GETCHECK,0,0)==BST_CHECKED;
-        RECT box{2,4,16,18};
-        FillRound(dc,box,checked?C_ACCENT:C_FIELD,checked?C_ACCENT:C_BORDER,4);
+        RECT box{1,3,17,19};
+        const COLORREF offBorder=RGB(61,69,77);
+        const COLORREF onFill=RGB(74,204,88);
+        FillRound(dc,box,checked?onFill:C_FIELD,checked?onFill:offBorder,4);
 
         if(checked){
-            HPEN pen=CreatePen(PS_SOLID,2,RGB(8,28,11));
+            HPEN pen=CreatePen(PS_SOLID,2,RGB(13,35,18));
             HGDIOBJ old=SelectObject(dc,pen);
             MoveToEx(dc,5,11,nullptr);
             LineTo(dc,8,14);
-            LineTo(dc,13,8);
+            LineTo(dc,14,7);
             SelectObject(dc,old);
             DeleteObject(pen);
         }
@@ -1357,14 +1359,14 @@ void SetDesktopUi(bool desktop){
     MoveWindow(H(IDC_SAVE),rightX+rightW-160,ySave,160,38,TRUE);
 
     const int appX=centerPanelX+centerPanelW+gap+22;
-    MoveWindow(H(IDC_STARTWIN),appX,171,20,22,TRUE);
-    MoveWindow(GetWindow(H(IDC_STARTWIN),GW_HWNDNEXT),appX+28,170,210,22,TRUE);
-    MoveWindow(H(IDC_STARTMIN),appX,217,20,22,TRUE);
-    MoveWindow(GetWindow(H(IDC_STARTMIN),GW_HWNDNEXT),appX+28,216,210,22,TRUE);
-    MoveWindow(H(IDC_MINTRAY),appX,263,20,22,TRUE);
-    MoveWindow(GetWindow(H(IDC_MINTRAY),GW_HWNDNEXT),appX+28,262,210,22,TRUE);
-    MoveWindow(H(IDC_CHECKUPDATES),appX,309,20,22,TRUE);
-    MoveWindow(GetWindow(H(IDC_CHECKUPDATES),GW_HWNDNEXT),appX+28,308,210,22,TRUE);
+    MoveWindow(H(IDC_STARTWIN),appX,164,20,22,TRUE);
+    MoveWindow(GetWindow(H(IDC_STARTWIN),GW_HWNDNEXT),appX+24,164,220,22,TRUE);
+    MoveWindow(H(IDC_STARTMIN),appX,194,20,22,TRUE);
+    MoveWindow(GetWindow(H(IDC_STARTMIN),GW_HWNDNEXT),appX+24,194,220,22,TRUE);
+    MoveWindow(H(IDC_MINTRAY),appX,224,20,22,TRUE);
+    MoveWindow(GetWindow(H(IDC_MINTRAY),GW_HWNDNEXT),appX+24,224,220,22,TRUE);
+    MoveWindow(H(IDC_CHECKUPDATES),appX,254,20,22,TRUE);
+    MoveWindow(GetWindow(H(IDC_CHECKUPDATES),GW_HWNDNEXT),appX+24,254,220,22,TRUE);
 
     InvalidateRect(gWnd,nullptr,TRUE);
 }
@@ -1592,9 +1594,14 @@ void DrawOwnerButton(const DRAWITEMSTRUCT* d){
         textColor=disabled?C_MUTED:C_TEXT;
         icon=C_MUTED;
     }else if(id==IDC_ADD){
-        fill=down?RGB(26,62,29):RGB(22,48,27);
-        border=RGB(46,117,46); icon=C_ACCENT;
+        fill=down?C_FIELD:C_PANEL2;
+        border=C_BORDER;
+        textColor=disabled?C_MUTED:C_TEXT;
+        icon=C_TEXT;
     }else if(id==IDC_REMOVE){
+        fill=down?C_FIELD:C_PANEL2;
+        border=C_BORDER;
+        textColor=disabled?C_MUTED:C_TEXT;
         icon=C_DANGER;
     }else if(id==IDC_BROWSE){
         icon=C_TEXT;
@@ -1606,7 +1613,7 @@ void DrawOwnerButton(const DRAWITEMSTRUCT* d){
     wchar_t caption[128]{};
     GetWindowTextW(d->hwndItem,caption,128);
     SIZE sz{};
-    HFONT buttonFont=(id==IDC_SAVE||id==IDC_DEFAULTS||id==IDC_ADD||id==IDC_REMOVE)?gFontBold:gFont;
+    HFONT buttonFont=(id==IDC_SAVE||id==IDC_DEFAULTS)?gFontBold:gFont;
     SelectObject(d->hDC,buttonFont);
     GetTextExtentPoint32W(d->hDC,caption,(int)wcslen(caption),&sz);
 
@@ -1976,18 +1983,26 @@ void Paint(HWND w){
     DrawHeaderImage(dc);
     Fill(dc,0,78,rc.right,1,C_BORDER);
 
-    DrawProfilesPrototypeIcon(dc,38,107);
-    DrawLabel(dc,L"Profiles",68,110,C_TEXT,gFontBold);
+    // Compact panel header strips, intentionally simpler than the main branded header.
+    RECT leftHeader{left.left+1,left.top+1,left.right-1,147};
+    RECT centerHeader{center.left+1,center.top+1,center.right-1,147};
+    RECT settingsHeader{settings.left+1,settings.top+1,settings.right-1,147};
+    FillRound(dc,leftHeader,C_PANEL2,C_PANEL2,9);
+    FillRound(dc,centerHeader,C_PANEL2,C_PANEL2,9);
+    FillRound(dc,settingsHeader,C_PANEL2,C_PANEL2,9);
 
-    DrawProfileSettingsPrototypeIcon(dc,centerX+22,109);
-    DrawLabel(dc,L"Profile Settings",centerX+52,110,C_TEXT,gFontBold);
+    // Square off the lower corners so only the top of each panel header is rounded.
+    Fill(dc,left.left+1,left.top+10,leftW-2,57,C_PANEL2);
+    Fill(dc,center.left+1,center.top+10,centerW-2,57,C_PANEL2);
+    Fill(dc,settings.left+1,settings.top+10,settingsW-2,57,C_PANEL2);
 
-    DrawApplicationSettingsGear(dc,settingsX+22,107);
-    DrawLabel(dc,L"Application Settings",settingsX+52,110,C_TEXT,gFontBold);
+    DrawLabel(dc,L"Profiles",left.left+14,108,C_TEXT,gFontBold);
+    DrawLabel(dc,L"Profile Settings",center.left+14,108,C_TEXT,gFontBold);
+    DrawLabel(dc,L"Application Settings",settings.left+14,108,C_TEXT,gFontBold);
 
-    Fill(dc,margin+14,146,leftW-28,1,C_BORDER);
-    Fill(dc,centerX+14,146,centerW-28,1,C_BORDER);
-    Fill(dc,settingsX+14,146,settingsW-28,1,C_BORDER);
+    Fill(dc,left.left+12,146,leftW-24,1,C_BORDER);
+    Fill(dc,center.left+12,146,centerW-24,1,C_BORDER);
+    Fill(dc,settings.left+12,146,settingsW-24,1,C_BORDER);
 
     const bool desktop=IsDesktopSelected();
     const int displayY=desktop?180:334;
@@ -2113,8 +2128,8 @@ void BuildControls(){
         SetWindowSubclass(list,ProfileListSubclassProc,1,0);
     }
 
-    Add(L"BUTTON",L"Add profile",BS_OWNERDRAW,134,104,126,38,IDC_ADD);
-    Add(L"BUTTON",L"Remove",BS_OWNERDRAW,268,104,92,38,IDC_REMOVE);
+    Add(L"BUTTON",L"Add profile",BS_OWNERDRAW,174,99,96,32,IDC_ADD);
+    Add(L"BUTTON",L"Remove",BS_OWNERDRAW,278,99,86,32,IDC_REMOVE);
 
     Add(L"STATIC",L"Profile name",0,rightX,166,110,22,IDC_LBL_NAME);
     HWND eName=Add(L"EDIT",L"",ES_AUTOHSCROLL,rightX+120,167,rightW-122,22,IDC_NAME);
@@ -2172,14 +2187,14 @@ void BuildControls(){
 
     const int appX=centerPanelX+centerPanelW+gap+22;
 
-    { HWND cb=Add(L"BUTTON",L"",BS_AUTOCHECKBOX,appX,171,20,22,IDC_STARTWIN); StyleFlatCheckbox(cb); }
-    Add(L"STATIC",L"Start with Windows",0,appX+28,170,210,22,0);
-    { HWND cb=Add(L"BUTTON",L"",BS_AUTOCHECKBOX,appX,217,20,22,IDC_STARTMIN); StyleFlatCheckbox(cb); }
-    Add(L"STATIC",L"Start minimized",0,appX+28,216,210,22,0);
-    { HWND cb=Add(L"BUTTON",L"",BS_AUTOCHECKBOX,appX,263,20,22,IDC_MINTRAY); StyleFlatCheckbox(cb); }
-    Add(L"STATIC",L"Minimize to tray",0,appX+28,262,210,22,0);
-    { HWND cb=Add(L"BUTTON",L"",BS_AUTOCHECKBOX,appX,309,20,22,IDC_CHECKUPDATES); StyleFlatCheckbox(cb); }
-    Add(L"STATIC",L"Check for updates",0,appX+28,308,210,22,0);
+    { HWND cb=Add(L"BUTTON",L"",BS_AUTOCHECKBOX,appX,164,20,22,IDC_STARTWIN); StyleFlatCheckbox(cb); }
+    Add(L"STATIC",L"Start with Windows",0,appX+24,164,220,22,0);
+    { HWND cb=Add(L"BUTTON",L"",BS_AUTOCHECKBOX,appX,194,20,22,IDC_STARTMIN); StyleFlatCheckbox(cb); }
+    Add(L"STATIC",L"Start minimized",0,appX+24,194,220,22,0);
+    { HWND cb=Add(L"BUTTON",L"",BS_AUTOCHECKBOX,appX,224,20,22,IDC_MINTRAY); StyleFlatCheckbox(cb); }
+    Add(L"STATIC",L"Minimize to tray",0,appX+24,224,220,22,0);
+    { HWND cb=Add(L"BUTTON",L"",BS_AUTOCHECKBOX,appX,254,20,22,IDC_CHECKUPDATES); StyleFlatCheckbox(cb); }
+    Add(L"STATIC",L"Check for updates",0,appX+24,254,220,22,0);
 
     SendMessageW(H(IDC_STARTWIN),BM_SETCHECK,gSettings.startWindows?BST_CHECKED:BST_UNCHECKED,0);
     SendMessageW(H(IDC_STARTMIN),BM_SETCHECK,gSettings.startMinimized?BST_CHECKED:BST_UNCHECKED,0);
@@ -2205,8 +2220,8 @@ void ResizeControls(){
     const int panelBottom=r.bottom-footerH-14;
 
     MoveWindow(H(IDC_LIST),margin+10,164,leftW-20,(int)std::max(300,panelBottom-164-18),TRUE);
-    MoveWindow(H(IDC_ADD),134,104,126,38,TRUE);
-    MoveWindow(H(IDC_REMOVE),268,104,92,38,TRUE);
+    MoveWindow(H(IDC_ADD),174,99,96,32,TRUE);
+    MoveWindow(H(IDC_REMOVE),278,99,86,32,TRUE);
 
     MoveWindow(H(IDC_LBL_NAME),rightX,166,110,22,TRUE);
     MoveWindow(H(IDC_NAME),rightX+120,167,rightW-122,22,TRUE);
