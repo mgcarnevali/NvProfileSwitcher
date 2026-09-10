@@ -830,6 +830,52 @@ void SetStartup(bool on){
 
 HWND H(int id){return GetDlgItem(gWnd,id);} void Txt(int id,const std::wstring&s){SetWindowTextW(H(id),s.c_str());} std::wstring GetTxt(int id){int n=GetWindowTextLengthW(H(id));std::wstring s(n+1,0);GetWindowTextW(H(id),s.data(),n+1);s.resize(n);return s;}
 HWND Add(const wchar_t*cls,const wchar_t*txt,DWORD style,int x,int y,int w,int h,int id){ HWND c=CreateWindowExW(0,cls,txt,WS_CHILD|WS_VISIBLE|style,x,y,w,h,gWnd,(HMENU)(INT_PTR)id,gInst,nullptr); SendMessageW(c,WM_SETFONT,(WPARAM)gFont,TRUE); return c; }
+
+void ApplyRoundedRegion(HWND hwnd,int radius=8){
+    if(!hwnd) return;
+    RECT r{};
+    GetClientRect(hwnd,&r);
+    if(r.right<=0||r.bottom<=0) return;
+    HRGN region=CreateRoundRectRgn(0,0,r.right+1,r.bottom+1,radius,radius);
+    SetWindowRgn(hwnd,region,TRUE);
+}
+
+LRESULT CALLBACK RoundedFieldSubclassProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp,
+                                          UINT_PTR subclassId,DWORD_PTR refData){
+    switch(msg){
+    case WM_SIZE:
+        ApplyRoundedRegion(hwnd,8);
+        break;
+    case WM_PAINT:{
+        LRESULT result=DefSubclassProc(hwnd,msg,wp,lp);
+        HDC dc=GetDC(hwnd);
+        if(dc){
+            RECT r{};
+            GetClientRect(hwnd,&r);
+            HPEN pen=CreatePen(PS_SOLID,1,C_BORDER);
+            HGDIOBJ oldPen=SelectObject(dc,pen);
+            HGDIOBJ oldBrush=SelectObject(dc,GetStockObject(NULL_BRUSH));
+            RoundRect(dc,r.left,r.top,r.right-1,r.bottom-1,8,8);
+            SelectObject(dc,oldBrush);
+            SelectObject(dc,oldPen);
+            DeleteObject(pen);
+            ReleaseDC(hwnd,dc);
+        }
+        return result;
+    }
+    case WM_NCDESTROY:
+        RemoveWindowSubclass(hwnd,RoundedFieldSubclassProc,subclassId);
+        break;
+    }
+    return DefSubclassProc(hwnd,msg,wp,lp);
+}
+
+void StyleRoundedField(HWND hwnd){
+    if(!hwnd) return;
+    ApplyRoundedRegion(hwnd,8);
+    SetWindowSubclass(hwnd,RoundedFieldSubclassProc,1,0);
+    InvalidateRect(hwnd,nullptr,TRUE);
+}
 void RefreshList(){ HWND l=H(IDC_LIST); SendMessageW(l,LB_RESETCONTENT,0,0); SendMessageW(l,LB_ADDSTRING,0,(LPARAM)gSettings.desktop.name.c_str()); for(auto&p:gSettings.profiles)SendMessageW(l,LB_ADDSTRING,0,(LPARAM)p.name.c_str()); int maxSel=(int)gSettings.profiles.size(); gSelected=std::clamp(gSelected,0,maxSel); SendMessageW(l,LB_SETCURSEL,gSelected,0); }
 
 bool ProfileTitleIsTruncated(int item){
@@ -1435,17 +1481,25 @@ void DrawRemoveButtonIcon(HDC dc,int x,int y,COLORREF c){
 void DrawFolderIcon(HDC dc,int x,int y,COLORREF c){
     Gdiplus::Graphics g(dc);
     g.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
+
     Gdiplus::Color color(255,GetRValue(c),GetGValue(c),GetBValue(c));
-    Gdiplus::Pen pen(color,1.10f);
+    Gdiplus::Pen pen(color,1.35f);
+    pen.SetStartCap(Gdiplus::LineCapRound);
+    pen.SetEndCap(Gdiplus::LineCapRound);
     pen.SetLineJoin(Gdiplus::LineJoinRound);
 
     Gdiplus::GraphicsPath path;
     path.StartFigure();
-    path.AddLine((Gdiplus::REAL)x+1.5f,(Gdiplus::REAL)y+6.5f,(Gdiplus::REAL)x+7.0f,(Gdiplus::REAL)y+6.5f);
-    path.AddLine((Gdiplus::REAL)x+7.0f,(Gdiplus::REAL)y+6.5f,(Gdiplus::REAL)x+9.0f,(Gdiplus::REAL)y+8.5f);
-    path.AddLine((Gdiplus::REAL)x+9.0f,(Gdiplus::REAL)y+8.5f,(Gdiplus::REAL)x+18.5f,(Gdiplus::REAL)y+8.5f);
-    path.AddLine((Gdiplus::REAL)x+18.5f,(Gdiplus::REAL)y+8.5f,(Gdiplus::REAL)x+18.5f,(Gdiplus::REAL)y+17.5f);
-    path.AddLine((Gdiplus::REAL)x+18.5f,(Gdiplus::REAL)y+17.5f,(Gdiplus::REAL)x+1.5f,(Gdiplus::REAL)y+17.5f);
+    path.AddLine((Gdiplus::REAL)x+1.5f,(Gdiplus::REAL)y+5.0f,
+                 (Gdiplus::REAL)x+6.8f,(Gdiplus::REAL)y+5.0f);
+    path.AddLine((Gdiplus::REAL)x+6.8f,(Gdiplus::REAL)y+5.0f,
+                 (Gdiplus::REAL)x+9.2f,(Gdiplus::REAL)y+7.4f);
+    path.AddLine((Gdiplus::REAL)x+9.2f,(Gdiplus::REAL)y+7.4f,
+                 (Gdiplus::REAL)x+18.0f,(Gdiplus::REAL)y+7.4f);
+    path.AddLine((Gdiplus::REAL)x+18.0f,(Gdiplus::REAL)y+7.4f,
+                 (Gdiplus::REAL)x+19.0f,(Gdiplus::REAL)y+16.5f);
+    path.AddLine((Gdiplus::REAL)x+19.0f,(Gdiplus::REAL)y+16.5f,
+                 (Gdiplus::REAL)x+1.5f,(Gdiplus::REAL)y+16.5f);
     path.CloseFigure();
     g.DrawPath(&pen,&path);
 }
@@ -1961,13 +2015,17 @@ void BuildControls(){
 
     HWND lblName=Add(L"STATIC",L"Profile name",0,rightX,166,160,22,IDC_LBL_NAME);
     SendMessageW(lblName,WM_SETFONT,(WPARAM)gFontBold,TRUE);
-    HWND eName=Add(L"EDIT",L"",WS_BORDER|ES_AUTOHSCROLL,rightX+147,162,rightW-147,34,IDC_NAME);
+    HWND eName=Add(L"EDIT",L"",ES_AUTOHSCROLL,rightX+147,162,rightW-147,34,IDC_NAME);
     SetWindowTheme(eName,L"DarkMode_Explorer",nullptr);
+    StyleRoundedField(eName);
+    SendMessageW(eName,EM_SETMARGINS,EC_LEFTMARGIN|EC_RIGHTMARGIN,MAKELPARAM(10,10));
 
     HWND lblExe=Add(L"STATIC",L"Executable",0,rightX,214,160,22,IDC_LBL_EXE);
     SendMessageW(lblExe,WM_SETFONT,(WPARAM)gFontBold,TRUE);
-    HWND eExe=Add(L"EDIT",L"",WS_BORDER|ES_AUTOHSCROLL,rightX,240,rightW-126,34,IDC_EXE);
+    HWND eExe=Add(L"EDIT",L"",ES_AUTOHSCROLL,rightX,240,rightW-126,34,IDC_EXE);
     SetWindowTheme(eExe,L"DarkMode_Explorer",nullptr);
+    StyleRoundedField(eExe);
+    SendMessageW(eExe,EM_SETMARGINS,EC_LEFTMARGIN|EC_RIGHTMARGIN,MAKELPARAM(10,10));
     Add(L"BUTTON",L"Browse...",BS_OWNERDRAW,rightX+rightW-116,237,116,40,IDC_BROWSE);
 
     Add(L"BUTTON",L"",BS_AUTOCHECKBOX,rightX,286,20,22,IDC_ENABLED);
@@ -1979,6 +2037,7 @@ void BuildControls(){
         rightX,325,rightW,240,IDC_DISPLAY);
     SendMessageW(display,CB_SETITEMHEIGHT,0,30);
     SetWindowTheme(display,L"DarkMode_Explorer",nullptr);
+    StyleRoundedField(display);
 
     auto slider=[&](const wchar_t*t,int lid,int id,int vid,int y,int mn,int mx){
         HWND lbl=Add(L"STATIC",t,0,rightX+29,y-2,180,22,lid);
@@ -2052,6 +2111,9 @@ void ResizeControls(){
     MoveWindow(H(IDC_FOOT_SUPPORT),r.right-212,r.bottom-43,98,24,TRUE);
     MoveWindow(H(IDC_FOOT_ABOUT),r.right-108,r.bottom-43,64,24,TRUE);
 
+    ApplyRoundedRegion(H(IDC_NAME),8);
+    ApplyRoundedRegion(H(IDC_EXE),8);
+    ApplyRoundedRegion(H(IDC_DISPLAY),8);
     SetDesktopUi(IsDesktopSelected());
 }
 
