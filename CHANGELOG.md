@@ -15,7 +15,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 - The Windows primary display is now always shown first in the display selector.
 - Improved tooltip positioning and spacing for a more consistent interface.
-- Refined profile and application terminology throughout the interface.
+- Refined profile and application terminology throughout the interface and configuration.
 
 ### Fixed
 
