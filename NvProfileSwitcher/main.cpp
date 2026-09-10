@@ -1871,12 +1871,12 @@ void Paint(HWND w){
     // Rounded frames for application text fields. The EDIT controls themselves
     // are borderless and inset, avoiding clipped corners or double borders.
     if(!desktop){
-        const int browseW=128;
+        const int browseW=142;
         const int fieldGap=10;
-        RECT nameFrame{rightX+118,164,rightX+rightW,194};
+        RECT nameFrame{rightX+118,162,rightX+rightW,196};
         FillRound(dc,nameFrame,C_FIELD,C_BORDER,8);
 
-        RECT exeFrame{rightX,234,rightX+rightW-browseW-fieldGap,264};
+        RECT exeFrame{rightX,230,rightX+rightW-browseW-fieldGap,264};
         FillRound(dc,exeFrame,C_FIELD,C_BORDER,8);
     }
 
@@ -1990,21 +1990,21 @@ void BuildControls(){
 
     // Compact Profile Settings layout.
     Add(L"STATIC",L"Profile name",0,rightX,166,110,22,IDC_LBL_NAME);
-    HWND eName=Add(L"EDIT",L"",ES_AUTOHSCROLL,rightX+120,166,rightW-122,26,IDC_NAME);
+    HWND eName=Add(L"EDIT",L"",ES_AUTOHSCROLL,rightX+120,164,rightW-122,30,IDC_NAME);
     SetWindowTheme(eName,L"DarkMode_Explorer",nullptr);
     SendMessageW(eName,EM_SETMARGINS,EC_LEFTMARGIN|EC_RIGHTMARGIN,MAKELPARAM(8,8));
 
-    Add(L"STATIC",L"Executable",0,rightX,210,120,22,IDC_LBL_EXE);
-    const int browseW=128;
+    Add(L"STATIC",L"Executable",0,rightX,208,120,22,IDC_LBL_EXE);
+    const int browseW=142;
     const int fieldGap=10;
-    HWND eExe=Add(L"EDIT",L"",ES_AUTOHSCROLL,rightX+2,236,rightW-browseW-fieldGap-4,26,IDC_EXE);
+    HWND eExe=Add(L"EDIT",L"",ES_AUTOHSCROLL,rightX+2,232,rightW-browseW-fieldGap-4,30,IDC_EXE);
     SetWindowTheme(eExe,L"DarkMode_Explorer",nullptr);
     SendMessageW(eExe,EM_SETMARGINS,EC_LEFTMARGIN|EC_RIGHTMARGIN,MAKELPARAM(8,8));
     Add(L"BUTTON",L"Browse...",BS_OWNERDRAW,
-        rightX+rightW-browseW,234,browseW,30,IDC_BROWSE);
+        rightX+rightW-browseW,230,browseW,34,IDC_BROWSE);
 
-    Add(L"BUTTON",L"",BS_AUTOCHECKBOX,rightX,278,20,22,IDC_ENABLED);
-    Add(L"STATIC",L"Enable this profile",0,rightX+28,277,205,22,IDC_LBL_ENABLED);
+    Add(L"BUTTON",L"",BS_AUTOCHECKBOX,rightX,274,20,22,IDC_ENABLED);
+    Add(L"STATIC",L"Enable this profile",0,rightX+28,273,205,22,IDC_LBL_ENABLED);
 
     Add(L"STATIC",L"Display",0,rightX+31,322,150,22,IDC_LBL_DISPLAY);
     HWND display=Add(L"COMBOBOX",L"",CBS_DROPDOWNLIST|CBS_OWNERDRAWFIXED|CBS_HASSTRINGS|WS_VSCROLL,
@@ -2079,15 +2079,15 @@ void ResizeControls(){
     MoveWindow(H(IDC_REMOVE),270,104,90,38,TRUE);
 
     MoveWindow(H(IDC_LBL_NAME),rightX,166,110,22,TRUE);
-    MoveWindow(H(IDC_NAME),rightX+120,166,rightW-122,26,TRUE);
+    MoveWindow(H(IDC_NAME),rightX+120,164,rightW-122,30,TRUE);
 
-    const int browseW=128;
+    const int browseW=142;
     const int fieldGap=10;
-    MoveWindow(H(IDC_LBL_EXE),rightX,210,120,22,TRUE);
-    MoveWindow(H(IDC_EXE),rightX+2,236,rightW-browseW-fieldGap-4,26,TRUE);
-    MoveWindow(H(IDC_BROWSE),rightX+rightW-browseW,234,browseW,30,TRUE);
-    MoveWindow(H(IDC_ENABLED),rightX,278,20,22,TRUE);
-    MoveWindow(H(IDC_LBL_ENABLED),rightX+28,277,205,22,TRUE);
+    MoveWindow(H(IDC_LBL_EXE),rightX,208,120,22,TRUE);
+    MoveWindow(H(IDC_EXE),rightX+2,232,rightW-browseW-fieldGap-4,30,TRUE);
+    MoveWindow(H(IDC_BROWSE),rightX+rightW-browseW,230,browseW,34,TRUE);
+    MoveWindow(H(IDC_ENABLED),rightX,274,20,22,TRUE);
+    MoveWindow(H(IDC_LBL_ENABLED),rightX+28,273,205,22,TRUE);
 
     MoveWindow(H(IDC_FOOT_GITHUB),r.right-284,r.bottom-43,66,24,TRUE);
     MoveWindow(H(IDC_FOOT_SUPPORT),r.right-212,r.bottom-43,98,24,TRUE);
