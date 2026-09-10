@@ -16,6 +16,8 @@ It allows you to create individual profiles for applications and games, with ind
 - Brightness control
 - Contrast control
 - Gamma control
+- Live preview of display color adjustments while editing profiles
+- Reset control to restore NVIDIA-neutral values while editing
 - Windows/Desktop profiles
 - Automatic restoration of Windows settings when leaving a configured application
 - Stable physical monitor identification
@@ -77,15 +79,24 @@ New monitor and application profiles start with neutral NVIDIA/default values:
 
 Once a profile is saved, its settings are preserved and restored whenever the same physical monitor is detected again.
 
+## Live preview
+
+Display setting changes are previewed immediately on the selected monitor while editing a profile.
+
+Preview changes are not saved automatically. Switching profiles, changing displays, or minimizing the application discards unsaved preview changes and restores the currently saved settings.
+
+The **Reset** button restores the controls to neutral NVIDIA/default values and previews them immediately. Reset values are only stored when **Save profile** is clicked.
+
 ## Usage
 
 1. Launch `NvProfileSwitcher.exe`.
 2. Configure the **Windows** profile for each monitor.
 3. Click **Add profile** to create a new application profile.
 4. Select the application's **Executable**.
-5. Configure the desired display settings for each monitor.
-6. Click **Save profile**.
-7. Enable the profile.
+5. Configure the desired display settings for each monitor. Changes are previewed live while editing.
+6. Use **Reset** to return the selected monitor to neutral NVIDIA/default values if needed.
+7. Click **Save profile** to save the changes.
+8. Enable the profile.
 
 NvProfileSwitcher will automatically apply the profile when the configured executable becomes the foreground application.
 
@@ -197,7 +208,7 @@ vMAJOR.MINOR.PATCH
 For example:
 
 ```text
-v1.2.4
+v1.3.0
 ```
 
 Development builds use the short Git commit hash:
