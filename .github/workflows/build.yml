@@ -5,7 +5,7 @@ run-name: >-
       && format('Build NvProfileSwitcher {0}', github.ref_name)
       || github.event_name == 'workflow_dispatch'
       && format('{0} — {1}', github.ref_name, inputs.description)
-      || format('{0} — automatic build', github.ref_name) }}
+      || format('{0} — Automatic build', github.ref_name) }}
 
 on:
   workflow_dispatch:
