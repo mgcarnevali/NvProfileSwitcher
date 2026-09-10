@@ -1090,15 +1090,19 @@ void CancelPendingPreview(){
 }
 
 void ReapplyRealColors(){
-    if(gActive!=L"Windows"){
-        for(const auto& p:gSettings.profiles){
-            if(p.enabled && _wcsicmp(p.name.c_str(),gActive.c_str())==0){
-                ApplyGameProfile(p);
-                return;
-            }
+    std::wstring fgName=ForegroundProcessName();
+
+    for(const auto& p:gSettings.profiles){
+        if(!p.enabled||p.exePath.empty()) continue;
+        if(_wcsicmp(ProcessName(p.exePath).c_str(),fgName.c_str())==0){
+            ApplyGameProfile(p);
+            gActive=p.name;
+            return;
         }
     }
+
     RestoreAllDesktopProfiles();
+    gActive=L"Windows";
 }
 
 void DiscardPreview(){
