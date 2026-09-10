@@ -1594,13 +1594,13 @@ void DrawOwnerButton(const DRAWITEMSTRUCT* d){
         textColor=disabled?C_MUTED:C_TEXT;
         icon=C_MUTED;
     }else if(id==IDC_ADD){
-        fill=down?RGB(34,40,46):RGB(31,37,43);
-        border=RGB(66,74,82);
+        fill=down?RGB(37,43,49):RGB(33,39,45);
+        border=RGB(72,80,88);
         textColor=disabled?C_MUTED:RGB(226,230,233);
         icon=disabled?C_MUTED:RGB(211,216,220);
     }else if(id==IDC_REMOVE){
-        fill=down?RGB(34,40,46):RGB(31,37,43);
-        border=RGB(66,74,82);
+        fill=down?RGB(37,43,49):RGB(33,39,45);
+        border=RGB(72,80,88);
         textColor=disabled?C_MUTED:RGB(226,230,233);
         icon=disabled?C_MUTED:C_DANGER;
     }else if(id==IDC_BROWSE){
@@ -1608,7 +1608,7 @@ void DrawOwnerButton(const DRAWITEMSTRUCT* d){
     }
 
     RECT r=d->rcItem;
-    const int radius=(id==IDC_ADD||id==IDC_REMOVE)?8:8;
+    const int radius=(id==IDC_ADD||id==IDC_REMOVE)?7:8;
     FillRound(d->hDC,r,fill,border,radius);
 
     wchar_t caption[128]{};
@@ -1618,45 +1618,36 @@ void DrawOwnerButton(const DRAWITEMSTRUCT* d){
     SelectObject(d->hDC,buttonFont);
     GetTextExtentPoint32W(d->hDC,caption,(int)wcslen(caption),&sz);
 
-    int iconW=0;
-    int gap=0;
-    if(id==IDC_ADD){ iconW=18; gap=8; }
-    else if(id==IDC_REMOVE){ iconW=18; gap=8; }
-    else if(id==IDC_BROWSE){ iconW=20; gap=7; }
-
-    const int total=iconW+gap+sz.cx;
     const int cy=(r.top+r.bottom)/2;
-
-    // Center the entire icon + caption group inside the button.
-    int contentX=r.left+((r.right-r.left)-total)/2;
-
-    // The Add/Remove glyph helpers draw a little wider than their nominal
-    // origin. Compensate so their visual center, not only their coordinates,
-    // lines up with the caption.
-    if(id==IDC_ADD) contentX-=4;
-    else if(id==IDC_REMOVE) contentX-=4;
-
-    if(id==IDC_SAVE||id==IDC_DEFAULTS) { /* text-only actions */ }
-    else if(id==IDC_ADD) DrawAddButtonIcon(d->hDC,contentX,cy-9,icon);
-    else if(id==IDC_REMOVE) DrawRemoveButtonIcon(d->hDC,contentX,cy-9,icon);
-    else if(id==IDC_BROWSE) DrawFolderIcon(d->hDC,contentX,cy-12,icon);
 
     SetBkMode(d->hDC,TRANSPARENT);
     SetTextColor(d->hDC,textColor);
     SelectObject(d->hDC,buttonFont);
 
-    // DrawText gives better vertical centering than TextOut for these compact
-    // owner-drawn header buttons.
-    if(id==IDC_ADD||id==IDC_REMOVE){
-        RECT textRect{
-            contentX+iconW+gap,
-            r.top,
-            r.right-3,
-            r.bottom
-        };
-        DrawTextW(d->hDC,caption,-1,&textRect,
-            DT_LEFT|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);
+    if(id==IDC_ADD){
+        // Reference-style layout: roomy left icon, stronger caption,
+        // both vertically centered and visually balanced.
+        const int iconX=r.left+13;
+        const int textX=r.left+39;
+        DrawAddButtonIcon(d->hDC,iconX,cy-9,icon);
+        RECT tr{textX,r.top,r.right-10,r.bottom};
+        DrawTextW(d->hDC,caption,-1,&tr,DT_LEFT|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);
+    }else if(id==IDC_REMOVE){
+        const int iconX=r.left+12;
+        const int textX=r.left+38;
+        DrawRemoveButtonIcon(d->hDC,iconX,cy-9,icon);
+        RECT tr{textX,r.top,r.right-9,r.bottom};
+        DrawTextW(d->hDC,caption,-1,&tr,DT_LEFT|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);
     }else{
+        int iconW=0;
+        int gap=0;
+        if(id==IDC_BROWSE){ iconW=20; gap=7; }
+
+        int total=iconW+gap+sz.cx;
+        int contentX=r.left+((r.right-r.left)-total)/2;
+
+        if(id==IDC_BROWSE) DrawFolderIcon(d->hDC,contentX,cy-12,icon);
+
         int textY=cy-sz.cy/2;
         if(id==IDC_BROWSE) textY-=1;
         TextOutW(d->hDC,contentX+iconW+gap,textY,caption,(int)wcslen(caption));
@@ -2024,6 +2015,12 @@ void Paint(HWND w){
     DrawLabel(dc,L"Profile Settings",center.left+14,101,C_TEXT,gFontBold);
     DrawLabel(dc,L"Application Settings",settings.left+14,101,C_TEXT,gFontBold);
 
+    // Explicitly restore the panel body below the header so the lighter
+    // header fill cannot bleed past the separator.
+    Fill(dc,left.left+1,137,leftW-2,4,C_PANEL);
+    Fill(dc,center.left+1,137,centerW-2,4,C_PANEL);
+    Fill(dc,settings.left+1,137,settingsW-2,4,C_PANEL);
+
     Fill(dc,left.left+12,136,leftW-24,1,C_BORDER);
     Fill(dc,center.left+12,136,centerW-24,1,C_BORDER);
     Fill(dc,settings.left+12,136,settingsW-24,1,C_BORDER);
@@ -2152,8 +2149,8 @@ void BuildControls(){
         SetWindowSubclass(list,ProfileListSubclassProc,1,0);
     }
 
-    Add(L"BUTTON",L"Add profile",BS_OWNERDRAW,166,95,112,32,IDC_ADD);
-    Add(L"BUTTON",L"Remove",BS_OWNERDRAW,284,95,94,32,IDC_REMOVE);
+    Add(L"BUTTON",L"Add profile",BS_OWNERDRAW,174,94,110,34,IDC_ADD);
+    Add(L"BUTTON",L"Remove",BS_OWNERDRAW,292,94,94,34,IDC_REMOVE);
 
     Add(L"STATIC",L"Profile name",0,rightX,152,110,22,IDC_LBL_NAME);
     HWND eName=Add(L"EDIT",L"",ES_AUTOHSCROLL,rightX+120,153,rightW-122,22,IDC_NAME);
@@ -2244,8 +2241,8 @@ void ResizeControls(){
     const int panelBottom=r.bottom-footerH-14;
 
     MoveWindow(H(IDC_LIST),margin+10,144,leftW-20,(int)std::max(300,panelBottom-144-18),TRUE);
-    MoveWindow(H(IDC_ADD),166,95,112,32,TRUE);
-    MoveWindow(H(IDC_REMOVE),284,95,94,32,TRUE);
+    MoveWindow(H(IDC_ADD),174,94,110,34,TRUE);
+    MoveWindow(H(IDC_REMOVE),292,94,94,34,TRUE);
 
     MoveWindow(H(IDC_LBL_NAME),rightX,152,110,22,TRUE);
     MoveWindow(H(IDC_NAME),rightX+120,153,rightW-122,22,TRUE);
@@ -2884,7 +2881,7 @@ Gdiplus::GdiplusStartupInput gdiplusInput;
 if(Gdiplus::GdiplusStartup(&gGdiPlusToken,&gdiplusInput,nullptr)!=Gdiplus::Ok)
     gGdiPlusToken=0;
 if(gGdiPlusToken){LoadHeaderImage();LoadSliderIcons();}
-INITCOMMONCONTROLSEX ic{sizeof(ic),ICC_BAR_CLASSES|ICC_STANDARD_CLASSES};InitCommonControlsEx(&ic);Load();gSettings.desktop.name=L"Windows";gBackBrush=CreateSolidBrush(C_BACK);gPanelBrush=CreateSolidBrush(C_PANEL);gPanel2Brush=CreateSolidBrush(C_PANEL2);gFieldBrush=CreateSolidBrush(C_FIELD);gFont=CreateFontW(-15,0,0,0,FW_NORMAL,0,0,0,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,DEFAULT_PITCH,L"Segoe UI");gFontBold=CreateFontW(-15,0,0,0,FW_SEMIBOLD,0,0,0,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,DEFAULT_PITCH,L"Segoe UI");gFontTitle=CreateFontW(-24,0,0,0,FW_BOLD,0,0,0,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,DEFAULT_PITCH,L"Segoe UI");gFontSmall=CreateFontW(-13,0,0,0,FW_NORMAL,0,0,0,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,DEFAULT_PITCH,L"Segoe UI");gFontHeaderButton=CreateFontW(-15,0,0,0,FW_SEMIBOLD,0,0,0,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,DEFAULT_PITCH,L"Segoe UI");
+INITCOMMONCONTROLSEX ic{sizeof(ic),ICC_BAR_CLASSES|ICC_STANDARD_CLASSES};InitCommonControlsEx(&ic);Load();gSettings.desktop.name=L"Windows";gBackBrush=CreateSolidBrush(C_BACK);gPanelBrush=CreateSolidBrush(C_PANEL);gPanel2Brush=CreateSolidBrush(C_PANEL2);gFieldBrush=CreateSolidBrush(C_FIELD);gFont=CreateFontW(-15,0,0,0,FW_NORMAL,0,0,0,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,DEFAULT_PITCH,L"Segoe UI");gFontBold=CreateFontW(-15,0,0,0,FW_SEMIBOLD,0,0,0,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,DEFAULT_PITCH,L"Segoe UI");gFontTitle=CreateFontW(-24,0,0,0,FW_BOLD,0,0,0,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,DEFAULT_PITCH,L"Segoe UI");gFontSmall=CreateFontW(-13,0,0,0,FW_NORMAL,0,0,0,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,DEFAULT_PITCH,L"Segoe UI");gFontHeaderButton=CreateFontW(-14,0,0,0,FW_SEMIBOLD,0,0,0,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,DEFAULT_PITCH,L"Segoe UI");
 gIconFont=CreateFontW(-18,0,0,0,FW_NORMAL,FALSE,FALSE,FALSE,DEFAULT_CHARSET,OUT_DEFAULT_PRECIS,CLIP_DEFAULT_PRECIS,CLEARTYPE_QUALITY,DEFAULT_PITCH,L"Segoe MDL2 Assets");gIcon=LoadIconW(h,MAKEINTRESOURCEW(IDI_APPICON));WNDCLASSEXW wc{sizeof(wc)};wc.style=CS_HREDRAW|CS_VREDRAW;wc.lpfnWndProc=Proc;wc.hInstance=h;wc.hIcon=gIcon;wc.hIconSm=gIcon;wc.hCursor=LoadCursor(nullptr,IDC_ARROW);wc.hbrBackground=gBackBrush;wc.lpszClassName=L"NvProfileSwitcherNative";RegisterClassExW(&wc);
 gWnd=CreateWindowExW(0,wc.lpszClassName,L"NvProfileSwitcher",WS_OVERLAPPED|WS_CAPTION|WS_SYSMENU|WS_MINIMIZEBOX,CW_USEDEFAULT,CW_USEDEFAULT,1360,930,nullptr,nullptr,h,nullptr);
 BOOL darkTitle=TRUE;DwmSetWindowAttribute(gWnd,20,&darkTitle,sizeof(darkTitle));
