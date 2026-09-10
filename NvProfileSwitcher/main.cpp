@@ -1620,25 +1620,47 @@ void DrawOwnerButton(const DRAWITEMSTRUCT* d){
 
     int iconW=0;
     int gap=0;
-    if(id==IDC_ADD){ iconW=20; gap=9; }
-    else if(id==IDC_REMOVE){ iconW=20; gap=9; }
+    if(id==IDC_ADD){ iconW=16; gap=8; }
+    else if(id==IDC_REMOVE){ iconW=16; gap=8; }
     else if(id==IDC_BROWSE){ iconW=20; gap=7; }
 
-    int total=iconW+gap+sz.cx;
-    int start=r.left+((r.right-r.left)-total)/2;
-    int cy=(r.top+r.bottom)/2;
+    const int total=iconW+gap+sz.cx;
+    const int cy=(r.top+r.bottom)/2;
+
+    // Center the entire icon + caption group inside the button.
+    int contentX=r.left+((r.right-r.left)-total)/2;
+
+    // The Add/Remove glyph helpers draw a little wider than their nominal
+    // origin. Compensate so their visual center, not only their coordinates,
+    // lines up with the caption.
+    if(id==IDC_ADD) contentX+=1;
+    else if(id==IDC_REMOVE) contentX+=1;
 
     if(id==IDC_SAVE||id==IDC_DEFAULTS) { /* text-only actions */ }
-    else if(id==IDC_ADD) DrawAddButtonIcon(d->hDC,start,cy-10,icon);
-    else if(id==IDC_REMOVE) DrawRemoveButtonIcon(d->hDC,start,cy-10,icon);
-    else if(id==IDC_BROWSE) DrawFolderIcon(d->hDC,start,cy-12,icon);
+    else if(id==IDC_ADD) DrawAddButtonIcon(d->hDC,contentX,cy-9,icon);
+    else if(id==IDC_REMOVE) DrawRemoveButtonIcon(d->hDC,contentX,cy-9,icon);
+    else if(id==IDC_BROWSE) DrawFolderIcon(d->hDC,contentX,cy-12,icon);
 
     SetBkMode(d->hDC,TRANSPARENT);
     SetTextColor(d->hDC,textColor);
     SelectObject(d->hDC,buttonFont);
-    int textY=cy-sz.cy/2;
-    if(id==IDC_BROWSE) textY-=1;
-    TextOutW(d->hDC,start+iconW+gap,textY,caption,(int)wcslen(caption));
+
+    // DrawText gives better vertical centering than TextOut for these compact
+    // owner-drawn header buttons.
+    if(id==IDC_ADD||id==IDC_REMOVE){
+        RECT textRect{
+            contentX+iconW+gap,
+            r.top,
+            r.right-8,
+            r.bottom
+        };
+        DrawTextW(d->hDC,caption,-1,&textRect,
+            DT_LEFT|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);
+    }else{
+        int textY=cy-sz.cy/2;
+        if(id==IDC_BROWSE) textY-=1;
+        TextOutW(d->hDC,contentX+iconW+gap,textY,caption,(int)wcslen(caption));
+    }
 }
 
 void DrawValueBox(const DRAWITEMSTRUCT* d){
@@ -2130,8 +2152,8 @@ void BuildControls(){
         SetWindowSubclass(list,ProfileListSubclassProc,1,0);
     }
 
-    Add(L"BUTTON",L"Add profile",BS_OWNERDRAW,160,92,120,38,IDC_ADD);
-    Add(L"BUTTON",L"Remove",BS_OWNERDRAW,288,92,100,38,IDC_REMOVE);
+    Add(L"BUTTON",L"Add profile",BS_OWNERDRAW,178,95,104,32,IDC_ADD);
+    Add(L"BUTTON",L"Remove",BS_OWNERDRAW,290,95,88,32,IDC_REMOVE);
 
     Add(L"STATIC",L"Profile name",0,rightX,152,110,22,IDC_LBL_NAME);
     HWND eName=Add(L"EDIT",L"",ES_AUTOHSCROLL,rightX+120,153,rightW-122,22,IDC_NAME);
@@ -2222,8 +2244,8 @@ void ResizeControls(){
     const int panelBottom=r.bottom-footerH-14;
 
     MoveWindow(H(IDC_LIST),margin+10,144,leftW-20,(int)std::max(300,panelBottom-144-18),TRUE);
-    MoveWindow(H(IDC_ADD),160,92,120,38,TRUE);
-    MoveWindow(H(IDC_REMOVE),288,92,100,38,TRUE);
+    MoveWindow(H(IDC_ADD),178,95,104,32,TRUE);
+    MoveWindow(H(IDC_REMOVE),290,95,88,32,TRUE);
 
     MoveWindow(H(IDC_LBL_NAME),rightX,152,110,22,TRUE);
     MoveWindow(H(IDC_NAME),rightX+120,153,rightW-122,22,TRUE);
