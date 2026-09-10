@@ -876,7 +876,7 @@ void UpdateProfileTooltip(POINT clientPt){
 
     RECT itemRect{};
     SendMessageW(list,LB_GETITEMRECT,item,(LPARAM)&itemRect);
-    POINT screenPt{itemRect.left+66,itemRect.bottom-2};
+    POINT screenPt{itemRect.left+66,itemRect.bottom+3};
     ClientToScreen(list,&screenPt);
 
     TOOLINFOW ti{sizeof(ti)};
@@ -984,10 +984,9 @@ void UpdateResetTooltip(){
     const int tipW=sz.cx+16;
     const int tipH=sz.cy+10;
 
-    // Match the profile-name tooltip placement: directly below Reset,
-    // overlapping the control's bottom edge by 2 px.
+    // Match the profile-name tooltip placement: 3 px below the control.
     int x=rr.left;
-    int y=rr.bottom-2;
+    int y=rr.bottom+3;
 
     HMONITOR mon=MonitorFromWindow(reset,MONITOR_DEFAULTTONEAREST);
     MONITORINFO mi{sizeof(mi)};
