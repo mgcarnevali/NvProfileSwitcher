@@ -1341,11 +1341,13 @@ void SaveSelected(){
     Save();
     RefreshList();
 
-    std::wstring fg=ForegroundProcessName();
-    if(!p->exePath.empty()&&_wcsicmp(ProcessName(p->exePath).c_str(),fg.c_str())==0){
-        ApplyGameProfile(*p);
-        gActive=p->name;
-    }
+    // Saving an application profile can happen while its live preview is
+    // physically active on the display. Re-evaluate the real foreground state
+    // unconditionally so the monitor never remains stuck on the edited profile.
+    // Clearing gActive forces CheckProcesses() to re-apply the correct saved
+    // profile even when its logical state was already "Windows".
+    gActive.clear();
+    CheckProcesses();
 }
 HICON LoadExeIcon(const std::wstring& path){
     if(path.empty() || !PathFileExistsW(path.c_str())) return nullptr;
