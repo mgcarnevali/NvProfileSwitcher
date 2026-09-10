@@ -85,7 +85,7 @@ constexpr wchar_t APP_URL[]=L"https://github.com/mgcarnevali/NvProfileSwitcher";
 constexpr wchar_t SUPPORT_URL[]=L"https://ko-fi.com/mgcarnevali";
 constexpr wchar_t UPDATE_HOST[]=L"api.github.com";
 constexpr wchar_t UPDATE_PATH[]=L"/repos/mgcarnevali/NvProfileSwitcher/releases/latest";
-enum {IDC_LIST=1001,IDC_NAME,IDC_EXE,IDC_BROWSE,IDC_ENABLED,IDC_DISPLAY,IDC_LBL_DISPLAY,IDC_VIB,IDC_HUE,IDC_BRI,IDC_CON,IDC_GAM,IDC_SAVE,IDC_APPLY,IDC_ADD,IDC_REMOVE,IDC_RESTORE,IDC_STARTWIN,IDC_STARTMIN,IDC_VALVIB,IDC_VALHUE,IDC_VALBRI,IDC_VALCON,IDC_VALGAM,IDC_LBL_NAME,IDC_LBL_EXE,IDC_LBL_ENABLED,IDC_LBL_VIB,IDC_LBL_HUE,IDC_LBL_BRI,IDC_LBL_CON,IDC_LBL_GAM,IDC_MINTRAY,IDC_CHECKUPDATES,IDC_FOOT_GITHUB,IDC_FOOT_SUPPORT,IDC_FOOT_ABOUT};
+enum {IDC_LIST=1001,IDC_NAME,IDC_EXE,IDC_BROWSE,IDC_ENABLED,IDC_DISPLAY,IDC_LBL_DISPLAY,IDC_VIB,IDC_HUE,IDC_BRI,IDC_CON,IDC_GAM,IDC_SAVE,IDC_APPLY,IDC_ADD,IDC_REMOVE,IDC_RESTORE,IDC_STARTWIN,IDC_STARTMIN,IDC_VALVIB,IDC_VALHUE,IDC_VALBRI,IDC_VALCON,IDC_VALGAM,IDC_LBL_NAME,IDC_LBL_EXE,IDC_LBL_ENABLED,IDC_LBL_VIB,IDC_LBL_HUE,IDC_LBL_BRI,IDC_LBL_CON,IDC_LBL_GAM,IDC_DEFAULTS,IDC_MINTRAY,IDC_CHECKUPDATES,IDC_FOOT_GITHUB,IDC_FOOT_SUPPORT,IDC_FOOT_ABOUT};
 enum {ID_TRAY_OPEN=2001,ID_TRAY_CHECK_UPDATE,ID_TRAY_ABOUT,ID_TRAY_EXIT};
 
 HINSTANCE gInst{}; HWND gWnd{}; HFONT gFont{},gFontBold{},gFontTitle{},gIconFont{}; HBRUSH gBackBrush{},gPanelBrush{},gPanel2Brush{},gFieldBrush{}; HICON gIcon{};
@@ -95,8 +95,23 @@ Settings gSettings; int gSelected=-1; bool gReallyExit=false; std::wstring gActi
 NOTIFYICONDATAW gNid{}; HMENU gTrayMenu{};
 HWND gFooterHover{};
 HWND gProfileTooltip{};
+HWND gResetTooltip{};
+bool gResetTooltipVisible=false;
 int gProfileTooltipItem=-1;
 std::wstring gProfileTooltipText;
+
+// Live preview state. Slider changes are applied asynchronously so NVAPI calls
+// never block the UI thread. A generation counter invalidates stale previews.
+CRITICAL_SECTION gNvApplyLock{};
+CRITICAL_SECTION gPreviewLock{};
+HANDLE gPreviewEvent{};
+HANDLE gPreviewThread{};
+volatile LONG gPreviewStop=0;
+unsigned long long gPreviewGeneration=0;
+bool gPreviewPending=false;
+bool gPreviewDirty=false;
+DisplayProfileValues gPreviewValues{};
+std::wstring gPreviewMonitorId;
 
 using NvQueryInterface=void* (__cdecl*)(unsigned int);
 using NvInit=int (__cdecl*)(); using NvUnload=int (__cdecl*)(); using NvEnumDisplay=int (__cdecl*)(int,void**);
@@ -492,9 +507,17 @@ void EnumerateNvDisplays(){
         gDisplays.push_back({L"",L"Primary NVIDIA display",gDisplay,gDisplayId,true,L""});
     }
 
+    // Keep the Windows primary display at the top of the combo box while
+    // preserving the relative order of all other displays.
+    std::stable_sort(gDisplays.begin(),gDisplays.end(),
+        [](const DisplayTarget& a,const DisplayTarget& b){
+            return a.primary && !b.primary;
+        });
+
 }
 
-bool Apply(const GameProfile& p);
+bool Apply(const GameProfile& p,bool updateUi=true);
+void DiscardPreview();
 
 GameProfile* EnsureDesktopProfile(const std::wstring&displayName,const std::wstring&monitorId=L""){
     if(!monitorId.empty())if(auto*p=DesktopProfileForMonitor(monitorId)){
@@ -664,27 +687,56 @@ bool SetNvGamma(unsigned int displayId,double bri,double con,double gam){
     return pSetTargetGamma(displayId,&data)==0;
 }
 
-bool Apply(const GameProfile&p){
+bool Apply(const GameProfile&p,bool updateUi){
+    EnterCriticalSection(&gNvApplyLock);
+    struct ApplyLockGuard{
+        CRITICAL_SECTION* cs;
+        ~ApplyLockGuard(){LeaveCriticalSection(cs);}
+    } applyLockGuard{&gNvApplyLock};
+
+    auto setStatus=[&](const wchar_t* status,bool ok){
+        if(!updateUi) return;
+        gStatus=status;
+        gStatusOk=ok;
+        InvalidateRect(gWnd,nullptr,FALSE);
+    };
+
     if(!pSetDvc||!pGetDvc||!pSetHue||!pSetTargetGamma){
-        gStatus=L"NVIDIA driver / NVAPI not initialized";gStatusOk=false;InvalidateRect(gWnd,nullptr,FALSE);return false;
+        setStatus(L"NVIDIA driver / NVAPI not initialized",false);
+        return false;
     }
     if(p.displayProfiles.empty()){
-        gStatus=L"Profile has no display values";gStatusOk=false;InvalidateRect(gWnd,nullptr,FALSE);return false;
+        setStatus(L"Profile has no display values",false);
+        return false;
     }
     const auto& v=p.displayProfiles.front();
     DisplayTarget* t=TargetForProfile(p);
     if(!t || !t->handle || !t->displayId){
-        gStatus=L"Selected NVIDIA display is not available";gStatusOk=false;InvalidateRect(gWnd,nullptr,FALSE);return false;
+        setStatus(L"Selected NVIDIA display is not available",false);
+        return false;
     }
     DVCINFOEX d{};
     d.version=(unsigned int)(sizeof(d)|(1u<<16));
-    if(pGetDvc(t->handle,0,&d)!=0){gStatus=L"Could not read Digital Vibrance";gStatusOk=false;InvalidateRect(gWnd,nullptr,FALSE);return false;}
+    if(pGetDvc(t->handle,0,&d)!=0){
+        setStatus(L"Could not read Digital Vibrance",false);
+        return false;
+    }
     d.currentLevel=std::clamp(DvcRawFromPercent(v.vibrance,d),d.minLevel,d.maxLevel);
-    if(pSetDvc(t->handle,0,&d)!=0){gStatus=L"Could not set Digital Vibrance";gStatusOk=false;InvalidateRect(gWnd,nullptr,FALSE);return false;}
+    if(pSetDvc(t->handle,0,&d)!=0){
+        setStatus(L"Could not set Digital Vibrance",false);
+        return false;
+    }
     unsigned int hue=(unsigned int)(((v.hue%360)+360)%360);
-    if(pSetHue(t->handle,0,hue)!=0){gStatus=L"Could not set Hue";gStatusOk=false;InvalidateRect(gWnd,nullptr,FALSE);return false;}
-    if(!SetNvGamma(t->displayId,v.brightness,v.contrast,v.gamma)){gStatus=L"Could not set NVIDIA color LUT";gStatusOk=false;InvalidateRect(gWnd,nullptr,FALSE);return false;}
-    gStatus=L"Ready";gStatusOk=true;InvalidateRect(gWnd,nullptr,FALSE);return true;
+    if(pSetHue(t->handle,0,hue)!=0){
+        setStatus(L"Could not set Hue",false);
+        return false;
+    }
+    if(!SetNvGamma(t->displayId,v.brightness,v.contrast,v.gamma)){
+        setStatus(L"Could not set NVIDIA color LUT",false);
+        return false;
+    }
+    setStatus(L"Ready",true);
+    return true;
 }
 
 std::wstring ProcessName(const std::wstring&p){ const wchar_t* n=PathFindFileNameW(p.c_str()); std::wstring s=n?n:L""; auto dot=s.find_last_of(L'.'); if(dot!=std::wstring::npos)s.resize(dot); return s; }
@@ -732,6 +784,8 @@ void CheckProcesses(){
 }
 
 void RefreshDisplayTopology(){
+    DiscardPreview();
+
     // Windows can emit several display/device notifications while an HDMI/DP
     // switch or hot-plug is still settling. This function is called only after
     // the short debounce timer expires.
@@ -822,7 +876,7 @@ void UpdateProfileTooltip(POINT clientPt){
 
     RECT itemRect{};
     SendMessageW(list,LB_GETITEMRECT,item,(LPARAM)&itemRect);
-    POINT screenPt{itemRect.left+66,itemRect.bottom-2};
+    POINT screenPt{itemRect.left+66,itemRect.bottom+3};
     ClientToScreen(list,&screenPt);
 
     TOOLINFOW ti{sizeof(ti)};
@@ -903,6 +957,69 @@ LRESULT CALLBACK ProfileTooltipSubclassProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM 
     return DefSubclassProc(hwnd,msg,wp,lp);
 }
 
+void HideResetTooltip(){
+    if(gResetTooltip && gResetTooltipVisible){
+        ShowWindow(gResetTooltip,SW_HIDE);
+        gResetTooltipVisible=false;
+    }
+}
+
+void UpdateResetTooltip(){
+    if(!gResetTooltip) return;
+    HWND reset=H(IDC_DEFAULTS);
+    if(!reset) return;
+
+    RECT rr{};
+    GetWindowRect(reset,&rr);
+
+    static const wchar_t* text=L"Reset to NVIDIA defaults";
+    HDC dc=GetDC(gResetTooltip);
+    if(!dc) return;
+    HFONT old=(HFONT)SelectObject(dc,gFont);
+    SIZE sz{};
+    GetTextExtentPoint32W(dc,text,(int)wcslen(text),&sz);
+    SelectObject(dc,old);
+    ReleaseDC(gResetTooltip,dc);
+
+    const int tipW=sz.cx+16;
+    const int tipH=sz.cy+10;
+
+    // Match the profile-name tooltip placement: 3 px below the control.
+    int x=rr.left;
+    int y=rr.bottom+3;
+
+    HMONITOR mon=MonitorFromWindow(reset,MONITOR_DEFAULTTONEAREST);
+    MONITORINFO mi{sizeof(mi)};
+    if(GetMonitorInfoW(mon,&mi)){
+        if(x<mi.rcWork.left) x=rr.left;
+        y=std::clamp(y,(int)mi.rcWork.top,(int)mi.rcWork.bottom-tipH);
+    }
+
+    SetWindowPos(gResetTooltip,HWND_TOPMOST,x,y,tipW,tipH,
+        SWP_NOACTIVATE|SWP_SHOWWINDOW);
+    gResetTooltipVisible=true;
+}
+
+LRESULT CALLBACK ResetButtonSubclassProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp,
+                                        UINT_PTR subclassId,DWORD_PTR refData){
+    switch(msg){
+    case WM_MOUSEMOVE:{
+        UpdateResetTooltip();
+        TRACKMOUSEEVENT tme{sizeof(tme),TME_LEAVE,hwnd,0};
+        TrackMouseEvent(&tme);
+        break;
+    }
+    case WM_MOUSELEAVE:
+        HideResetTooltip();
+        break;
+    case WM_NCDESTROY:
+        HideResetTooltip();
+        RemoveWindowSubclass(hwnd,ResetButtonSubclassProc,subclassId);
+        break;
+    }
+    return DefSubclassProc(hwnd,msg,wp,lp);
+}
+
 LRESULT CALLBACK ProfileListSubclassProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp,
                                         UINT_PTR subclassId,DWORD_PTR refData){
     switch(msg){
@@ -950,6 +1067,111 @@ void LoadValuesToSliders(const DisplayProfileValues& v){
     RedrawAllSliders();
 }
 
+DisplayProfileValues SliderValuesForSelectedDisplay(){
+    DisplayProfileValues v;
+    int ds=(int)SendMessageW(H(IDC_DISPLAY),CB_GETCURSEL,0,0);
+    if(ds>=0&&ds<(int)gDisplays.size()){
+        v.displayName=gDisplays[ds].gdiName;
+        v.monitorId=gDisplays[ds].monitorId;
+    }
+    v.vibrance=(int)SendMessageW(H(IDC_VIB),TBM_GETPOS,0,0);
+    v.hue=(int)SendMessageW(H(IDC_HUE),TBM_GETPOS,0,0);
+    v.brightness=(double)(int)SendMessageW(H(IDC_BRI),TBM_GETPOS,0,0);
+    v.contrast=(double)(int)SendMessageW(H(IDC_CON),TBM_GETPOS,0,0);
+    v.gamma=(int)SendMessageW(H(IDC_GAM),TBM_GETPOS,0,0)/100.0;
+    return v;
+}
+
+void CancelPendingPreview(){
+    EnterCriticalSection(&gPreviewLock);
+    ++gPreviewGeneration;
+    gPreviewPending=false;
+    LeaveCriticalSection(&gPreviewLock);
+}
+
+void ReapplyRealColors(){
+    if(gActive!=L"Windows"){
+        for(const auto& p:gSettings.profiles){
+            if(p.enabled && _wcsicmp(p.name.c_str(),gActive.c_str())==0){
+                ApplyGameProfile(p);
+                return;
+            }
+        }
+    }
+    RestoreAllDesktopProfiles();
+}
+
+void DiscardPreview(){
+    bool dirty=false;
+    EnterCriticalSection(&gPreviewLock);
+    dirty=gPreviewDirty;
+    gPreviewDirty=false;
+    ++gPreviewGeneration;
+    gPreviewPending=false;
+    LeaveCriticalSection(&gPreviewLock);
+
+    if(dirty) ReapplyRealColors();
+}
+
+DWORD WINAPI PreviewThreadProc(LPVOID){
+    while(WaitForSingleObject(gPreviewEvent,INFINITE)==WAIT_OBJECT_0){
+        if(InterlockedCompareExchange(&gPreviewStop,0,0)!=0) break;
+
+        for(;;){
+            DisplayProfileValues values;
+            unsigned long long generation=0;
+            bool have=false;
+
+            EnterCriticalSection(&gPreviewLock);
+            if(gPreviewPending){
+                values=gPreviewValues;
+                generation=gPreviewGeneration;
+                gPreviewPending=false;
+                have=true;
+            }
+            LeaveCriticalSection(&gPreviewLock);
+
+            if(!have) break;
+
+            GameProfile preview;
+            preview.name=L"Preview";
+            preview.displayProfiles.push_back(values);
+
+            EnterCriticalSection(&gPreviewLock);
+            bool current=(generation==gPreviewGeneration);
+            LeaveCriticalSection(&gPreviewLock);
+            if(current) Apply(preview,false);
+        }
+    }
+    return 0;
+}
+
+void RequestPreview(){
+    DisplayProfileValues values=SliderValuesForSelectedDisplay();
+    if(values.monitorId.empty()) return;
+
+    EnterCriticalSection(&gPreviewLock);
+    ++gPreviewGeneration;
+    gPreviewValues=values;
+    gPreviewMonitorId=values.monitorId;
+    gPreviewPending=true;
+    gPreviewDirty=true;
+    LeaveCriticalSection(&gPreviewLock);
+
+    if(gPreviewEvent) SetEvent(gPreviewEvent);
+}
+
+void ResetSlidersToDefaults(){
+    int ds=(int)SendMessageW(H(IDC_DISPLAY),CB_GETCURSEL,0,0);
+    DisplayProfileValues v;
+    if(ds>=0&&ds<(int)gDisplays.size()){
+        v.displayName=gDisplays[ds].gdiName;
+        v.monitorId=gDisplays[ds].monitorId;
+    }
+    LoadValuesToSliders(v);
+    RequestPreview();
+}
+
 DisplayProfileValues ValuesFromFlatProfile(const GameProfile& p){
     return p.displayProfiles.empty()?DisplayProfileValues{}:p.displayProfiles.front();
 }
@@ -991,6 +1213,7 @@ void SetDesktopUi(bool desktop){
         MoveWindow(H(sp.val),rightX+rightW-76,sp.y-2,76,28,TRUE);
     }
 
+    MoveWindow(H(IDC_DEFAULTS),rightX+rightW-210,ySave-3,90,32,TRUE);
     MoveWindow(H(IDC_SAVE),rightX+rightW-110,ySave-3,110,32,TRUE);
 
     // Global startup options stay at the bottom of the right panel.
@@ -1059,6 +1282,11 @@ void LoadSelected(){
         LoadValuesToSliders(ValuesFromFlatProfile(*p));
 }
 void SaveSelected(){
+    CancelPendingPreview();
+    EnterCriticalSection(&gPreviewLock);
+    gPreviewDirty=false;
+    LeaveCriticalSection(&gPreviewLock);
+
     bool desktop=IsDesktopSelected();
     int ds=(int)SendMessageW(H(IDC_DISPLAY),CB_GETCURSEL,0,0);
 
@@ -1226,6 +1454,11 @@ void DrawOwnerButton(const DRAWITEMSTRUCT* d){
         border=C_ACCENT;
         textColor=disabled?C_MUTED:C_ACCENT;
         icon=disabled?C_MUTED:C_ACCENT;
+    }else if(id==IDC_DEFAULTS){
+        fill=down?C_FIELD:C_PANEL2;
+        border=C_BORDER;
+        textColor=disabled?C_MUTED:C_TEXT;
+        icon=C_MUTED;
     }else if(id==IDC_ADD){
         fill=down?RGB(26,62,29):RGB(22,48,27);
         border=RGB(46,117,46); icon=C_ACCENT;
@@ -1241,12 +1474,12 @@ void DrawOwnerButton(const DRAWITEMSTRUCT* d){
     wchar_t caption[128]{};
     GetWindowTextW(d->hwndItem,caption,128);
     SIZE sz{};
-    HFONT buttonFont=(id==IDC_SAVE||id==IDC_ADD||id==IDC_REMOVE)?gFontBold:gFont;
+    HFONT buttonFont=(id==IDC_SAVE||id==IDC_DEFAULTS||id==IDC_ADD||id==IDC_REMOVE)?gFontBold:gFont;
     SelectObject(d->hDC,buttonFont);
     GetTextExtentPoint32W(d->hDC,caption,(int)wcslen(caption),&sz);
 
-    int iconW=(id==IDC_SAVE)?0:((id==IDC_ADD||id==IDC_REMOVE)?19:20);
-    int gap=(id==IDC_SAVE)?0:6;
+    int iconW=(id==IDC_SAVE||id==IDC_DEFAULTS)?0:((id==IDC_ADD||id==IDC_REMOVE)?19:20);
+    int gap=(id==IDC_SAVE||id==IDC_DEFAULTS)?0:6;
     if(id==IDC_BROWSE) gap=7;
     int total=iconW+gap+sz.cx;
     int start=r.left+((r.right-r.left)-total)/2;
@@ -1254,7 +1487,7 @@ void DrawOwnerButton(const DRAWITEMSTRUCT* d){
     if(id==IDC_REMOVE) start-=1; // optical centering for the trash icon + label
     int cy=(r.top+r.bottom)/2;
 
-    if(id==IDC_SAVE) { /* prototype save button uses text only */ }
+    if(id==IDC_SAVE||id==IDC_DEFAULTS) { /* text-only actions */ }
     else if(id==IDC_ADD) DrawAddButtonIcon(d->hDC,start+2,cy-9,icon);
     else if(id==IDC_REMOVE) DrawRemoveButtonIcon(d->hDC,start+2,cy-9,icon);
     else if(id==IDC_BROWSE) DrawFolderIcon(d->hDC,start,cy-12,icon);
@@ -1749,6 +1982,14 @@ void BuildControls(){
     slider(L"Digital Vibrance (%)",IDC_LBL_VIB,IDC_VIB,IDC_VALVIB,520,0,100);
     slider(L"Hue (\x00B0)",IDC_LBL_HUE,IDC_HUE,IDC_VALHUE,580,0,359);
 
+    Add(L"BUTTON",L"Reset",BS_OWNERDRAW,rightX+rightW-210,654,90,32,IDC_DEFAULTS);
+    gResetTooltip=CreateWindowExW(WS_EX_TOOLWINDOW|WS_EX_TOPMOST,L"STATIC",
+        L"Reset to NVIDIA defaults",WS_POPUP,0,0,0,0,gWnd,nullptr,gInst,nullptr);
+    if(gResetTooltip){
+        SendMessageW(gResetTooltip,WM_SETFONT,(WPARAM)gFont,FALSE);
+        SetWindowSubclass(gResetTooltip,ProfileTooltipSubclassProc,2,0);
+        SetWindowSubclass(H(IDC_DEFAULTS),ResetButtonSubclassProc,1,0);
+    }
     Add(L"BUTTON",L"Save profile",BS_OWNERDRAW,rightX+rightW-110,654,110,32,IDC_SAVE);
     Add(L"BUTTON",L"Add profile",BS_OWNERDRAW,39,r.bottom-169,122,32,IDC_ADD);
     Add(L"BUTTON",L"Remove",BS_OWNERDRAW,171,r.bottom-169,110,32,IDC_REMOVE);
@@ -2238,6 +2479,8 @@ LRESULT CALLBACK Proc(HWND w,UINT m,WPARAM wp,LPARAM lp){switch(m){case WM_SHOW_
     if(LOWORD(wp)!=WA_INACTIVE) RefreshDriverVersion();
     return 0;case WM_SIZE:
     if(wp==SIZE_MINIMIZED){
+        DiscardPreview();
+        LoadSelected();
         if(gSettings.minimizeToTray){
             SetTrayIconVisible(true);
             ShowWindow(w,SW_HIDE);
@@ -2286,7 +2529,7 @@ case WM_CTLCOLORSTATIC:{HDC dc=(HDC)wp;SetTextColor(dc,C_TEXT);SetBkColor(dc,C_P
         DrawValueBox(d);return TRUE;
     }
 
-    if(d->CtlID==IDC_SAVE||d->CtlID==IDC_ADD||d->CtlID==IDC_REMOVE||d->CtlID==IDC_BROWSE){
+    if(d->CtlID==IDC_SAVE||d->CtlID==IDC_DEFAULTS||d->CtlID==IDC_ADD||d->CtlID==IDC_REMOVE||d->CtlID==IDC_BROWSE){
         DrawOwnerButton(d);return TRUE;
     }
     if(d->CtlID==IDC_FOOT_GITHUB||d->CtlID==IDC_FOOT_SUPPORT||d->CtlID==IDC_FOOT_ABOUT){
@@ -2346,7 +2589,7 @@ case WM_CTLCOLORSTATIC:{HDC dc=(HDC)wp;SetTextColor(dc,C_TEXT);SetBkColor(dc,C_P
         return TRUE;
     }
     break;
-}case WM_HSCROLL:UpdateSliderLabels();if((HWND)lp)InvalidateRect((HWND)lp,nullptr,FALSE);return 0;
+}case WM_HSCROLL:UpdateSliderLabels();if((HWND)lp)InvalidateRect((HWND)lp,nullptr,FALSE);RequestPreview();return 0;
 case WM_DISPLAYCHANGE:
     KillTimer(w,2);
     SetTimer(w,2,750,nullptr);
@@ -2368,7 +2611,7 @@ case WM_TIMER:
         return 0;
     }
     return 0;
-case WM_COMMAND:{int id=LOWORD(wp);if(id==IDC_LIST&&HIWORD(wp)==LBN_SELCHANGE){LoadSelected();return 0;}if(id==IDC_DISPLAY&&HIWORD(wp)==CBN_SELCHANGE){int ds=(int)SendMessageW(H(IDC_DISPLAY),CB_GETCURSEL,0,0);if(ds>=0&&ds<(int)gDisplays.size()){if(IsDesktopSelected()){auto*p=EnsureDesktopProfile(gDisplays[ds].gdiName,gDisplays[ds].monitorId);LoadValuesToSliders(ValuesFromFlatProfile(*p));}else{auto*p=SelectedProfile();if(p){LoadValuesToSliders(*EnsureGameValuesForDisplay(*p,gDisplays[ds].gdiName,gDisplays[ds].monitorId));}}}return 0;}switch(id){case IDC_BROWSE:{OPENFILENAMEW o{sizeof(o)};wchar_t f[MAX_PATH]{};o.hwndOwner=w;o.lpstrFilter=L"Executables (*.exe)\0*.exe\0All files\0*.*\0";o.lpstrFile=f;o.nMaxFile=MAX_PATH;o.Flags=OFN_FILEMUSTEXIST;if(GetOpenFileNameW(&o)){Txt(IDC_EXE,f);auto* p=SelectedProfile();if(p&&!IsDesktopSelected()){p->exePath=f;InvalidateRect(H(IDC_LIST),nullptr,TRUE);}}break;}case IDC_SAVE:SaveSelected();break;case IDC_ADD:{GameProfile np{};if(!gDisplays.empty()){for(const auto&d:gDisplays)np.displayProfiles.push_back(DefaultValuesForDisplay(d.gdiName,d.monitorId));}gSettings.profiles.push_back(np);gSelected=(int)gSettings.profiles.size();Save();RefreshList();LoadSelected();break;}case IDC_REMOVE:if(gSelected>0&&gSelected<=(int)gSettings.profiles.size()){gSettings.profiles.erase(gSettings.profiles.begin()+(gSelected-1));gSelected=std::max<int>(0,gSelected-1);Save();RefreshList();LoadSelected();}break;case IDC_STARTWIN:gSettings.startWindows=SendMessageW(H(IDC_STARTWIN),BM_GETCHECK,0,0)==BST_CHECKED;SetStartup(gSettings.startWindows);Save();break;case IDC_STARTMIN:gSettings.startMinimized=SendMessageW(H(IDC_STARTMIN),BM_GETCHECK,0,0)==BST_CHECKED;Save();break;case IDC_MINTRAY:
+case WM_COMMAND:{int id=LOWORD(wp);if(id==IDC_LIST&&HIWORD(wp)==LBN_SELCHANGE){DiscardPreview();LoadSelected();return 0;}if(id==IDC_DISPLAY&&HIWORD(wp)==CBN_SELCHANGE){DiscardPreview();int ds=(int)SendMessageW(H(IDC_DISPLAY),CB_GETCURSEL,0,0);if(ds>=0&&ds<(int)gDisplays.size()){if(IsDesktopSelected()){auto*p=EnsureDesktopProfile(gDisplays[ds].gdiName,gDisplays[ds].monitorId);LoadValuesToSliders(ValuesFromFlatProfile(*p));}else{auto*p=SelectedProfile();if(p){LoadValuesToSliders(*EnsureGameValuesForDisplay(*p,gDisplays[ds].gdiName,gDisplays[ds].monitorId));}}}return 0;}switch(id){case IDC_BROWSE:{OPENFILENAMEW o{sizeof(o)};wchar_t f[MAX_PATH]{};o.hwndOwner=w;o.lpstrFilter=L"Executables (*.exe)\0*.exe\0All files\0*.*\0";o.lpstrFile=f;o.nMaxFile=MAX_PATH;o.Flags=OFN_FILEMUSTEXIST;if(GetOpenFileNameW(&o)){Txt(IDC_EXE,f);auto* p=SelectedProfile();if(p&&!IsDesktopSelected()){p->exePath=f;InvalidateRect(H(IDC_LIST),nullptr,TRUE);}}break;}case IDC_DEFAULTS:ResetSlidersToDefaults();break;case IDC_SAVE:SaveSelected();break;case IDC_ADD:{GameProfile np{};if(!gDisplays.empty()){for(const auto&d:gDisplays)np.displayProfiles.push_back(DefaultValuesForDisplay(d.gdiName,d.monitorId));}gSettings.profiles.push_back(np);gSelected=(int)gSettings.profiles.size();Save();RefreshList();LoadSelected();break;}case IDC_REMOVE:if(gSelected>0&&gSelected<=(int)gSettings.profiles.size()){gSettings.profiles.erase(gSettings.profiles.begin()+(gSelected-1));gSelected=std::max<int>(0,gSelected-1);Save();RefreshList();LoadSelected();}break;case IDC_STARTWIN:gSettings.startWindows=SendMessageW(H(IDC_STARTWIN),BM_GETCHECK,0,0)==BST_CHECKED;SetStartup(gSettings.startWindows);Save();break;case IDC_STARTMIN:gSettings.startMinimized=SendMessageW(H(IDC_STARTMIN),BM_GETCHECK,0,0)==BST_CHECKED;Save();break;case IDC_MINTRAY:
     gSettings.minimizeToTray=SendMessageW(H(IDC_MINTRAY),BM_GETCHECK,0,0)==BST_CHECKED;
     if(!gSettings.minimizeToTray)
         SetTrayIconVisible(false);
@@ -2392,6 +2635,12 @@ if(instanceMutex && GetLastError()==ERROR_ALREADY_EXISTS){
     return 0;
 }
 gInst=h;
+InitializeCriticalSection(&gNvApplyLock);
+InitializeCriticalSection(&gPreviewLock);
+gPreviewEvent=CreateEventW(nullptr,FALSE,FALSE,nullptr);
+if(gPreviewEvent)
+    gPreviewThread=CreateThread(nullptr,0,PreviewThreadProc,nullptr,0,nullptr);
+
 Gdiplus::GdiplusStartupInput gdiplusInput;
 if(Gdiplus::GdiplusStartup(&gGdiPlusToken,&gdiplusInput,nullptr)!=Gdiplus::Ok)
     gGdiPlusToken=0;
@@ -2418,4 +2667,10 @@ for(auto** image:{&gSliderBrightness,&gSliderContrast,&gSliderGamma,&gSliderVibr
     if(*image){delete *image;*image=nullptr;}
 }
 if(gGdiPlusToken){Gdiplus::GdiplusShutdown(gGdiPlusToken);gGdiPlusToken=0;}
+InterlockedExchange(&gPreviewStop,1);
+if(gPreviewEvent)SetEvent(gPreviewEvent);
+if(gPreviewThread){WaitForSingleObject(gPreviewThread,2000);CloseHandle(gPreviewThread);gPreviewThread=nullptr;}
+if(gPreviewEvent){CloseHandle(gPreviewEvent);gPreviewEvent=nullptr;}
+DeleteCriticalSection(&gPreviewLock);
+DeleteCriticalSection(&gNvApplyLock);
 if(instanceMutex)CloseHandle(instanceMutex);return 0;}
