@@ -509,7 +509,7 @@ void EnumerateNvDisplays(){
 
 }
 
-bool Apply(const GameProfile& p);
+bool Apply(const GameProfile& p,bool updateUi=true);
 void DiscardPreview();
 
 GameProfile* EnsureDesktopProfile(const std::wstring&displayName,const std::wstring&monitorId=L""){
@@ -680,33 +680,56 @@ bool SetNvGamma(unsigned int displayId,double bri,double con,double gam){
     return pSetTargetGamma(displayId,&data)==0;
 }
 
-bool Apply(const GameProfile&p){
+bool Apply(const GameProfile&p,bool updateUi){
     EnterCriticalSection(&gNvApplyLock);
     struct ApplyLockGuard{
         CRITICAL_SECTION* cs;
         ~ApplyLockGuard(){LeaveCriticalSection(cs);}
     } applyLockGuard{&gNvApplyLock};
 
+    auto setStatus=[&](const wchar_t* status,bool ok){
+        if(!updateUi) return;
+        gStatus=status;
+        gStatusOk=ok;
+        InvalidateRect(gWnd,nullptr,FALSE);
+    };
+
     if(!pSetDvc||!pGetDvc||!pSetHue||!pSetTargetGamma){
-        gStatus=L"NVIDIA driver / NVAPI not initialized";gStatusOk=false;InvalidateRect(gWnd,nullptr,FALSE);return false;
+        setStatus(L"NVIDIA driver / NVAPI not initialized",false);
+        return false;
     }
     if(p.displayProfiles.empty()){
-        gStatus=L"Profile has no display values";gStatusOk=false;InvalidateRect(gWnd,nullptr,FALSE);return false;
+        setStatus(L"Profile has no display values",false);
+        return false;
     }
     const auto& v=p.displayProfiles.front();
     DisplayTarget* t=TargetForProfile(p);
     if(!t || !t->handle || !t->displayId){
-        gStatus=L"Selected NVIDIA display is not available";gStatusOk=false;InvalidateRect(gWnd,nullptr,FALSE);return false;
+        setStatus(L"Selected NVIDIA display is not available",false);
+        return false;
     }
     DVCINFOEX d{};
     d.version=(unsigned int)(sizeof(d)|(1u<<16));
-    if(pGetDvc(t->handle,0,&d)!=0){gStatus=L"Could not read Digital Vibrance";gStatusOk=false;InvalidateRect(gWnd,nullptr,FALSE);return false;}
+    if(pGetDvc(t->handle,0,&d)!=0){
+        setStatus(L"Could not read Digital Vibrance",false);
+        return false;
+    }
     d.currentLevel=std::clamp(DvcRawFromPercent(v.vibrance,d),d.minLevel,d.maxLevel);
-    if(pSetDvc(t->handle,0,&d)!=0){gStatus=L"Could not set Digital Vibrance";gStatusOk=false;InvalidateRect(gWnd,nullptr,FALSE);return false;}
+    if(pSetDvc(t->handle,0,&d)!=0){
+        setStatus(L"Could not set Digital Vibrance",false);
+        return false;
+    }
     unsigned int hue=(unsigned int)(((v.hue%360)+360)%360);
-    if(pSetHue(t->handle,0,hue)!=0){gStatus=L"Could not set Hue";gStatusOk=false;InvalidateRect(gWnd,nullptr,FALSE);return false;}
-    if(!SetNvGamma(t->displayId,v.brightness,v.contrast,v.gamma)){gStatus=L"Could not set NVIDIA color LUT";gStatusOk=false;InvalidateRect(gWnd,nullptr,FALSE);return false;}
-    gStatus=L"Ready";gStatusOk=true;InvalidateRect(gWnd,nullptr,FALSE);return true;
+    if(pSetHue(t->handle,0,hue)!=0){
+        setStatus(L"Could not set Hue",false);
+        return false;
+    }
+    if(!SetNvGamma(t->displayId,v.brightness,v.contrast,v.gamma)){
+        setStatus(L"Could not set NVIDIA color LUT",false);
+        return false;
+    }
+    setStatus(L"Ready",true);
+    return true;
 }
 
 std::wstring ProcessName(const std::wstring&p){ const wchar_t* n=PathFindFileNameW(p.c_str()); std::wstring s=n?n:L""; auto dot=s.find_last_of(L'.'); if(dot!=std::wstring::npos)s.resize(dot); return s; }
@@ -1111,7 +1134,7 @@ DWORD WINAPI PreviewThreadProc(LPVOID){
             EnterCriticalSection(&gPreviewLock);
             bool current=(generation==gPreviewGeneration);
             LeaveCriticalSection(&gPreviewLock);
-            if(current) Apply(preview);
+            if(current) Apply(preview,false);
         }
     }
     return 0;
@@ -2451,6 +2474,7 @@ LRESULT CALLBACK Proc(HWND w,UINT m,WPARAM wp,LPARAM lp){switch(m){case WM_SHOW_
     return 0;case WM_SIZE:
     if(wp==SIZE_MINIMIZED){
         DiscardPreview();
+        LoadSelected();
         if(gSettings.minimizeToTray){
             SetTrayIconVisible(true);
             ShowWindow(w,SW_HIDE);
