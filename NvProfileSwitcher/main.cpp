@@ -831,6 +831,8 @@ void SetStartup(bool on){
 HWND H(int id){return GetDlgItem(gWnd,id);} void Txt(int id,const std::wstring&s){SetWindowTextW(H(id),s.c_str());} std::wstring GetTxt(int id){int n=GetWindowTextLengthW(H(id));std::wstring s(n+1,0);GetWindowTextW(H(id),s.data(),n+1);s.resize(n);return s;}
 HWND Add(const wchar_t*cls,const wchar_t*txt,DWORD style,int x,int y,int w,int h,int id){ HWND c=CreateWindowExW(0,cls,txt,WS_CHILD|WS_VISIBLE|style,x,y,w,h,gWnd,(HMENU)(INT_PTR)id,gInst,nullptr); SendMessageW(c,WM_SETFONT,(WPARAM)gFont,TRUE); return c; }
 
+void FillRound(HDC dc,const RECT&r,COLORREF fill,COLORREF border,int radius);
+
 LRESULT CALLBACK FlatCheckboxSubclassProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp,
                                           UINT_PTR subclassId,DWORD_PTR refData){
     switch(msg){
