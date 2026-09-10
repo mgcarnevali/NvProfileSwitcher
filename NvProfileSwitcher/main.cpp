@@ -1146,7 +1146,7 @@ void UpdateExecutableTooltip(){
     HMONITOR mon=MonitorFromWindow(edit,MONITOR_DEFAULTTONEAREST);
     MONITORINFO mi{sizeof(mi)};
     if(GetMonitorInfoW(mon,&mi)){
-        if(x+tipW>mi.rcWork.right) x=std::max((int)mi.rcWork.left,mi.rcWork.right-tipW);
+        if(x+tipW>mi.rcWork.right) x=std::max((int)mi.rcWork.left,(int)mi.rcWork.right-tipW);
         if(x<mi.rcWork.left) x=mi.rcWork.left;
         y=std::clamp(y,(int)mi.rcWork.top,(int)mi.rcWork.bottom-tipH);
     }
