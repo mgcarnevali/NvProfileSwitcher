@@ -1594,7 +1594,7 @@ void DrawProfileHeaderButton(const DRAWITEMSTRUCT* d){
     wchar_t caption[64]{};
     GetWindowTextW(d->hwndItem,caption,64);
 
-    HFONT oldFont=(HFONT)SelectObject(d->hDC,gFontBold);
+    HFONT oldFont=(HFONT)SelectObject(d->hDC,gFont);
     SetBkMode(d->hDC,TRANSPARENT);
     SetTextColor(d->hDC,textColor);
 
@@ -1603,7 +1603,7 @@ void DrawProfileHeaderButton(const DRAWITEMSTRUCT* d){
 
     // Fixed visual metrics. The complete icon + gap + text block is centered.
     const int iconVisualW=16;
-    const int gap=7;
+    const int gap=6;
     const int totalW=iconVisualW+gap+textSize.cx;
     const int contentLeft=r.left+((r.right-r.left)-totalW)/2;
     const int cy=(r.top+r.bottom)/2;
@@ -1638,7 +1638,7 @@ void DrawProfileHeaderButton(const DRAWITEMSTRUCT* d){
     RECT tr{
         contentLeft+iconVisualW+gap,
         r.top,
-        r.right-5,
+        r.right-2,
         r.bottom
     };
     DrawTextW(d->hDC,caption,-1,&tr,DT_LEFT|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);
@@ -2192,8 +2192,8 @@ void BuildControls(){
         SetWindowSubclass(list,ProfileListSubclassProc,1,0);
     }
 
-    Add(L"BUTTON",L"Add profile",BS_OWNERDRAW,166,95,104,32,IDC_ADD);
-    Add(L"BUTTON",L"Remove",BS_OWNERDRAW,278,95,88,32,IDC_REMOVE);
+    Add(L"BUTTON",L"Add profile",BS_OWNERDRAW,158,95,112,32,IDC_ADD);
+    Add(L"BUTTON",L"Remove",BS_OWNERDRAW,274,95,92,32,IDC_REMOVE);
 
     Add(L"STATIC",L"Profile name",0,rightX,152,110,22,IDC_LBL_NAME);
     HWND eName=Add(L"EDIT",L"",ES_AUTOHSCROLL,rightX+120,153,rightW-122,22,IDC_NAME);
@@ -2284,8 +2284,8 @@ void ResizeControls(){
     const int panelBottom=r.bottom-footerH-14;
 
     MoveWindow(H(IDC_LIST),margin+10,144,leftW-20,(int)std::max(300,panelBottom-144-18),TRUE);
-    MoveWindow(H(IDC_ADD),166,95,104,32,TRUE);
-    MoveWindow(H(IDC_REMOVE),278,95,88,32,TRUE);
+    MoveWindow(H(IDC_ADD),158,95,112,32,TRUE);
+    MoveWindow(H(IDC_REMOVE),274,95,92,32,TRUE);
 
     MoveWindow(H(IDC_LBL_NAME),rightX,152,110,22,TRUE);
     MoveWindow(H(IDC_NAME),rightX+120,153,rightW-122,22,TRUE);
