@@ -93,6 +93,8 @@ Settings gSettings; int gSelected=-1; std::wstring gActive=L"Windows", gStatus=L
 NOTIFYICONDATAW gNid{}; HMENU gTrayMenu{};
 HWND gFooterHover{};
 HWND gProfileTooltip{};
+HWND gExeTooltip{};
+bool gExeTooltipVisible=false;
 HWND gResetTooltip{};
 bool gResetTooltipVisible=false;
 int gProfileTooltipItem=-1;
@@ -1082,6 +1084,142 @@ LRESULT CALLBACK ProfileTooltipSubclassProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM 
     return DefSubclassProc(hwnd,msg,wp,lp);
 }
 
+
+bool ExecutablePathIsTruncated(){
+    HWND edit=H(IDC_EXE);
+    if(!edit || !IsWindowVisible(edit)) return false;
+
+    std::wstring path=GetTxt(IDC_EXE);
+    if(path.empty()) return false;
+
+    RECT r{};
+    GetClientRect(edit,&r);
+
+    HDC dc=GetDC(edit);
+    if(!dc) return false;
+    HFONT old=(HFONT)SelectObject(dc,gFont);
+    SIZE sz{};
+    GetTextExtentPoint32W(dc,path.c_str(),(int)path.size(),&sz);
+    SelectObject(dc,old);
+    ReleaseDC(edit,dc);
+
+    const int available=(r.right-r.left)-16;
+    return sz.cx>available;
+}
+
+void HideExecutableTooltip(){
+    if(gExeTooltip && gExeTooltipVisible){
+        ShowWindow(gExeTooltip,SW_HIDE);
+        gExeTooltipVisible=false;
+    }
+}
+
+void UpdateExecutableTooltip(){
+    HWND edit=H(IDC_EXE);
+    if(!edit || !gExeTooltip || !ExecutablePathIsTruncated()){
+        HideExecutableTooltip();
+        return;
+    }
+
+    std::wstring path=GetTxt(IDC_EXE);
+    if(path.empty()){
+        HideExecutableTooltip();
+        return;
+    }
+
+    RECT er{};
+    GetWindowRect(edit,&er);
+
+    HDC dc=GetDC(gExeTooltip);
+    if(!dc) return;
+    HFONT old=(HFONT)SelectObject(dc,gFont);
+    SIZE sz{};
+    GetTextExtentPoint32W(dc,path.c_str(),(int)path.size(),&sz);
+    SelectObject(dc,old);
+    ReleaseDC(gExeTooltip,dc);
+
+    const int tipW=std::min(700,(int)sz.cx+16);
+    const int tipH=sz.cy+10;
+    int x=er.left;
+    int y=er.bottom+3;
+
+    HMONITOR mon=MonitorFromWindow(edit,MONITOR_DEFAULTTONEAREST);
+    MONITORINFO mi{sizeof(mi)};
+    if(GetMonitorInfoW(mon,&mi)){
+        if(x+tipW>mi.rcWork.right) x=std::max((int)mi.rcWork.left,mi.rcWork.right-tipW);
+        if(x<mi.rcWork.left) x=mi.rcWork.left;
+        y=std::clamp(y,(int)mi.rcWork.top,(int)mi.rcWork.bottom-tipH);
+    }
+
+    SetWindowTextW(gExeTooltip,path.c_str());
+    SetWindowPos(gExeTooltip,HWND_TOPMOST,x,y,tipW,tipH,
+        SWP_NOACTIVATE|SWP_SHOWWINDOW);
+    gExeTooltipVisible=true;
+}
+
+LRESULT CALLBACK ExecutableEditSubclassProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp,
+                                            UINT_PTR subclassId,DWORD_PTR refData){
+    switch(msg){
+    case WM_MOUSEMOVE:{
+        UpdateExecutableTooltip();
+        TRACKMOUSEEVENT tme{sizeof(tme),TME_LEAVE,hwnd,0};
+        TrackMouseEvent(&tme);
+        break;
+    }
+    case WM_MOUSELEAVE:
+        HideExecutableTooltip();
+        break;
+
+    case WM_SETFOCUS:
+        HideExecutableTooltip();
+        InvalidateRect(hwnd,nullptr,TRUE);
+        break;
+
+    case WM_KILLFOCUS:
+    case WM_SETTEXT:
+        HideExecutableTooltip();
+        InvalidateRect(hwnd,nullptr,TRUE);
+        break;
+
+    case WM_ERASEBKGND:
+        if(GetFocus()!=hwnd) return 1;
+        break;
+
+    case WM_PAINT:
+        if(GetFocus()!=hwnd){
+            PAINTSTRUCT ps{};
+            HDC dc=BeginPaint(hwnd,&ps);
+            RECT r{};
+            GetClientRect(hwnd,&r);
+
+            HBRUSH bg=CreateSolidBrush(C_FIELD);
+            FillRect(dc,&r,bg);
+            DeleteObject(bg);
+
+            std::wstring path=GetTxt(IDC_EXE);
+            RECT tr=r;
+            tr.left+=8;
+            tr.right-=8;
+
+            SetBkMode(dc,TRANSPARENT);
+            SetTextColor(dc,C_TEXT);
+            SelectObject(dc,gFont);
+            DrawTextW(dc,path.c_str(),-1,&tr,
+                DT_LEFT|DT_VCENTER|DT_SINGLELINE|DT_END_ELLIPSIS|DT_NOPREFIX);
+
+            EndPaint(hwnd,&ps);
+            return 0;
+        }
+        break;
+
+    case WM_NCDESTROY:
+        HideExecutableTooltip();
+        RemoveWindowSubclass(hwnd,ExecutableEditSubclassProc,subclassId);
+        break;
+    }
+    return DefSubclassProc(hwnd,msg,wp,lp);
+}
+
 void HideResetTooltip(){
     if(gResetTooltip && gResetTooltipVisible){
         ShowWindow(gResetTooltip,SW_HIDE);
@@ -1403,6 +1541,7 @@ void LoadSelected(){
 
         Txt(IDC_NAME,p->name);
         Txt(IDC_EXE,L"");
+        InvalidateRect(H(IDC_EXE),nullptr,TRUE);
         SendMessageW(H(IDC_ENABLED),BM_SETCHECK,BST_UNCHECKED,0);
         LoadValuesToSliders(ValuesFromFlatProfile(*p));
         return;
@@ -1421,6 +1560,7 @@ void LoadSelected(){
 
     Txt(IDC_NAME,p->name);
     Txt(IDC_EXE,p->exePath);
+    InvalidateRect(H(IDC_EXE),nullptr,TRUE);
     SendMessageW(H(IDC_ENABLED),BM_SETCHECK,p->enabled?BST_CHECKED:BST_UNCHECKED,0);
 
     if(ds>=0&&ds<(int)gDisplays.size())
@@ -2214,6 +2354,15 @@ void BuildControls(){
     HWND eExe=Add(L"EDIT",L"",ES_AUTOHSCROLL,rightX+2,229,rightW-browseW-fieldGap-4,22,IDC_EXE);
     SetWindowTheme(eExe,L"DarkMode_Explorer",nullptr);
     SendMessageW(eExe,EM_SETMARGINS,EC_LEFTMARGIN|EC_RIGHTMARGIN,MAKELPARAM(8,8));
+    SetWindowSubclass(eExe,ExecutableEditSubclassProc,1,0);
+
+    gExeTooltip=CreateWindowExW(WS_EX_TOOLWINDOW|WS_EX_TOPMOST,L"STATIC",L"",
+        WS_POPUP,0,0,0,0,gWnd,nullptr,gInst,nullptr);
+    if(gExeTooltip){
+        SendMessageW(gExeTooltip,WM_SETFONT,(WPARAM)gFont,FALSE);
+        SetWindowSubclass(gExeTooltip,ProfileTooltipSubclassProc,3,0);
+    }
+
     Add(L"BUTTON",L"Browse...",BS_OWNERDRAW,rightX+rightW-browseW,222,browseW,36,IDC_BROWSE);
 
     HWND enabled=Add(L"BUTTON",L"",BS_AUTOCHECKBOX,rightX,272,20,22,IDC_ENABLED);
@@ -2756,6 +2905,7 @@ LRESULT CALLBACK Proc(HWND w,UINT m,WPARAM wp,LPARAM lp){switch(m){case WM_SHOW_
     if(LOWORD(wp)!=WA_INACTIVE) RefreshDriverVersion();
     return 0;case WM_SIZE:
     if(wp==SIZE_MINIMIZED){
+        HideExecutableTooltip();
         DiscardPreview();
         LoadSelected();
         if(gSettings.minimizeToTray){
@@ -2902,7 +3052,7 @@ case WM_TIMER:
         return 0;
     }
     return 0;
-case WM_COMMAND:{int id=LOWORD(wp);if(id==IDC_LIST&&HIWORD(wp)==LBN_SELCHANGE){DiscardPreview();LoadSelected();return 0;}if(id==IDC_DISPLAY&&HIWORD(wp)==CBN_SELCHANGE){DiscardPreview();int ds=(int)SendMessageW(H(IDC_DISPLAY),CB_GETCURSEL,0,0);if(ds>=0&&ds<(int)gDisplays.size()){if(IsDesktopSelected()){auto*p=EnsureDesktopProfile(gDisplays[ds].gdiName,gDisplays[ds].monitorId);LoadValuesToSliders(ValuesFromFlatProfile(*p));}else{auto*p=SelectedProfile();if(p){LoadValuesToSliders(*EnsureApplicationValuesForDisplay(*p,gDisplays[ds].gdiName,gDisplays[ds].monitorId));}}}return 0;}switch(id){case IDC_BROWSE:{OPENFILENAMEW o{sizeof(o)};wchar_t f[MAX_PATH]{};o.hwndOwner=w;o.lpstrFilter=L"Executables (*.exe)\0*.exe\0All files\0*.*\0";o.lpstrFile=f;o.nMaxFile=MAX_PATH;o.Flags=OFN_FILEMUSTEXIST;if(GetOpenFileNameW(&o)){Txt(IDC_EXE,f);auto* p=SelectedProfile();if(p&&!IsDesktopSelected()){p->exePath=f;InvalidateRect(H(IDC_LIST),nullptr,TRUE);}}break;}case IDC_DEFAULTS:ResetSlidersToDefaults();break;case IDC_SAVE:SaveSelected();break;case IDC_ADD:{ApplicationProfile np{};if(!gDisplays.empty()){for(const auto&d:gDisplays)np.displayProfiles.push_back(ApplicationDefaultsForDisplay(d.gdiName,d.monitorId));}gSettings.profiles.push_back(np);gSelected=(int)gSettings.profiles.size();Save();RefreshList();LoadSelected();break;}case IDC_REMOVE:if(gSelected>0&&gSelected<=(int)gSettings.profiles.size()){gSettings.profiles.erase(gSettings.profiles.begin()+(gSelected-1));gSelected=std::max<int>(0,gSelected-1);Save();RefreshList();LoadSelected();}break;case IDC_STARTWIN:gSettings.startWindows=SendMessageW(H(IDC_STARTWIN),BM_GETCHECK,0,0)==BST_CHECKED;SetStartup(gSettings.startWindows);Save();break;case IDC_STARTMIN:gSettings.startMinimized=SendMessageW(H(IDC_STARTMIN),BM_GETCHECK,0,0)==BST_CHECKED;Save();break;case IDC_MINTRAY:
+case WM_COMMAND:{int id=LOWORD(wp);if(id==IDC_LIST&&HIWORD(wp)==LBN_SELCHANGE){HideExecutableTooltip();DiscardPreview();LoadSelected();return 0;}if(id==IDC_DISPLAY&&HIWORD(wp)==CBN_SELCHANGE){DiscardPreview();int ds=(int)SendMessageW(H(IDC_DISPLAY),CB_GETCURSEL,0,0);if(ds>=0&&ds<(int)gDisplays.size()){if(IsDesktopSelected()){auto*p=EnsureDesktopProfile(gDisplays[ds].gdiName,gDisplays[ds].monitorId);LoadValuesToSliders(ValuesFromFlatProfile(*p));}else{auto*p=SelectedProfile();if(p){LoadValuesToSliders(*EnsureApplicationValuesForDisplay(*p,gDisplays[ds].gdiName,gDisplays[ds].monitorId));}}}return 0;}switch(id){case IDC_BROWSE:{OPENFILENAMEW o{sizeof(o)};wchar_t f[MAX_PATH]{};o.hwndOwner=w;o.lpstrFilter=L"Executables (*.exe)\0*.exe\0All files\0*.*\0";o.lpstrFile=f;o.nMaxFile=MAX_PATH;o.Flags=OFN_FILEMUSTEXIST;if(GetOpenFileNameW(&o)){Txt(IDC_EXE,f);InvalidateRect(H(IDC_EXE),nullptr,TRUE);auto* p=SelectedProfile();if(p&&!IsDesktopSelected()){p->exePath=f;InvalidateRect(H(IDC_LIST),nullptr,TRUE);}}break;}case IDC_DEFAULTS:ResetSlidersToDefaults();break;case IDC_SAVE:SaveSelected();break;case IDC_ADD:{ApplicationProfile np{};if(!gDisplays.empty()){for(const auto&d:gDisplays)np.displayProfiles.push_back(ApplicationDefaultsForDisplay(d.gdiName,d.monitorId));}gSettings.profiles.push_back(np);gSelected=(int)gSettings.profiles.size();Save();RefreshList();LoadSelected();break;}case IDC_REMOVE:if(gSelected>0&&gSelected<=(int)gSettings.profiles.size()){gSettings.profiles.erase(gSettings.profiles.begin()+(gSelected-1));gSelected=std::max<int>(0,gSelected-1);Save();RefreshList();LoadSelected();}break;case IDC_STARTWIN:gSettings.startWindows=SendMessageW(H(IDC_STARTWIN),BM_GETCHECK,0,0)==BST_CHECKED;SetStartup(gSettings.startWindows);Save();break;case IDC_STARTMIN:gSettings.startMinimized=SendMessageW(H(IDC_STARTMIN),BM_GETCHECK,0,0)==BST_CHECKED;Save();break;case IDC_MINTRAY:
     gSettings.minimizeToTray=SendMessageW(H(IDC_MINTRAY),BM_GETCHECK,0,0)==BST_CHECKED;
     if(!gSettings.minimizeToTray)
         SetTrayIconVisible(false);
