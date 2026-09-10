@@ -1577,6 +1577,75 @@ void DrawFolderIcon(HDC dc,int x,int y,COLORREF c){
     g.DrawPath(&pen,&path);
 }
 
+
+void DrawProfileHeaderButton(const DRAWITEMSTRUCT* d){
+    const int id=(int)d->CtlID;
+    const bool down=(d->itemState&ODS_SELECTED)!=0;
+    const bool disabled=(d->itemState&ODS_DISABLED)!=0;
+
+    RECT r=d->rcItem;
+    const COLORREF fill=down?RGB(37,43,49):RGB(31,37,43);
+    const COLORREF border=RGB(64,72,80);
+    const COLORREF textColor=disabled?C_MUTED:RGB(230,233,236);
+    const COLORREF iconColor=disabled?C_MUTED:(id==IDC_REMOVE?C_DANGER:RGB(218,222,226));
+
+    FillRound(d->hDC,r,fill,border,7);
+
+    wchar_t caption[64]{};
+    GetWindowTextW(d->hwndItem,caption,64);
+
+    HFONT oldFont=(HFONT)SelectObject(d->hDC,gFontBold);
+    SetBkMode(d->hDC,TRANSPARENT);
+    SetTextColor(d->hDC,textColor);
+
+    SIZE textSize{};
+    GetTextExtentPoint32W(d->hDC,caption,(int)wcslen(caption),&textSize);
+
+    // Fixed visual metrics. The complete icon + gap + text block is centered.
+    const int iconVisualW=16;
+    const int gap=7;
+    const int totalW=iconVisualW+gap+textSize.cx;
+    const int contentLeft=r.left+((r.right-r.left)-totalW)/2;
+    const int cy=(r.top+r.bottom)/2;
+
+    if(id==IDC_ADD){
+        // Draw the plus directly here so its actual visual bounds are known.
+        HPEN pen=CreatePen(PS_SOLID,1,iconColor);
+        HGDIOBJ oldPen=SelectObject(d->hDC,pen);
+        MoveToEx(d->hDC,contentLeft+8,cy-7,nullptr);
+        LineTo(d->hDC,contentLeft+8,cy+7);
+        MoveToEx(d->hDC,contentLeft+1,cy,nullptr);
+        LineTo(d->hDC,contentLeft+15,cy);
+        SelectObject(d->hDC,oldPen);
+        DeleteObject(pen);
+    }else{
+        // Compact trash can, drawn to the same 16 px visual box.
+        HPEN pen=CreatePen(PS_SOLID,1,iconColor);
+        HGDIOBJ oldPen=SelectObject(d->hDC,pen);
+        MoveToEx(d->hDC,contentLeft+3,cy-5,nullptr);
+        LineTo(d->hDC,contentLeft+13,cy-5);
+        MoveToEx(d->hDC,contentLeft+5,cy-8,nullptr);
+        LineTo(d->hDC,contentLeft+11,cy-8);
+        Rectangle(d->hDC,contentLeft+4,cy-3,contentLeft+13,cy+8);
+        MoveToEx(d->hDC,contentLeft+7,cy-1,nullptr);
+        LineTo(d->hDC,contentLeft+7,cy+6);
+        MoveToEx(d->hDC,contentLeft+10,cy-1,nullptr);
+        LineTo(d->hDC,contentLeft+10,cy+6);
+        SelectObject(d->hDC,oldPen);
+        DeleteObject(pen);
+    }
+
+    RECT tr{
+        contentLeft+iconVisualW+gap,
+        r.top,
+        r.right-5,
+        r.bottom
+    };
+    DrawTextW(d->hDC,caption,-1,&tr,DT_LEFT|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);
+
+    SelectObject(d->hDC,oldFont);
+}
+
 void DrawOwnerButton(const DRAWITEMSTRUCT* d){
     int id=(int)d->CtlID;
     bool down=(d->itemState&ODS_SELECTED)!=0;
@@ -1593,28 +1662,18 @@ void DrawOwnerButton(const DRAWITEMSTRUCT* d){
         border=C_BORDER;
         textColor=disabled?C_MUTED:C_TEXT;
         icon=C_MUTED;
-    }else if(id==IDC_ADD){
-        fill=down?RGB(37,43,49):RGB(33,39,45);
-        border=RGB(72,80,88);
-        textColor=disabled?C_MUTED:RGB(226,230,233);
-        icon=disabled?C_MUTED:RGB(211,216,220);
-    }else if(id==IDC_REMOVE){
-        fill=down?RGB(37,43,49):RGB(33,39,45);
-        border=RGB(72,80,88);
-        textColor=disabled?C_MUTED:RGB(226,230,233);
-        icon=disabled?C_MUTED:C_DANGER;
     }else if(id==IDC_BROWSE){
         icon=C_TEXT;
     }
 
     RECT r=d->rcItem;
-    const int radius=(id==IDC_ADD||id==IDC_REMOVE)?7:8;
+    const int radius=8;
     FillRound(d->hDC,r,fill,border,radius);
 
     wchar_t caption[128]{};
     GetWindowTextW(d->hwndItem,caption,128);
     SIZE sz{};
-    HFONT buttonFont=(id==IDC_SAVE||id==IDC_DEFAULTS)?gFontBold:((id==IDC_ADD||id==IDC_REMOVE)?gFontHeaderButton:gFont);
+    HFONT buttonFont=(id==IDC_SAVE||id==IDC_DEFAULTS)?gFontBold:gFont;
     SelectObject(d->hDC,buttonFont);
     GetTextExtentPoint32W(d->hDC,caption,(int)wcslen(caption),&sz);
 
@@ -1624,21 +1683,7 @@ void DrawOwnerButton(const DRAWITEMSTRUCT* d){
     SetTextColor(d->hDC,textColor);
     SelectObject(d->hDC,buttonFont);
 
-    if(id==IDC_ADD){
-        // Reference-style layout: roomy left icon, stronger caption,
-        // both vertically centered and visually balanced.
-        const int iconX=r.left+13;
-        const int textX=r.left+39;
-        DrawAddButtonIcon(d->hDC,iconX,cy-9,icon);
-        RECT tr{textX,r.top,r.right-10,r.bottom};
-        DrawTextW(d->hDC,caption,-1,&tr,DT_LEFT|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);
-    }else if(id==IDC_REMOVE){
-        const int iconX=r.left+12;
-        const int textX=r.left+38;
-        DrawRemoveButtonIcon(d->hDC,iconX,cy-9,icon);
-        RECT tr{textX,r.top,r.right-9,r.bottom};
-        DrawTextW(d->hDC,caption,-1,&tr,DT_LEFT|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);
-    }else{
+    {
         int iconW=0;
         int gap=0;
         if(id==IDC_BROWSE){ iconW=20; gap=7; }
@@ -1998,32 +2043,30 @@ void Paint(HWND w){
     DrawHeaderImage(dc);
     Fill(dc,0,78,rc.right,1,C_BORDER);
 
-    // Compact panel header strips, intentionally simpler than the main branded header.
-    RECT leftHeader{left.left+1,left.top+1,left.right-1,136};
-    RECT centerHeader{center.left+1,center.top+1,center.right-1,136};
-    RECT settingsHeader{settings.left+1,settings.top+1,settings.right-1,136};
-    FillRound(dc,leftHeader,C_PANEL2,C_PANEL2,9);
-    FillRound(dc,centerHeader,C_PANEL2,C_PANEL2,9);
-    FillRound(dc,settingsHeader,C_PANEL2,C_PANEL2,9);
-
-    // Square off the lower corners and stop the lighter header fill exactly at the separator.
-    Fill(dc,left.left+1,left.top+10,leftW-2,46,C_PANEL2);
-    Fill(dc,center.left+1,center.top+10,centerW-2,46,C_PANEL2);
-    Fill(dc,settings.left+1,settings.top+10,settingsW-2,46,C_PANEL2);
+    // Panel header fill is clipped to the rounded panel and stops exactly
+    // at the separator. No rounded header overlay and no repaint workaround.
+    const int separatorY=136;
+    auto PaintPanelHeader=[&](const RECT& panel){
+        int saved=SaveDC(dc);
+        HRGN clip=CreateRoundRectRgn(panel.left+1,panel.top+1,panel.right,panel.bottom,18,18);
+        SelectClipRgn(dc,clip);
+        Fill(dc,panel.left+1,panel.top+1,
+             panel.right-panel.left-2,separatorY-panel.top-1,C_PANEL2);
+        SelectClipRgn(dc,nullptr);
+        DeleteObject(clip);
+        RestoreDC(dc,saved);
+    };
+    PaintPanelHeader(left);
+    PaintPanelHeader(center);
+    PaintPanelHeader(settings);
 
     DrawLabel(dc,L"Profiles",left.left+14,101,C_TEXT,gFontBold);
     DrawLabel(dc,L"Profile Settings",center.left+14,101,C_TEXT,gFontBold);
     DrawLabel(dc,L"Application Settings",settings.left+14,101,C_TEXT,gFontBold);
 
-    // Explicitly restore the panel body below the header so the lighter
-    // header fill cannot bleed past the separator.
-    Fill(dc,left.left+1,137,leftW-2,4,C_PANEL);
-    Fill(dc,center.left+1,137,centerW-2,4,C_PANEL);
-    Fill(dc,settings.left+1,137,settingsW-2,4,C_PANEL);
-
-    Fill(dc,left.left+12,136,leftW-24,1,C_BORDER);
-    Fill(dc,center.left+12,136,centerW-24,1,C_BORDER);
-    Fill(dc,settings.left+12,136,settingsW-24,1,C_BORDER);
+    Fill(dc,left.left+12,separatorY,leftW-24,1,C_BORDER);
+    Fill(dc,center.left+12,separatorY,centerW-24,1,C_BORDER);
+    Fill(dc,settings.left+12,separatorY,settingsW-24,1,C_BORDER);
 
     const bool desktop=IsDesktopSelected();
     const int displayY=desktop?154:320;
@@ -2149,8 +2192,8 @@ void BuildControls(){
         SetWindowSubclass(list,ProfileListSubclassProc,1,0);
     }
 
-    Add(L"BUTTON",L"Add profile",BS_OWNERDRAW,174,94,110,34,IDC_ADD);
-    Add(L"BUTTON",L"Remove",BS_OWNERDRAW,292,94,94,34,IDC_REMOVE);
+    Add(L"BUTTON",L"Add profile",BS_OWNERDRAW,166,95,104,32,IDC_ADD);
+    Add(L"BUTTON",L"Remove",BS_OWNERDRAW,278,95,88,32,IDC_REMOVE);
 
     Add(L"STATIC",L"Profile name",0,rightX,152,110,22,IDC_LBL_NAME);
     HWND eName=Add(L"EDIT",L"",ES_AUTOHSCROLL,rightX+120,153,rightW-122,22,IDC_NAME);
@@ -2241,8 +2284,8 @@ void ResizeControls(){
     const int panelBottom=r.bottom-footerH-14;
 
     MoveWindow(H(IDC_LIST),margin+10,144,leftW-20,(int)std::max(300,panelBottom-144-18),TRUE);
-    MoveWindow(H(IDC_ADD),174,94,110,34,TRUE);
-    MoveWindow(H(IDC_REMOVE),292,94,94,34,TRUE);
+    MoveWindow(H(IDC_ADD),166,95,104,32,TRUE);
+    MoveWindow(H(IDC_REMOVE),278,95,88,32,TRUE);
 
     MoveWindow(H(IDC_LBL_NAME),rightX,152,110,22,TRUE);
     MoveWindow(H(IDC_NAME),rightX+120,153,rightW-122,22,TRUE);
@@ -2755,7 +2798,10 @@ case WM_CTLCOLORSTATIC:{HDC dc=(HDC)wp;SetTextColor(dc,C_TEXT);SetBkColor(dc,C_P
         DrawValueBox(d);return TRUE;
     }
 
-    if(d->CtlID==IDC_SAVE||d->CtlID==IDC_DEFAULTS||d->CtlID==IDC_ADD||d->CtlID==IDC_REMOVE||d->CtlID==IDC_BROWSE){
+    if(d->CtlID==IDC_ADD||d->CtlID==IDC_REMOVE){
+        DrawProfileHeaderButton(d);return TRUE;
+    }
+    if(d->CtlID==IDC_SAVE||d->CtlID==IDC_DEFAULTS||d->CtlID==IDC_BROWSE){
         DrawOwnerButton(d);return TRUE;
     }
     if(d->CtlID==IDC_FOOT_GITHUB||d->CtlID==IDC_FOOT_SUPPORT||d->CtlID==IDC_FOOT_ABOUT){
