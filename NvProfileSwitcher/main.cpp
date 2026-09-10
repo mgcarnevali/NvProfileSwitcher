@@ -1142,7 +1142,10 @@ void UpdateExecutableTooltip(){
     const int tipW=std::min(700,(int)sz.cx+16);
     const int tipH=sz.cy+10;
     int x=er.left;
-    int y=er.bottom+TOOLTIP_GAP;
+    // The EDIT's rendered lower edge extends beyond the rectangle used to
+    // position this popup. Add 5 px so the visible gap matches the 3 px used
+    // by the other tooltips.
+    int y=er.bottom+TOOLTIP_GAP+5;
 
     HMONITOR mon=MonitorFromWindow(edit,MONITOR_DEFAULTTONEAREST);
     MONITORINFO mi{sizeof(mi)};
