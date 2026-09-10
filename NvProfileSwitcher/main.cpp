@@ -855,22 +855,23 @@ LRESULT CALLBACK FlatCheckboxSubclassProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp
 
         const bool checked=SendMessageW(hwnd,BM_GETCHECK,0,0)==BST_CHECKED;
 
-        // Compact mockup-style checkbox: controlled 15x15 box, subtle dark
-        // unchecked state and a softer green checked state.
-        RECT box{2,4,17,19};
-        const COLORREF offFill=RGB(24,30,35);
-        const COLORREF offBorder=RGB(58,67,75);
-        const COLORREF onFill=RGB(72,198,86);
-        const COLORREF onBorder=RGB(83,216,96);
-        FillRound(dc,box,checked?onFill:offFill,checked?onBorder:offBorder,3);
+        // Compact mockup-style checkbox. The box is intentionally positioned
+        // slightly higher inside the 20x22 control so its visual center lines
+        // up with the adjacent caption.
+        RECT box{2,3,15,16}; // 13x13
+        const COLORREF offFill=RGB(22,27,32);
+        const COLORREF offBorder=RGB(57,65,73);
+        const COLORREF onFill=RGB(65,183,78);
+        const COLORREF onBorder=RGB(76,205,89);
+        FillRound(dc,box,checked?onFill:offFill,checked?onBorder:offBorder,2);
 
         if(checked){
-            // Small, crisp dark check centered inside the 15x15 box.
-            HPEN pen=CreatePen(PS_SOLID,2,RGB(15,39,20));
+            // Finer check for the smaller box.
+            HPEN pen=CreatePen(PS_SOLID,1,RGB(12,32,16));
             HGDIOBJ old=SelectObject(dc,pen);
-            MoveToEx(dc,6,11,nullptr);
-            LineTo(dc,9,14);
-            LineTo(dc,14,8);
+            MoveToEx(dc,5,9,nullptr);
+            LineTo(dc,8,12);
+            LineTo(dc,13,6);
             SelectObject(dc,old);
             DeleteObject(pen);
         }
@@ -1366,13 +1367,13 @@ void SetDesktopUi(bool desktop){
 
     const int appX=centerPanelX+centerPanelW+gap+22;
     MoveWindow(H(IDC_STARTWIN),appX,150,20,22,TRUE);
-    MoveWindow(GetWindow(H(IDC_STARTWIN),GW_HWNDNEXT),appX+24,150,220,22,TRUE);
+    MoveWindow(GetWindow(H(IDC_STARTWIN),GW_HWNDNEXT),appX+22,150,220,22,TRUE);
     MoveWindow(H(IDC_STARTMIN),appX,178,20,22,TRUE);
-    MoveWindow(GetWindow(H(IDC_STARTMIN),GW_HWNDNEXT),appX+24,178,220,22,TRUE);
+    MoveWindow(GetWindow(H(IDC_STARTMIN),GW_HWNDNEXT),appX+22,178,220,22,TRUE);
     MoveWindow(H(IDC_MINTRAY),appX,206,20,22,TRUE);
-    MoveWindow(GetWindow(H(IDC_MINTRAY),GW_HWNDNEXT),appX+24,206,220,22,TRUE);
+    MoveWindow(GetWindow(H(IDC_MINTRAY),GW_HWNDNEXT),appX+22,206,220,22,TRUE);
     MoveWindow(H(IDC_CHECKUPDATES),appX,234,20,22,TRUE);
-    MoveWindow(GetWindow(H(IDC_CHECKUPDATES),GW_HWNDNEXT),appX+24,234,220,22,TRUE);
+    MoveWindow(GetWindow(H(IDC_CHECKUPDATES),GW_HWNDNEXT),appX+22,234,220,22,TRUE);
 
     InvalidateRect(gWnd,nullptr,TRUE);
 }
@@ -2217,7 +2218,7 @@ void BuildControls(){
 
     HWND enabled=Add(L"BUTTON",L"",BS_AUTOCHECKBOX,rightX,272,20,22,IDC_ENABLED);
     StyleFlatCheckbox(enabled);
-    Add(L"STATIC",L"Enable this profile",0,rightX+28,271,205,22,IDC_LBL_ENABLED);
+    Add(L"STATIC",L"Enable this profile",0,rightX+24,272,205,22,IDC_LBL_ENABLED);
 
     Add(L"STATIC",L"Display",0,rightX+31,320,150,22,IDC_LBL_DISPLAY);
     HWND display=Add(L"COMBOBOX",L"",CBS_DROPDOWNLIST|CBS_OWNERDRAWFIXED|CBS_HASSTRINGS|WS_VSCROLL,
@@ -2259,13 +2260,13 @@ void BuildControls(){
     const int appX=centerPanelX+centerPanelW+gap+22;
 
     { HWND cb=Add(L"BUTTON",L"",BS_AUTOCHECKBOX,appX,150,20,22,IDC_STARTWIN); StyleFlatCheckbox(cb); }
-    Add(L"STATIC",L"Start with Windows",0,appX+24,150,220,22,0);
+    Add(L"STATIC",L"Start with Windows",0,appX+22,150,220,22,0);
     { HWND cb=Add(L"BUTTON",L"",BS_AUTOCHECKBOX,appX,178,20,22,IDC_STARTMIN); StyleFlatCheckbox(cb); }
-    Add(L"STATIC",L"Start minimized",0,appX+24,178,220,22,0);
+    Add(L"STATIC",L"Start minimized",0,appX+22,178,220,22,0);
     { HWND cb=Add(L"BUTTON",L"",BS_AUTOCHECKBOX,appX,206,20,22,IDC_MINTRAY); StyleFlatCheckbox(cb); }
-    Add(L"STATIC",L"Minimize to tray",0,appX+24,206,220,22,0);
+    Add(L"STATIC",L"Minimize to tray",0,appX+22,206,220,22,0);
     { HWND cb=Add(L"BUTTON",L"",BS_AUTOCHECKBOX,appX,234,20,22,IDC_CHECKUPDATES); StyleFlatCheckbox(cb); }
-    Add(L"STATIC",L"Check for updates",0,appX+24,234,220,22,0);
+    Add(L"STATIC",L"Check for updates",0,appX+22,234,220,22,0);
 
     SendMessageW(H(IDC_STARTWIN),BM_SETCHECK,gSettings.startWindows?BST_CHECKED:BST_UNCHECKED,0);
     SendMessageW(H(IDC_STARTMIN),BM_SETCHECK,gSettings.startMinimized?BST_CHECKED:BST_UNCHECKED,0);
@@ -2303,7 +2304,7 @@ void ResizeControls(){
     MoveWindow(H(IDC_EXE),rightX+2,229,rightW-browseW-fieldGap-4,22,TRUE);
     MoveWindow(H(IDC_BROWSE),rightX+rightW-browseW,222,browseW,36,TRUE);
     MoveWindow(H(IDC_ENABLED),rightX,272,20,22,TRUE);
-    MoveWindow(H(IDC_LBL_ENABLED),rightX+28,271,205,22,TRUE);
+    MoveWindow(H(IDC_LBL_ENABLED),rightX+24,272,205,22,TRUE);
 
     MoveWindow(H(IDC_FOOT_GITHUB),r.right-284,r.bottom-43,66,24,TRUE);
     MoveWindow(H(IDC_FOOT_SUPPORT),r.right-212,r.bottom-43,98,24,TRUE);
