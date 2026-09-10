@@ -1222,7 +1222,7 @@ void SetDesktopUi(bool desktop){
 
     // Display is one compact block: icon/label, then the combo directly below.
     MoveWindow(H(IDC_LBL_DISPLAY),rightX+31,yDisplay,150,22,TRUE);
-    MoveWindow(H(IDC_DISPLAY),rightX,yDisplay+26,rightW,32,TRUE);
+    MoveWindow(H(IDC_DISPLAY),rightX,yDisplay+26,rightW,30,TRUE);
 
     // Fixed slider grid: icon | label | slider | value.
     const int labelX=rightX+30;
@@ -1873,10 +1873,10 @@ void Paint(HWND w){
     if(!desktop){
         const int browseW=128;
         const int fieldGap=10;
-        RECT nameFrame{rightX+118,162,rightX+rightW,196};
+        RECT nameFrame{rightX+118,164,rightX+rightW,194};
         FillRound(dc,nameFrame,C_FIELD,C_BORDER,8);
 
-        RECT exeFrame{rightX,232,rightX+rightW-browseW-fieldGap,268};
+        RECT exeFrame{rightX,234,rightX+rightW-browseW-fieldGap,264};
         FillRound(dc,exeFrame,C_FIELD,C_BORDER,8);
     }
 
@@ -1963,7 +1963,7 @@ void BuildControls(){
     HWND list=Add(L"LISTBOX",L"",LBS_NOTIFY|LBS_OWNERDRAWFIXED|WS_VSCROLL,
         margin+10,158,leftW-20,panelBottom-158-18,IDC_LIST);
     SetWindowTheme(list,L"DarkMode_Explorer",nullptr);
-    SendMessageW(list,LB_SETITEMHEIGHT,0,58);
+    SendMessageW(list,LB_SETITEMHEIGHT,0,50);
 
     gProfileTooltip=CreateWindowExW(WS_EX_TOPMOST,TOOLTIPS_CLASSW,nullptr,
         WS_POPUP|TTS_ALWAYSTIP|TTS_NOPREFIX,
@@ -1990,18 +1990,18 @@ void BuildControls(){
 
     // Compact Profile Settings layout.
     Add(L"STATIC",L"Profile name",0,rightX,166,110,22,IDC_LBL_NAME);
-    HWND eName=Add(L"EDIT",L"",ES_AUTOHSCROLL,rightX+120,164,rightW-122,30,IDC_NAME);
+    HWND eName=Add(L"EDIT",L"",ES_AUTOHSCROLL,rightX+120,166,rightW-122,26,IDC_NAME);
     SetWindowTheme(eName,L"DarkMode_Explorer",nullptr);
     SendMessageW(eName,EM_SETMARGINS,EC_LEFTMARGIN|EC_RIGHTMARGIN,MAKELPARAM(8,8));
 
     Add(L"STATIC",L"Executable",0,rightX,210,120,22,IDC_LBL_EXE);
     const int browseW=128;
     const int fieldGap=10;
-    HWND eExe=Add(L"EDIT",L"",ES_AUTOHSCROLL,rightX+2,234,rightW-browseW-fieldGap-4,32,IDC_EXE);
+    HWND eExe=Add(L"EDIT",L"",ES_AUTOHSCROLL,rightX+2,236,rightW-browseW-fieldGap-4,26,IDC_EXE);
     SetWindowTheme(eExe,L"DarkMode_Explorer",nullptr);
     SendMessageW(eExe,EM_SETMARGINS,EC_LEFTMARGIN|EC_RIGHTMARGIN,MAKELPARAM(8,8));
     Add(L"BUTTON",L"Browse...",BS_OWNERDRAW,
-        rightX+rightW-browseW,232,browseW,36,IDC_BROWSE);
+        rightX+rightW-browseW,234,browseW,30,IDC_BROWSE);
 
     Add(L"BUTTON",L"",BS_AUTOCHECKBOX,rightX,278,20,22,IDC_ENABLED);
     Add(L"STATIC",L"Enable this profile",0,rightX+28,277,205,22,IDC_LBL_ENABLED);
@@ -2009,7 +2009,7 @@ void BuildControls(){
     Add(L"STATIC",L"Display",0,rightX+31,322,150,22,IDC_LBL_DISPLAY);
     HWND display=Add(L"COMBOBOX",L"",CBS_DROPDOWNLIST|CBS_OWNERDRAWFIXED|CBS_HASSTRINGS|WS_VSCROLL,
         rightX,348,rightW,240,IDC_DISPLAY);
-    SendMessageW(display,CB_SETITEMHEIGHT,0,28);
+    SendMessageW(display,CB_SETITEMHEIGHT,0,26);
     SetWindowTheme(display,L"DarkMode_Explorer",nullptr);
 
     const int labelX=rightX+30;
@@ -2043,13 +2043,12 @@ void BuildControls(){
 
     const int appX=centerPanelX+centerPanelW+gap+22;
     Add(L"BUTTON",L"",BS_AUTOCHECKBOX,appX,171,20,22,IDC_STARTWIN);
-    Add(L"BUTTON",L"",BS_AUTOCHECKBOX,appX,217,20,22,IDC_STARTMIN);
-    Add(L"BUTTON",L"",BS_AUTOCHECKBOX,appX,263,20,22,IDC_MINTRAY);
-    Add(L"BUTTON",L"",BS_AUTOCHECKBOX,appX,309,20,22,IDC_CHECKUPDATES);
-
     Add(L"STATIC",L"Start with Windows",0,appX+28,170,210,22,0);
+    Add(L"BUTTON",L"",BS_AUTOCHECKBOX,appX,217,20,22,IDC_STARTMIN);
     Add(L"STATIC",L"Start minimized",0,appX+28,216,210,22,0);
+    Add(L"BUTTON",L"",BS_AUTOCHECKBOX,appX,263,20,22,IDC_MINTRAY);
     Add(L"STATIC",L"Minimize to tray",0,appX+28,262,210,22,0);
+    Add(L"BUTTON",L"",BS_AUTOCHECKBOX,appX,309,20,22,IDC_CHECKUPDATES);
     Add(L"STATIC",L"Check for updates",0,appX+28,308,210,22,0);
 
     SendMessageW(H(IDC_STARTWIN),BM_SETCHECK,gSettings.startWindows?BST_CHECKED:BST_UNCHECKED,0);
@@ -2080,13 +2079,13 @@ void ResizeControls(){
     MoveWindow(H(IDC_REMOVE),270,104,90,38,TRUE);
 
     MoveWindow(H(IDC_LBL_NAME),rightX,166,110,22,TRUE);
-    MoveWindow(H(IDC_NAME),rightX+120,164,rightW-122,30,TRUE);
+    MoveWindow(H(IDC_NAME),rightX+120,166,rightW-122,26,TRUE);
 
     const int browseW=128;
     const int fieldGap=10;
     MoveWindow(H(IDC_LBL_EXE),rightX,210,120,22,TRUE);
-    MoveWindow(H(IDC_EXE),rightX+2,234,rightW-browseW-fieldGap-4,32,TRUE);
-    MoveWindow(H(IDC_BROWSE),rightX+rightW-browseW,232,browseW,36,TRUE);
+    MoveWindow(H(IDC_EXE),rightX+2,236,rightW-browseW-fieldGap-4,26,TRUE);
+    MoveWindow(H(IDC_BROWSE),rightX+rightW-browseW,234,browseW,30,TRUE);
     MoveWindow(H(IDC_ENABLED),rightX,278,20,22,TRUE);
     MoveWindow(H(IDC_LBL_ENABLED),rightX+28,277,205,22,TRUE);
 
@@ -2611,7 +2610,7 @@ case WM_CTLCOLORSTATIC:{HDC dc=(HDC)wp;SetTextColor(dc,C_TEXT);SetBkColor(dc,C_P
         ApplicationProfile*p=desktop?&gSettings.desktop:&gSettings.profiles[d->itemID-1];
 
         const int rowH=d->rcItem.bottom-d->rcItem.top;
-        const int iconSize=36;
+        const int iconSize=32;
         int x=d->rcItem.left+12;
         int y=d->rcItem.top+(rowH-iconSize)/2;
 
