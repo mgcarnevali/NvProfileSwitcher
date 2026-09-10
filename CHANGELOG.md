@@ -14,6 +14,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 ### Changed
 
 - The Windows primary display is now always shown first in the display selector.
+- New application profiles now inherit the corresponding Windows display settings.
+- Newly detected monitors added to application profiles now inherit their Windows display settings.
 - Improved tooltip positioning and spacing for a more consistent interface.
 - Refined profile and application terminology throughout the interface and configuration.
 
