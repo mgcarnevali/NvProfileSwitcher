@@ -1154,6 +1154,11 @@ void UpdateExecutableTooltip(){
     SetWindowTextW(gExeTooltip,path.c_str());
     SetWindowPos(gExeTooltip,HWND_TOPMOST,x,y,tipW,tipH,
         SWP_NOACTIVATE|SWP_SHOWWINDOW);
+    // Unlike the fixed Reset tooltip, this popup receives its text while it is
+    // still 0x0. Force the shared tooltip painter to redraw the complete
+    // background, border and text after the final size has been applied.
+    RedrawWindow(gExeTooltip,nullptr,nullptr,
+        RDW_INVALIDATE|RDW_ERASE|RDW_FRAME|RDW_UPDATENOW);
     gExeTooltipVisible=true;
 }
 
