@@ -1222,7 +1222,7 @@ void SetDesktopUi(bool desktop){
 
     // Display is one compact block: icon/label, then the combo directly below.
     MoveWindow(H(IDC_LBL_DISPLAY),rightX+31,yDisplay,150,22,TRUE);
-    MoveWindow(H(IDC_DISPLAY),rightX,yDisplay+26,rightW,30,TRUE);
+    MoveWindow(H(IDC_DISPLAY),rightX,yDisplay+24,rightW,34,TRUE);
 
     // Fixed slider grid: icon | label | slider | value.
     const int labelX=rightX+30;
@@ -1871,7 +1871,7 @@ void Paint(HWND w){
     // Rounded frames for application text fields. The EDIT controls themselves
     // are borderless and inset, avoiding clipped corners or double borders.
     if(!desktop){
-        const int browseW=142;
+        const int browseW=150;
         const int fieldGap=10;
         RECT nameFrame{rightX+118,162,rightX+rightW,196};
         FillRound(dc,nameFrame,C_FIELD,C_BORDER,8);
@@ -1990,26 +1990,27 @@ void BuildControls(){
 
     // Compact Profile Settings layout.
     Add(L"STATIC",L"Profile name",0,rightX,166,110,22,IDC_LBL_NAME);
-    HWND eName=Add(L"EDIT",L"",ES_AUTOHSCROLL,rightX+120,164,rightW-122,30,IDC_NAME);
+    HWND eName=Add(L"EDIT",L"",ES_AUTOHSCROLL,rightX+120,168,rightW-122,22,IDC_NAME);
     SetWindowTheme(eName,L"DarkMode_Explorer",nullptr);
     SendMessageW(eName,EM_SETMARGINS,EC_LEFTMARGIN|EC_RIGHTMARGIN,MAKELPARAM(8,8));
 
     Add(L"STATIC",L"Executable",0,rightX,208,120,22,IDC_LBL_EXE);
-    const int browseW=142;
+    const int browseW=150;
     const int fieldGap=10;
-    HWND eExe=Add(L"EDIT",L"",ES_AUTOHSCROLL,rightX+2,232,rightW-browseW-fieldGap-4,30,IDC_EXE);
+    HWND eExe=Add(L"EDIT",L"",ES_AUTOHSCROLL,rightX+2,236,rightW-browseW-fieldGap-4,22,IDC_EXE);
     SetWindowTheme(eExe,L"DarkMode_Explorer",nullptr);
     SendMessageW(eExe,EM_SETMARGINS,EC_LEFTMARGIN|EC_RIGHTMARGIN,MAKELPARAM(8,8));
     Add(L"BUTTON",L"Browse...",BS_OWNERDRAW,
-        rightX+rightW-browseW,230,browseW,34,IDC_BROWSE);
+        rightX+rightW-browseW,228,browseW,38,IDC_BROWSE);
 
     Add(L"BUTTON",L"",BS_AUTOCHECKBOX,rightX,274,20,22,IDC_ENABLED);
     Add(L"STATIC",L"Enable this profile",0,rightX+28,273,205,22,IDC_LBL_ENABLED);
 
     Add(L"STATIC",L"Display",0,rightX+31,322,150,22,IDC_LBL_DISPLAY);
     HWND display=Add(L"COMBOBOX",L"",CBS_DROPDOWNLIST|CBS_OWNERDRAWFIXED|CBS_HASSTRINGS|WS_VSCROLL,
-        rightX,348,rightW,240,IDC_DISPLAY);
+        rightX,346,rightW,240,IDC_DISPLAY);
     SendMessageW(display,CB_SETITEMHEIGHT,0,26);
+    SendMessageW(display,CB_SETITEMHEIGHT,(WPARAM)-1,24);
     SetWindowTheme(display,L"DarkMode_Explorer",nullptr);
 
     const int labelX=rightX+30;
@@ -2079,13 +2080,13 @@ void ResizeControls(){
     MoveWindow(H(IDC_REMOVE),270,104,90,38,TRUE);
 
     MoveWindow(H(IDC_LBL_NAME),rightX,166,110,22,TRUE);
-    MoveWindow(H(IDC_NAME),rightX+120,164,rightW-122,30,TRUE);
+    MoveWindow(H(IDC_NAME),rightX+120,168,rightW-122,22,TRUE);
 
-    const int browseW=142;
+    const int browseW=150;
     const int fieldGap=10;
     MoveWindow(H(IDC_LBL_EXE),rightX,208,120,22,TRUE);
-    MoveWindow(H(IDC_EXE),rightX+2,232,rightW-browseW-fieldGap-4,30,TRUE);
-    MoveWindow(H(IDC_BROWSE),rightX+rightW-browseW,230,browseW,34,TRUE);
+    MoveWindow(H(IDC_EXE),rightX+2,236,rightW-browseW-fieldGap-4,22,TRUE);
+    MoveWindow(H(IDC_BROWSE),rightX+rightW-browseW,228,browseW,38,TRUE);
     MoveWindow(H(IDC_ENABLED),rightX,274,20,22,TRUE);
     MoveWindow(H(IDC_LBL_ENABLED),rightX+28,273,205,22,TRUE);
 
