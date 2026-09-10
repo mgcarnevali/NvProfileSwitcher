@@ -1609,13 +1609,14 @@ void DrawProfileHeaderButton(const DRAWITEMSTRUCT* d){
     const int cy=(r.top+r.bottom)/2;
 
     if(id==IDC_ADD){
-        // Draw the plus directly here so its actual visual bounds are known.
+        // Smaller 12 px plus, centered inside the same 16 px visual slot.
+        // The complete icon + gap + caption block remains centered as one unit.
         HPEN pen=CreatePen(PS_SOLID,1,iconColor);
         HGDIOBJ oldPen=SelectObject(d->hDC,pen);
-        MoveToEx(d->hDC,contentLeft+8,cy-7,nullptr);
-        LineTo(d->hDC,contentLeft+8,cy+7);
-        MoveToEx(d->hDC,contentLeft+1,cy,nullptr);
-        LineTo(d->hDC,contentLeft+15,cy);
+        MoveToEx(d->hDC,contentLeft+8,cy-6,nullptr);
+        LineTo(d->hDC,contentLeft+8,cy+6);
+        MoveToEx(d->hDC,contentLeft+2,cy,nullptr);
+        LineTo(d->hDC,contentLeft+14,cy);
         SelectObject(d->hDC,oldPen);
         DeleteObject(pen);
     }else{
