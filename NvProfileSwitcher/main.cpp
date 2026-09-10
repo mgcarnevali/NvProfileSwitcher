@@ -99,6 +99,7 @@ HWND gResetTooltip{};
 bool gResetTooltipVisible=false;
 int gProfileTooltipItem=-1;
 std::wstring gProfileTooltipText;
+constexpr int TOOLTIP_GAP=3;
 
 // Live preview state. Slider changes are applied asynchronously so NVAPI calls
 // never block the UI thread. A generation counter invalidates stale previews.
@@ -1003,7 +1004,7 @@ void UpdateProfileTooltip(POINT clientPt){
 
     RECT itemRect{};
     SendMessageW(list,LB_GETITEMRECT,item,(LPARAM)&itemRect);
-    POINT screenPt{itemRect.left+66,itemRect.bottom+3};
+    POINT screenPt{itemRect.left+66,itemRect.bottom+TOOLTIP_GAP};
     ClientToScreen(list,&screenPt);
 
     TOOLINFOW ti{sizeof(ti)};
@@ -1141,7 +1142,7 @@ void UpdateExecutableTooltip(){
     const int tipW=std::min(700,(int)sz.cx+16);
     const int tipH=sz.cy+10;
     int x=er.left;
-    int y=er.bottom+3;
+    int y=er.bottom+TOOLTIP_GAP;
 
     HMONITOR mon=MonitorFromWindow(edit,MONITOR_DEFAULTTONEAREST);
     MONITORINFO mi{sizeof(mi)};
@@ -1252,9 +1253,9 @@ void UpdateResetTooltip(){
     const int tipW=sz.cx+16;
     const int tipH=sz.cy+10;
 
-    // Match the profile-name tooltip placement: 3 px below the control.
+    // Match the profile-name and executable tooltip placement.
     int x=rr.left;
-    int y=rr.bottom+3;
+    int y=rr.bottom+TOOLTIP_GAP;
 
     HMONITOR mon=MonitorFromWindow(reset,MONITOR_DEFAULTTONEAREST);
     MONITORINFO mi{sizeof(mi)};
