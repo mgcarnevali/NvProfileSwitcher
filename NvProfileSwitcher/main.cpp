@@ -2064,9 +2064,9 @@ void Paint(HWND w){
     DrawLabel(dc,L"Profile Settings",center.left+14,101,C_TEXT,gFontBold);
     DrawLabel(dc,L"Application Settings",settings.left+14,101,C_TEXT,gFontBold);
 
-    Fill(dc,left.left+12,separatorY,leftW-24,1,C_BORDER);
-    Fill(dc,center.left+12,separatorY,centerW-24,1,C_BORDER);
-    Fill(dc,settings.left+12,separatorY,settingsW-24,1,C_BORDER);
+    Fill(dc,left.left+1,separatorY,leftW-2,1,C_BORDER);
+    Fill(dc,center.left+1,separatorY,centerW-2,1,C_BORDER);
+    Fill(dc,settings.left+1,separatorY,settingsW-2,1,C_BORDER);
 
     const bool desktop=IsDesktopSelected();
     const int displayY=desktop?154:320;
