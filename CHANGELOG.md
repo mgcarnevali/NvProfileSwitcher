@@ -4,6 +4,24 @@ All notable changes to NvProfileSwitcher will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project follows [Semantic Versioning](https://semver.org/).
 
+## 1.3.0 --- 2026-09-09
+
+### Added
+
+- Added live preview for display color adjustments while editing profiles.
+- Added a Reset button to restore NVIDIA-neutral values during editing.
+
+### Changed
+
+- The Windows primary display is now always shown first in the display selector.
+- Improved tooltip positioning and spacing for a more consistent interface.
+- Refined profile and application terminology throughout the interface.
+
+### Fixed
+
+- Unsaved preview changes are now correctly discarded when switching profiles, changing displays, or minimizing the application.
+- Reduced UI flickering while adjusting display settings with live preview.
+
 ## 1.2.4 --- 2026-09-09
 
 ### Added
