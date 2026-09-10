@@ -19,7 +19,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ### Fixed
 
-- Unsaved preview changes are now correctly discarded when switching profiles, changing displays, or minimizing the application.
+- Unsaved preview changes are now correctly discarded when switching profiles, changing displays, minimizing the application, or saving an application profile.
+- Fixed application profile colors remaining active after returning to Windows.
 - Reduced UI flickering while adjusting display settings with live preview.
 
 ## 1.2.4 --- 2026-09-09
