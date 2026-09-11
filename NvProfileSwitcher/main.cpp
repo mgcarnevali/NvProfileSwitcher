@@ -35,6 +35,7 @@
 #include <algorithm>
 #include <cmath>
 #include "resource.h"
+#include "switching_core.h"
 #include "version.h"
 
 #pragma comment(lib, "comctl32.lib")
@@ -750,8 +751,15 @@ bool Apply(const ApplicationProfile&p,bool updateUi){
     return ok;
 }
 
-std::wstring ProcessName(const std::wstring&p){ const wchar_t* n=PathFindFileNameW(p.c_str()); std::wstring s=n?n:L""; auto dot=s.find_last_of(L'.'); if(dot!=std::wstring::npos)s.resize(dot); return s; }
 void LoadSelected();
+
+std::vector<nvps::ProfileDescriptor> SwitchingProfiles(){
+    std::vector<nvps::ProfileDescriptor> profiles;
+    profiles.reserve(gSettings.profiles.size());
+    for(const auto& p:gSettings.profiles)
+        profiles.push_back({p.name,p.exePath,p.enabled});
+    return profiles;
+}
 
 std::wstring ForegroundProcessName(){
     HWND fg=GetForegroundWindow();
@@ -765,31 +773,23 @@ std::wstring ForegroundProcessName(){
     DWORD len=(DWORD)(sizeof(path)/sizeof(path[0]));
     std::wstring name;
     if(QueryFullProcessImageNameW(hp,0,path,&len)){
-        name=ProcessName(path);
+        name=nvps::NormalizeExecutableName(path);
     }
     CloseHandle(hp);
     return name;
 }
 void CheckProcesses(){
     std::wstring fgName=ForegroundProcessName();
-    ApplicationProfile* hit=nullptr;
-    for(auto& p:gSettings.profiles){
-        if(!p.enabled||p.exePath.empty())continue;
-        if(_wcsicmp(ProcessName(p.exePath).c_str(),fgName.c_str())==0){
-            hit=&p;
-            break;
-        }
-    }
-    std::wstring next=hit?hit->name:L"Windows";
-    if(next!=gActive){
-        if(hit){
-            ApplyApplicationProfile(*hit);
+    const auto target=nvps::SelectSwitchTarget(SwitchingProfiles(),fgName);
+    if(target.activeName!=gActive){
+        if(target.profileIndex){
+            ApplyApplicationProfile(gSettings.profiles[*target.profileIndex]);
         }else{
             // Restore every configured Windows display so each monitor returns
             // to its own saved desktop values.
             RestoreAllDesktopProfiles();
         }
-        gActive=next;
+        gActive=target.activeName;
         InvalidateRect(gWnd,nullptr,FALSE);
     }
 }
@@ -1531,14 +1531,11 @@ void CancelPendingPreview(){
 
 void ReapplyRealColors(){
     std::wstring fgName=ForegroundProcessName();
-
-    for(const auto& p:gSettings.profiles){
-        if(!p.enabled||p.exePath.empty()) continue;
-        if(_wcsicmp(ProcessName(p.exePath).c_str(),fgName.c_str())==0){
-            ApplyApplicationProfile(p);
-            gActive=p.name;
-            return;
-        }
+    const auto target=nvps::SelectSwitchTarget(SwitchingProfiles(),fgName);
+    if(target.profileIndex){
+        ApplyApplicationProfile(gSettings.profiles[*target.profileIndex]);
+        gActive=target.activeName;
+        return;
     }
 
     RestoreAllDesktopProfiles();
