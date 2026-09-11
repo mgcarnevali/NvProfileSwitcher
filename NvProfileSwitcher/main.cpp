@@ -1282,6 +1282,7 @@ void RegisterConfiguredHotkeys(){
     if(!RegisterStoredHotkey(ID_HOTKEY_SHOW_HIDE,gSettings.showHideHotkey)) unavailable=true;
     if(!RegisterStoredHotkey(ID_HOTKEY_WINDOWS_OVERRIDE,gSettings.windowsOverrideHotkey)) unavailable=true;
     for(size_t i=0;i<gSettings.profiles.size();++i){
+        if(!gSettings.profiles[i].enabled)continue;
         if(ID_HOTKEY_PROFILE_BASE+(int)i>0xBFFF){unavailable=true;break;}
         if(!RegisterStoredHotkey(ID_HOTKEY_PROFILE_BASE+(int)i,gSettings.profiles[i].hotkey))
             unavailable=true;
@@ -2154,9 +2155,18 @@ void SaveSelected(){
 
     ApplicationProfile* p=SelectedProfile();
     if(!p)return;
+    const size_t profileIndex=(size_t)(gSelected-1);
+    const bool wasEnabled=p->enabled;
     p->name=GetTxt(IDC_NAME);
     p->exePath=GetTxt(IDC_EXE);
     p->enabled=SendMessageW(H(IDC_ENABLED),BM_GETCHECK,0,0)==BST_CHECKED;
+
+    if(p->enabled!=wasEnabled){
+        UnregisterConfiguredHotkeys();
+        if(!p->enabled&&gOverrideMode==OverrideMode::Profile&&gOverrideProfileIndex==profileIndex)
+            gOverrideMode=OverrideMode::Automatic;
+        RegisterConfiguredHotkeys();
+    }
 
     if(ds>=0&&ds<(int)gDisplays.size()){
         auto* v=EnsureApplicationValuesForDisplay(*p,gDisplays[ds].gdiName,gDisplays[ds].monitorId);
@@ -3554,7 +3564,7 @@ void ToggleWindowsOverride(){
     InvalidateRect(gWnd,nullptr,FALSE);
 }
 void ToggleProfileOverride(size_t profileIndex){
-    if(profileIndex>=gSettings.profiles.size())return;
+    if(profileIndex>=gSettings.profiles.size()||!gSettings.profiles[profileIndex].enabled)return;
     DiscardPreview();
     if(gOverrideMode==OverrideMode::Profile&&gOverrideProfileIndex==profileIndex){
         gOverrideMode=OverrideMode::Automatic;
