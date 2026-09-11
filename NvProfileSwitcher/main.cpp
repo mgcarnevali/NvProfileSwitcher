@@ -63,10 +63,11 @@ struct ApplicationProfile {
     std::wstring name=L"New Profile";
     std::wstring exePath;
     bool enabled=true;
+    WORD hotkey=0;
     std::vector<DisplayProfileValues> displayProfiles;
 };
 struct Settings {
-    ApplicationProfile desktop{L"Windows",L"",true,{}}; // template metadata for Windows profiles
+    ApplicationProfile desktop{L"Windows",L"",true,0,{}}; // template metadata for Windows profiles
     std::vector<ApplicationProfile> desktopProfiles;
     std::vector<ApplicationProfile> profiles;
     bool startWindows=false, startMinimized=false, minimizeToTray=false, checkUpdates=true;
@@ -86,9 +87,10 @@ constexpr wchar_t APP_URL[]=L"https://github.com/mgcarnevali/NvProfileSwitcher";
 constexpr wchar_t SUPPORT_URL[]=L"https://ko-fi.com/mgcarnevali";
 constexpr wchar_t UPDATE_HOST[]=L"api.github.com";
 constexpr wchar_t UPDATE_PATH[]=L"/repos/mgcarnevali/NvProfileSwitcher/releases/latest";
-enum {IDC_LIST=1001,IDC_NAME,IDC_EXE,IDC_BROWSE,IDC_ENABLED,IDC_DISPLAY,IDC_LBL_DISPLAY,IDC_VIB,IDC_HUE,IDC_BRI,IDC_CON,IDC_GAM,IDC_SAVE,IDC_ADD=1015,IDC_REMOVE,IDC_STARTWIN=1018,IDC_STARTMIN,IDC_VALVIB,IDC_VALHUE,IDC_VALBRI,IDC_VALCON,IDC_VALGAM,IDC_LBL_NAME,IDC_LBL_EXE,IDC_LBL_ENABLED,IDC_LBL_VIB,IDC_LBL_HUE,IDC_LBL_BRI,IDC_LBL_CON,IDC_LBL_GAM,IDC_DEFAULTS,IDC_MINTRAY,IDC_CHECKUPDATES,IDC_FOOT_GITHUB,IDC_FOOT_SUPPORT,IDC_FOOT_ABOUT,IDC_HOTKEYS_TITLE,IDC_HOTKEY_SHOW_LABEL,IDC_HOTKEY_SHOW,IDC_HOTKEY_SHOW_CLEAR,IDC_HOTKEY_OVERRIDE_LABEL,IDC_HOTKEY_OVERRIDE,IDC_HOTKEY_OVERRIDE_CLEAR};
+enum {IDC_LIST=1001,IDC_NAME,IDC_EXE,IDC_BROWSE,IDC_ENABLED,IDC_DISPLAY,IDC_LBL_DISPLAY,IDC_VIB,IDC_HUE,IDC_BRI,IDC_CON,IDC_GAM,IDC_SAVE,IDC_ADD=1015,IDC_REMOVE,IDC_STARTWIN=1018,IDC_STARTMIN,IDC_VALVIB,IDC_VALHUE,IDC_VALBRI,IDC_VALCON,IDC_VALGAM,IDC_LBL_NAME,IDC_LBL_EXE,IDC_LBL_ENABLED,IDC_LBL_VIB,IDC_LBL_HUE,IDC_LBL_BRI,IDC_LBL_CON,IDC_LBL_GAM,IDC_DEFAULTS,IDC_MINTRAY,IDC_CHECKUPDATES,IDC_FOOT_GITHUB,IDC_FOOT_SUPPORT,IDC_FOOT_ABOUT,IDC_HOTKEYS_TITLE,IDC_HOTKEY_SHOW_LABEL,IDC_HOTKEY_SHOW,IDC_HOTKEY_SHOW_CLEAR,IDC_HOTKEY_OVERRIDE_LABEL,IDC_HOTKEY_OVERRIDE,IDC_HOTKEY_OVERRIDE_CLEAR,IDC_PROFILE_HOTKEY_LABEL,IDC_PROFILE_HOTKEY,IDC_PROFILE_HOTKEY_CLEAR};
 enum {ID_TRAY_OPEN=2001,ID_TRAY_CHECK_UPDATE,ID_TRAY_ABOUT,ID_TRAY_EXIT};
-enum {ID_HOTKEY_SHOW_HIDE=3001,ID_HOTKEY_WINDOWS_OVERRIDE};
+enum {ID_HOTKEY_SHOW_HIDE=3001,ID_HOTKEY_WINDOWS_OVERRIDE,ID_HOTKEY_TEST};
+constexpr int ID_HOTKEY_PROFILE_BASE=4000;
 
 struct AppMessageData {
     std::wstring title;
@@ -99,8 +101,11 @@ struct AppMessageData {
 HINSTANCE gInst{}; HWND gWnd{}; HFONT gFont{},gFontBold{},gFontPanelTitle{},gFontTitle{},gFontSmall{},gFontHeaderButton{},gIconFont{}; HBRUSH gBackBrush{},gPanelBrush{},gPanel2Brush{},gFieldBrush{}; HICON gIcon{};
 ULONG_PTR gGdiPlusToken{}; Gdiplus::Image* gHeaderImage{};
 Gdiplus::Image *gSliderBrightness{},*gSliderContrast{},*gSliderGamma{},*gSliderVibrance{},*gSliderHue{},*gNvidiaDriverIcon{};
+enum class OverrideMode { Automatic, Windows, Profile };
 Settings gSettings; int gSelected=-1; std::wstring gActive=L"Windows", gStatus=L"Not initialized", gDriverVersion=L"--"; bool gStatusOk=false;
-bool gWindowsOverride=false, gUpdatingHotkeyControls=false;
+OverrideMode gOverrideMode=OverrideMode::Automatic;
+size_t gOverrideProfileIndex=0;
+bool gUpdatingHotkeyControls=false;
 NOTIFYICONDATAW gNid{}; HMENU gTrayMenu{};
 HWND gFooterHover{};
 HWND gMainButtonHover{};
@@ -228,6 +233,7 @@ ApplicationProfile ParseProfile(const std::string&o){
     p.name=Unescape(FieldS(o,"Name","New Profile"));
     p.exePath=Unescape(FieldS(o,"ExePath"));
     p.enabled=FieldB(o,"Enabled",true);
+    p.hotkey=(WORD)FieldN(o,"Hotkey",0);
 
     size_t dp=o.find("\"Display Profiles\"");
     if(dp!=std::string::npos){
@@ -340,6 +346,7 @@ void Save(){
          <<"      \"Name\": \""<<Escape(p.name)<<"\",\n"
          <<"      \"ExePath\": \""<<Escape(p.exePath)<<"\",\n"
          <<"      \"Enabled\": "<<(p.enabled?"true":"false")<<",\n"
+         <<"      \"Hotkey\": "<<p.hotkey<<",\n"
          <<"      \"Display Profiles\": [\n";
         for(size_t j=0;j<p.displayProfiles.size();++j){
             dumpDisplay(p.displayProfiles[j],8);
@@ -793,8 +800,21 @@ std::wstring ForegroundProcessName(){
     return name;
 }
 void CheckProcesses(){
+    if(gOverrideMode==OverrideMode::Profile){
+        if(gOverrideProfileIndex<gSettings.profiles.size()){
+            const auto& profile=gSettings.profiles[gOverrideProfileIndex];
+            if(gActive!=profile.name){
+                ApplyApplicationProfile(profile);
+                gActive=profile.name;
+                InvalidateRect(gWnd,nullptr,FALSE);
+            }
+            return;
+        }
+        gOverrideMode=OverrideMode::Automatic;
+    }
     std::wstring fgName=ForegroundProcessName();
-    const auto target=nvps::SelectSwitchTarget(SwitchingProfiles(),fgName,gWindowsOverride);
+    const auto target=nvps::SelectSwitchTarget(SwitchingProfiles(),fgName,
+        gOverrideMode==OverrideMode::Windows);
     if(target.activeName!=gActive){
         if(target.profileIndex){
             ApplyApplicationProfile(gSettings.profiles[*target.profileIndex]);
@@ -945,32 +965,6 @@ void StyleMainButton(HWND hwnd){
     if(hwnd) SetWindowSubclass(hwnd,MainButtonHoverSubclassProc,2,0);
 }
 
-constexpr int DIALOG_CLIENT_WIDTH=472;
-constexpr int DIALOG_MARGIN=22;
-constexpr int DIALOG_BUTTON_WIDTH=100;
-constexpr int DIALOG_BUTTON_HEIGHT=36;
-constexpr int DIALOG_BUTTON_GAP=12;
-constexpr int DIALOG_CONTENT_GAP=20;
-
-SIZE DialogWindowSize(int clientHeight){
-    constexpr DWORD style=WS_CAPTION|WS_SYSMENU;
-    constexpr DWORD exStyle=WS_EX_DLGMODALFRAME|WS_EX_TOPMOST;
-    RECT r{0,0,DIALOG_CLIENT_WIDTH,clientHeight};
-    AdjustWindowRectEx(&r,style,FALSE,exStyle);
-    return {r.right-r.left,r.bottom-r.top};
-}
-
-int MeasureDialogTextHeight(const std::wstring& text,HFONT font,int width){
-    HDC dc=GetDC(nullptr);
-    if(!dc)return 0;
-    HFONT old=(HFONT)SelectObject(dc,font);
-    RECT r{0,0,width,0};
-    DrawTextW(dc,text.c_str(),-1,&r,DT_CALCRECT|DT_WORDBREAK|DT_NOPREFIX);
-    SelectObject(dc,old);
-    ReleaseDC(nullptr,dc);
-    return static_cast<int>(r.bottom-r.top);
-}
-
 LRESULT CALLBACK AppMessageProc(HWND w,UINT m,WPARAM wp,LPARAM lp){
     auto* data=(AppMessageData*)GetWindowLongPtrW(w,GWLP_USERDATA);
     switch(m){
@@ -980,23 +974,19 @@ LRESULT CALLBACK AppMessageProc(HWND w,UINT m,WPARAM wp,LPARAM lp){
         SetWindowLongPtrW(w,GWLP_USERDATA,(LONG_PTR)data);
 
         HWND icon=CreateWindowExW(0,L"STATIC",nullptr,WS_CHILD|WS_VISIBLE|SS_ICON,
-            DIALOG_MARGIN,DIALOG_MARGIN,40,40,w,nullptr,gInst,nullptr);
+            22,24,40,40,w,nullptr,gInst,nullptr);
         SendMessageW(icon,STM_SETICON,(WPARAM)gIcon,0);
 
         RECT client{};
         GetClientRect(w,&client);
-        const int buttonY=client.bottom-DIALOG_MARGIN-DIALOG_BUTTON_HEIGHT;
-        const int textX=DIALOG_MARGIN+54;
+        const int buttonY=client.bottom-58;
         HWND message=CreateWindowExW(0,L"STATIC",data?data->text.c_str():L"",
-            WS_CHILD|WS_VISIBLE|SS_LEFT,textX,DIALOG_MARGIN,
-            client.right-DIALOG_MARGIN-textX,buttonY-DIALOG_CONTENT_GAP-DIALOG_MARGIN,
-            w,nullptr,gInst,nullptr);
+            WS_CHILD|WS_VISIBLE|SS_LEFT,76,22,374,buttonY-42,w,nullptr,gInst,nullptr);
         SendMessageW(message,WM_SETFONT,(WPARAM)gFont,TRUE);
 
         HWND ok=CreateWindowExW(0,L"BUTTON",L"OK",
             WS_CHILD|WS_VISIBLE|WS_TABSTOP|BS_OWNERDRAW,
-            client.right-DIALOG_MARGIN-DIALOG_BUTTON_WIDTH,buttonY,
-            DIALOG_BUTTON_WIDTH,DIALOG_BUTTON_HEIGHT,w,(HMENU)IDOK,gInst,nullptr);
+            350,buttonY,100,36,w,(HMENU)IDOK,gInst,nullptr);
         SendMessageW(ok,WM_SETFONT,(WPARAM)gFontBold,TRUE);
         SetFocus(ok);
         return 0;
@@ -1056,16 +1046,18 @@ HWND CreateAppMessageWindow(AppMessageData* data,HWND owner){
         registered=true;
     }
 
-    const int textWidth=DIALOG_CLIENT_WIDTH-(DIALOG_MARGIN+54)-DIALOG_MARGIN;
-    const int textHeight=MeasureDialogTextHeight(data->text,gFont,textWidth);
-    const int contentHeight=std::max(40,textHeight);
-    const int clientHeight=DIALOG_MARGIN+contentHeight+DIALOG_CONTENT_GAP+
-        DIALOG_BUTTON_HEIGHT+DIALOG_MARGIN;
-    const SIZE windowSize=DialogWindowSize(clientHeight);
+    HDC measureDc=GetDC(nullptr);
+    RECT measure{0,0,374,0};
+    HFONT oldFont=(HFONT)SelectObject(measureDc,gFont);
+    DrawTextW(measureDc,data->text.c_str(),-1,&measure,
+        DT_CALCRECT|DT_WORDBREAK|DT_NOPREFIX);
+    SelectObject(measureDc,oldFont);
+    ReleaseDC(nullptr,measureDc);
+    const int windowHeight=std::max(228,static_cast<int>(measure.bottom)+139);
 
     HWND dialog=CreateWindowExW(WS_EX_DLGMODALFRAME|WS_EX_TOPMOST,
         L"NvProfileSwitcherMessage",data->title.c_str(),WS_CAPTION|WS_SYSMENU,
-        0,0,windowSize.cx,windowSize.cy,owner,nullptr,gInst,data);
+        0,0,488,windowHeight,owner,nullptr,gInst,data);
     if(!dialog)return nullptr;
 
     BOOL darkTitle=TRUE;
@@ -1140,6 +1132,7 @@ std::wstring HotkeyDisplayText(WORD hotkey){
 }
 
 void RegisterConfiguredHotkeys();
+void UnregisterConfiguredHotkeys();
 
 LRESULT CALLBACK HotkeyFieldSubclassProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp,
                                          UINT_PTR subclassId,DWORD_PTR refData){
@@ -1151,13 +1144,11 @@ LRESULT CALLBACK HotkeyFieldSubclassProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp,
         // control's light non-client outline so only that frame is visible.
         return 0;
     case WM_SETFOCUS:
-        UnregisterHotKey(gWnd,ID_HOTKEY_SHOW_HIDE);
-        UnregisterHotKey(gWnd,ID_HOTKEY_WINDOWS_OVERRIDE);
+        UnregisterConfiguredHotkeys();
         return DefSubclassProc(hwnd,msg,wp,lp);
     case WM_KILLFOCUS:{
         LRESULT result=DefSubclassProc(hwnd,msg,wp,lp);
-        UnregisterHotKey(gWnd,ID_HOTKEY_SHOW_HIDE);
-        UnregisterHotKey(gWnd,ID_HOTKEY_WINDOWS_OVERRIDE);
+        UnregisterConfiguredHotkeys();
         RegisterConfiguredHotkeys();
         return result;
     }
@@ -1221,11 +1212,25 @@ void SetHotkeyControl(int controlId,WORD hotkey){
     gUpdatingHotkeyControls=true; SendMessageW(H(controlId),HKM_SETHOTKEY,hotkey,0); gUpdatingHotkeyControls=false;
 }
 
-bool UpdateConfiguredHotkey(int controlId,int registrationId,WORD& stored){
+std::wstring HotkeyOwnerName(WORD hotkey,const WORD* excluded){
+    if(!hotkey)return{};
+    if(&gSettings.showHideHotkey!=excluded&&gSettings.showHideHotkey==hotkey)
+        return L"Show / hide window";
+    if(&gSettings.windowsOverrideHotkey!=excluded&&gSettings.windowsOverrideHotkey==hotkey)
+        return L"Windows override";
+    for(const auto& profile:gSettings.profiles){
+        if(&profile.hotkey!=excluded&&profile.hotkey==hotkey)
+            return profile.name;
+    }
+    return{};
+}
+
+bool UpdateConfiguredHotkey(int controlId,WORD& stored){
     if(gUpdatingHotkeyControls) return true;
     const WORD requested=(WORD)SendMessageW(H(controlId),HKM_GETHOTKEY,0,0);
     if(!LOBYTE(requested)) return true;
     if(requested==stored){SetFocus(gWnd);return true;}
+    UnregisterConfiguredHotkeys();
     if(NeedsHotkeyModifier(requested)){
         SetHotkeyControl(controlId,stored);
         ShowAppMessage(L"NvProfileSwitcher",L"Shortcuts must use Ctrl or Alt with another key. Function keys can be used alone.\n\nUse Ctrl + Shift, Alt + Shift, or a function key instead.");
@@ -1236,37 +1241,52 @@ bool UpdateConfiguredHotkey(int controlId,int registrationId,WORD& stored){
         ShowAppMessage(L"NvProfileSwitcher",L"Ctrl + Alt shortcuts are not supported because Windows may treat Right Alt (AltGr) as Ctrl + Alt.\n\nUse Ctrl + Shift, Alt + Shift, or a function key instead.");
         return false;
     }
-    const WORD otherHotkey=controlId==IDC_HOTKEY_SHOW
-        ?gSettings.windowsOverrideHotkey:gSettings.showHideHotkey;
-    if(requested==otherHotkey){
-        const wchar_t* otherAction=controlId==IDC_HOTKEY_SHOW
-            ?L"Windows override":L"Show / hide window";
+    const std::wstring owner=HotkeyOwnerName(requested,&stored);
+    if(!owner.empty()){
         SetHotkeyControl(controlId,stored);
         std::wstring message=L"That shortcut is already assigned to ";
-        message+=otherAction;
+        message+=owner;
         message+=L".\n\nChoose a different combination.";
         ShowAppMessage(L"NvProfileSwitcher",message);
         SetFocus(H(controlId));
         return false;
     }
-    const WORD previous=stored; UnregisterHotKey(gWnd,registrationId);
-    if(requested&&!RegisterStoredHotkey(registrationId,requested)){
-        RegisterStoredHotkey(registrationId,previous); SetHotkeyControl(controlId,previous);
+    if(requested&&!RegisterStoredHotkey(ID_HOTKEY_TEST,requested)){
+        SetHotkeyControl(controlId,stored);
         ShowAppMessage(L"NvProfileSwitcher",L"That shortcut is already being used by another application.");
         return false;
     }
+    UnregisterHotKey(gWnd,ID_HOTKEY_TEST);
     stored=requested; Save(); SetFocus(gWnd); return true;
 }
 
-void ClearConfiguredHotkey(int controlId,int registrationId,WORD& stored){
-    UnregisterHotKey(gWnd,registrationId); stored=0; SetHotkeyControl(controlId,0); Save();
+void ClearConfiguredHotkey(int controlId,WORD& stored){
+    UnregisterConfiguredHotkeys();
+    stored=0;
+    SetHotkeyControl(controlId,0);
+    Save();
+    RegisterConfiguredHotkeys();
+    InvalidateRect(H(IDC_LIST),nullptr,FALSE);
+}
+
+void UnregisterConfiguredHotkeys(){
+    UnregisterHotKey(gWnd,ID_HOTKEY_SHOW_HIDE);
+    UnregisterHotKey(gWnd,ID_HOTKEY_WINDOWS_OVERRIDE);
+    UnregisterHotKey(gWnd,ID_HOTKEY_TEST);
+    for(size_t i=0;i<gSettings.profiles.size();++i)
+        UnregisterHotKey(gWnd,ID_HOTKEY_PROFILE_BASE+(int)i);
 }
 
 void RegisterConfiguredHotkeys(){
     bool unavailable=false;
     if(!RegisterStoredHotkey(ID_HOTKEY_SHOW_HIDE,gSettings.showHideHotkey)) unavailable=true;
     if(!RegisterStoredHotkey(ID_HOTKEY_WINDOWS_OVERRIDE,gSettings.windowsOverrideHotkey)) unavailable=true;
-    if(unavailable) ShowAppMessage(L"NvProfileSwitcher",L"One or more saved shortcuts could not be enabled.\n\nChoose a supported, unused combination in Application Settings.");
+    for(size_t i=0;i<gSettings.profiles.size();++i){
+        if(ID_HOTKEY_PROFILE_BASE+(int)i>0xBFFF){unavailable=true;break;}
+        if(!RegisterStoredHotkey(ID_HOTKEY_PROFILE_BASE+(int)i,gSettings.profiles[i].hotkey))
+            unavailable=true;
+    }
+    if(unavailable) ShowAppMessage(L"NvProfileSwitcher",L"One or more saved shortcuts could not be enabled.\n\nChoose a supported, unused combination in Hotkey settings.");
 }
 
 LRESULT CALLBACK FlatCheckboxSubclassProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp,
@@ -1868,8 +1888,15 @@ void CancelPendingPreview(){
 }
 
 void ReapplyRealColors(){
+    if(gOverrideMode==OverrideMode::Profile&&gOverrideProfileIndex<gSettings.profiles.size()){
+        const auto& profile=gSettings.profiles[gOverrideProfileIndex];
+        ApplyApplicationProfile(profile);
+        gActive=profile.name;
+        return;
+    }
     std::wstring fgName=ForegroundProcessName();
-    const auto target=nvps::SelectSwitchTarget(SwitchingProfiles(),fgName,gWindowsOverride);
+    const auto target=nvps::SelectSwitchTarget(SwitchingProfiles(),fgName,
+        gOverrideMode==OverrideMode::Windows);
     if(target.profileIndex){
         ApplyApplicationProfile(gSettings.profiles[*target.profileIndex]);
         gActive=target.activeName;
@@ -1977,17 +2004,22 @@ void SetDesktopUi(bool desktop){
     const int rightW=centerPanelW-44;
 
     int showApplication=desktop?SW_HIDE:SW_SHOW;
-    for(int id:{IDC_LBL_NAME,IDC_NAME,IDC_LBL_EXE,IDC_EXE,IDC_BROWSE,IDC_ENABLED,IDC_LBL_ENABLED})
+    for(int id:{IDC_LBL_NAME,IDC_NAME,IDC_LBL_EXE,IDC_EXE,IDC_BROWSE,IDC_ENABLED,IDC_LBL_ENABLED,
+                IDC_PROFILE_HOTKEY_LABEL,IDC_PROFILE_HOTKEY,IDC_PROFILE_HOTKEY_CLEAR})
         ShowWindow(H(id),showApplication);
     ShowWindow(H(IDC_REMOVE),desktop?SW_HIDE:SW_SHOW);
 
-    const int yDisplay=desktop?154:320;
-    const int yBri=desktop?230:406;
-    const int yCon=desktop?294:474;
-    const int yGam=desktop?358:542;
-    const int yVib=desktop?422:610;
-    const int yHue=desktop?486:678;
-    const int ySave=desktop?550:742;
+    const int yDisplay=desktop?154:394;
+    const int yBri=desktop?230:480;
+    const int yCon=desktop?294:548;
+    const int yGam=desktop?358:616;
+    const int yVib=desktop?422:684;
+    const int yHue=desktop?486:752;
+    const int ySave=desktop?550:820;
+
+    MoveWindow(H(IDC_PROFILE_HOTKEY_LABEL),rightX,306,220,22,TRUE);
+    MoveWindow(H(IDC_PROFILE_HOTKEY),rightX+2,344,206,22,TRUE);
+    MoveWindow(H(IDC_PROFILE_HOTKEY_CLEAR),rightX+220,338,68,34,TRUE);
 
     MoveWindow(H(IDC_LBL_DISPLAY),rightX+31,yDisplay,150,22,TRUE);
     MoveWindow(H(IDC_DISPLAY),rightX,yDisplay+24,rightW,34,TRUE);
@@ -2062,6 +2094,7 @@ void LoadSelected(){
         Txt(IDC_EXE,L"");
         InvalidateRect(H(IDC_EXE),nullptr,TRUE);
         SendMessageW(H(IDC_ENABLED),BM_SETCHECK,BST_UNCHECKED,0);
+        SetHotkeyControl(IDC_PROFILE_HOTKEY,0);
         LoadValuesToSliders(ValuesFromFlatProfile(*p));
         return;
     }
@@ -2081,6 +2114,7 @@ void LoadSelected(){
     Txt(IDC_EXE,p->exePath);
     InvalidateRect(H(IDC_EXE),nullptr,TRUE);
     SendMessageW(H(IDC_ENABLED),BM_SETCHECK,p->enabled?BST_CHECKED:BST_UNCHECKED,0);
+    SetHotkeyControl(IDC_PROFILE_HOTKEY,p->hotkey);
 
     if(ds>=0&&ds<(int)gDisplays.size())
         LoadValuesToSliders(*EnsureApplicationValuesForDisplay(*p,gDisplays[ds].gdiName,gDisplays[ds].monitorId));
@@ -2774,7 +2808,7 @@ void Paint(HWND w){
     FillRound(dc,overrideHotkeyFrame,C_FIELD,C_BORDER,8);
 
     const bool desktop=IsDesktopSelected();
-    const int displayY=desktop?154:320;
+    const int displayY=desktop?154:394;
 
     DrawDisplayPrototypeIcon(dc,centerX+22,displayY);
 
@@ -2788,14 +2822,17 @@ void Paint(HWND w){
 
         RECT exeFrame{rightX,222,rightX+rightW-browseW-fieldGap,258};
         FillRound(dc,exeFrame,C_FIELD,C_BORDER,8);
+
+        RECT profileHotkeyFrame{rightX,338,rightX+210,372};
+        FillRound(dc,profileHotkeyFrame,C_FIELD,C_BORDER,8);
     }
 
     const int iconX=centerX+22;
-    const int iconBri=desktop?230:406;
-    const int iconCon=desktop?294:474;
-    const int iconGam=desktop?358:542;
-    const int iconVib=desktop?422:610;
-    const int iconHue=desktop?486:678;
+    const int iconBri=desktop?230:480;
+    const int iconCon=desktop?294:548;
+    const int iconGam=desktop?358:616;
+    const int iconVib=desktop?422:684;
+    const int iconHue=desktop?486:752;
     DrawSliderIcon(dc,gSliderBrightness,iconX,iconBri-2);
     DrawSliderIcon(dc,gSliderContrast,iconX,iconCon-2);
     DrawSliderIcon(dc,gSliderGamma,iconX,iconGam-2);
@@ -2858,7 +2895,8 @@ void Paint(HWND w){
     SIZE activeLabel{}; SelectObject(dc,gFont);
     GetTextExtentPoint32W(dc,activeProfileLabel,
         (int)(sizeof(activeProfileLabel)/sizeof(activeProfileLabel[0])-1),&activeLabel);
-    const std::wstring displayedActive=gWindowsOverride?L"Windows (override)":gActive;
+    std::wstring displayedActive=gActive;
+    if(gOverrideMode!=OverrideMode::Automatic)displayedActive+=L" (override)";
     DrawLabel(dc,displayedActive.c_str(),activeDividerX+16+activeLabel.cx+8,footerY,C_TEXT,gFontBold);
 
     EndPaint(w,&ps);
@@ -2933,9 +2971,17 @@ void BuildControls(){
     StyleFlatCheckbox(enabled);
     Add(L"STATIC",L"Enable this profile",SS_CENTERIMAGE,rightX+27,272,205,22,IDC_LBL_ENABLED);
 
-    Add(L"STATIC",L"Display",0,rightX+31,320,150,22,IDC_LBL_DISPLAY);
+    Add(L"STATIC",L"Profile hotkey",0,rightX,306,220,22,IDC_PROFILE_HOTKEY_LABEL);
+    HWND profileHotkey=Add(HOTKEY_CLASSW,L"",WS_TABSTOP,rightX+2,344,206,22,IDC_PROFILE_HOTKEY);
+    SetWindowSubclass(profileHotkey,HotkeyFieldSubclassProc,1,0);
+    RemoveNativeHotkeyFrame(profileHotkey);
+    SendMessageW(profileHotkey,HKM_SETRULES,0,0);
+    HWND clearProfile=Add(L"BUTTON",L"Clear",BS_OWNERDRAW,rightX+220,338,68,34,IDC_PROFILE_HOTKEY_CLEAR);
+    StyleMainButton(clearProfile);
+
+    Add(L"STATIC",L"Display",0,rightX+31,394,150,22,IDC_LBL_DISPLAY);
     HWND display=Add(L"COMBOBOX",L"",CBS_DROPDOWNLIST|CBS_OWNERDRAWFIXED|CBS_HASSTRINGS|WS_VSCROLL,
-        rightX,344,rightW,240,IDC_DISPLAY);
+        rightX,418,rightW,240,IDC_DISPLAY);
     SendMessageW(display,CB_SETITEMHEIGHT,0,28);
     SendMessageW(display,CB_SETITEMHEIGHT,(WPARAM)-1,26);
     StyleFlatCombo(display);
@@ -2954,13 +3000,13 @@ void BuildControls(){
         Add(L"STATIC",L"",SS_OWNERDRAW,valueX,y-5,valueW,28,vid);
     };
 
-    slider(L"Brightness",IDC_LBL_BRI,IDC_BRI,IDC_VALBRI,420,80,120);
-    slider(L"Contrast",IDC_LBL_CON,IDC_CON,IDC_VALCON,488,80,120);
-    slider(L"Gamma",IDC_LBL_GAM,IDC_GAM,IDC_VALGAM,556,30,280);
-    slider(L"Digital Vibrance (%)",IDC_LBL_VIB,IDC_VIB,IDC_VALVIB,624,0,100);
-    slider(L"Hue (\x00B0)",IDC_LBL_HUE,IDC_HUE,IDC_VALHUE,692,0,359);
+    slider(L"Brightness",IDC_LBL_BRI,IDC_BRI,IDC_VALBRI,480,80,120);
+    slider(L"Contrast",IDC_LBL_CON,IDC_CON,IDC_VALCON,548,80,120);
+    slider(L"Gamma",IDC_LBL_GAM,IDC_GAM,IDC_VALGAM,616,30,280);
+    slider(L"Digital Vibrance (%)",IDC_LBL_VIB,IDC_VIB,IDC_VALVIB,684,0,100);
+    slider(L"Hue (\x00B0)",IDC_LBL_HUE,IDC_HUE,IDC_VALHUE,752,0,359);
 
-    HWND reset=Add(L"BUTTON",L"Reset",BS_OWNERDRAW,rightX,756,132,38,IDC_DEFAULTS);
+    HWND reset=Add(L"BUTTON",L"Reset",BS_OWNERDRAW,rightX,820,132,38,IDC_DEFAULTS);
     StyleMainButton(reset);
     gResetTooltip=CreateWindowExW(WS_EX_TOOLWINDOW|WS_EX_TOPMOST,L"STATIC",
         L"Reset to NVIDIA defaults",WS_POPUP,0,0,0,0,gWnd,nullptr,gInst,nullptr);
@@ -2970,7 +3016,7 @@ void BuildControls(){
         SetWindowSubclass(H(IDC_DEFAULTS),ResetButtonSubclassProc,1,0);
     }
     HWND saveProfile=Add(L"BUTTON",L"Save profile",BS_OWNERDRAW,
-        rightX+rightW-160,756,160,38,IDC_SAVE);
+        rightX+rightW-160,820,160,38,IDC_SAVE);
     StyleMainButton(saveProfile);
 
     const int appX=centerPanelX+centerPanelW+gap+22;
@@ -3040,6 +3086,9 @@ void ResizeControls(){
     MoveWindow(H(IDC_BROWSE),rightX+rightW-browseW,222,browseW,36,TRUE);
     MoveWindow(H(IDC_ENABLED),rightX,272,22,22,TRUE);
     MoveWindow(H(IDC_LBL_ENABLED),rightX+27,272,205,22,TRUE);
+    MoveWindow(H(IDC_PROFILE_HOTKEY_LABEL),rightX,306,220,22,TRUE);
+    MoveWindow(H(IDC_PROFILE_HOTKEY),rightX+2,344,206,22,TRUE);
+    MoveWindow(H(IDC_PROFILE_HOTKEY_CLEAR),rightX+220,338,68,34,TRUE);
 
     MoveWindow(H(IDC_FOOT_GITHUB),r.right-284,r.bottom-43,66,24,TRUE);
     MoveWindow(H(IDC_FOOT_SUPPORT),r.right-212,r.bottom-43,98,24,TRUE);
@@ -3220,10 +3269,6 @@ LRESULT CALLBACK UpdateProc(HWND w,UINT m,WPARAM wp,LPARAM lp){
         info=(UpdateInfo*)cs->lpCreateParams;
         SetWindowLongPtrW(w,GWLP_USERDATA,(LONG_PTR)info);
 
-        RECT client{};
-        GetClientRect(w,&client);
-        const int buttonY=client.bottom-DIALOG_MARGIN-DIALOG_BUTTON_HEIGHT;
-
         HFONT title=CreateFontW(-20,0,0,0,FW_SEMIBOLD,0,0,0,DEFAULT_CHARSET,0,0,
             CLEARTYPE_QUALITY,DEFAULT_PITCH,L"Segoe UI");
         SetPropW(w,L"UpdateTitleFont",title);
@@ -3233,29 +3278,27 @@ LRESULT CALLBACK UpdateProc(HWND w,UINT m,WPARAM wp,LPARAM lp){
         heading+=L" is available";
 
         HWND hTitle=CreateWindowExW(0,L"STATIC",heading.c_str(),WS_CHILD|WS_VISIBLE,
-            DIALOG_MARGIN,DIALOG_MARGIN,client.right-2*DIALOG_MARGIN,28,w,nullptr,gInst,nullptr);
+            22,20,420,28,w,nullptr,gInst,nullptr);
         SendMessageW(hTitle,WM_SETFONT,(WPARAM)title,TRUE);
 
         std::wstring current=L"You are currently running version ";
         current+=APP_VERSION;
         current+=L".";
         HWND hCurrent=CreateWindowExW(0,L"STATIC",current.c_str(),WS_CHILD|WS_VISIBLE,
-            DIALOG_MARGIN,62,client.right-2*DIALOG_MARGIN,22,w,nullptr,gInst,nullptr);
+            22,60,420,22,w,nullptr,gInst,nullptr);
         SendMessageW(hCurrent,WM_SETFONT,(WPARAM)gFont,TRUE);
 
         HWND hText=CreateWindowExW(0,L"STATIC",
             L"A newer version is available on GitHub.",
-            WS_CHILD|WS_VISIBLE,DIALOG_MARGIN,90,client.right-2*DIALOG_MARGIN,22,w,nullptr,gInst,nullptr);
+            WS_CHILD|WS_VISIBLE,22,88,420,22,w,nullptr,gInst,nullptr);
         SendMessageW(hText,WM_SETFONT,(WPARAM)gFont,TRUE);
 
         HWND download=CreateWindowExW(0,L"BUTTON",L"Download",WS_CHILD|WS_VISIBLE|BS_OWNERDRAW,
-            client.right-DIALOG_MARGIN-(2*DIALOG_BUTTON_WIDTH+DIALOG_BUTTON_GAP),buttonY,
-            DIALOG_BUTTON_WIDTH,DIALOG_BUTTON_HEIGHT,w,(HMENU)3101,gInst,nullptr);
+            238,130,100,36,w,(HMENU)3101,gInst,nullptr);
         SendMessageW(download,WM_SETFONT,(WPARAM)gFontBold,TRUE);
 
         HWND later=CreateWindowExW(0,L"BUTTON",L"Later",WS_CHILD|WS_VISIBLE|BS_OWNERDRAW,
-            client.right-DIALOG_MARGIN-DIALOG_BUTTON_WIDTH,buttonY,
-            DIALOG_BUTTON_WIDTH,DIALOG_BUTTON_HEIGHT,w,(HMENU)IDCANCEL,gInst,nullptr);
+            350,130,100,36,w,(HMENU)IDCANCEL,gInst,nullptr);
         SendMessageW(later,WM_SETFONT,(WPARAM)gFontBold,TRUE);
         return 0;
     }
@@ -3324,13 +3367,9 @@ void ShowUpdateAvailable(UpdateInfo* info){
         registered=true;
     }
 
-    const int contentBottom=112;
-    const int clientHeight=contentBottom+DIALOG_CONTENT_GAP+
-        DIALOG_BUTTON_HEIGHT+DIALOG_MARGIN;
-    const SIZE windowSize=DialogWindowSize(clientHeight);
     HWND a=CreateWindowExW(WS_EX_DLGMODALFRAME|WS_EX_TOPMOST,L"NvProfileSwitcherUpdate",
         L"NvProfileSwitcher Update",WS_CAPTION|WS_SYSMENU,
-        0,0,windowSize.cx,windowSize.cy,nullptr,nullptr,gInst,info);
+        0,0,488,214,nullptr,nullptr,gInst,info);
     if(!a){delete info;return;}
 
     BOOL darkTitle=TRUE;
@@ -3355,43 +3394,30 @@ LRESULT CALLBACK AboutProc(HWND w,UINT m,WPARAM wp,LPARAM lp){
         HFONT title=CreateFontW(-21,0,0,0,FW_SEMIBOLD,0,0,0,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,DEFAULT_PITCH,L"Segoe UI");
         SetPropW(w,L"AboutTitleFont",title);
 
-        RECT client{};
-        GetClientRect(w,&client);
-        const int buttonY=client.bottom-DIALOG_MARGIN-DIALOG_BUTTON_HEIGHT;
-
-        HWND icon=CreateWindowExW(0,L"STATIC",nullptr,WS_CHILD|WS_VISIBLE|SS_ICON,
-            DIALOG_MARGIN,DIALOG_MARGIN,40,40,w,nullptr,gInst,nullptr);
+        HWND icon=CreateWindowExW(0,L"STATIC",nullptr,WS_CHILD|WS_VISIBLE|SS_ICON,22,22,40,40,w,nullptr,gInst,nullptr);
         SendMessageW(icon,STM_SETICON,(WPARAM)gIcon,0);
 
-        HWND name=CreateWindowExW(0,L"STATIC",L"NvProfileSwitcher",WS_CHILD|WS_VISIBLE,
-            DIALOG_MARGIN+54,19,260,30,w,nullptr,gInst,nullptr);
+        HWND name=CreateWindowExW(0,L"STATIC",L"NvProfileSwitcher",WS_CHILD|WS_VISIBLE,76,19,260,30,w,nullptr,gInst,nullptr);
         SendMessageW(name,WM_SETFONT,(WPARAM)title,TRUE);
 
         std::wstring ver=L"Version ";
         ver+=APP_VERSION;
-        HWND version=CreateWindowExW(0,L"STATIC",ver.c_str(),WS_CHILD|WS_VISIBLE,
-            DIALOG_MARGIN+54,48,260,22,w,nullptr,gInst,nullptr);
+        HWND version=CreateWindowExW(0,L"STATIC",ver.c_str(),WS_CHILD|WS_VISIBLE,76,48,260,22,w,nullptr,gInst,nullptr);
         SendMessageW(version,WM_SETFONT,(WPARAM)gFont,TRUE);
 
         HWND desc=CreateWindowExW(0,L"STATIC",L"Automatic per-app NVIDIA display color profiles for Windows",
-            WS_CHILD|WS_VISIBLE,DIALOG_MARGIN,84,client.right-2*DIALOG_MARGIN,22,w,nullptr,gInst,nullptr);
+            WS_CHILD|WS_VISIBLE,22,84,430,22,w,nullptr,gInst,nullptr);
         SendMessageW(desc,WM_SETFONT,(WPARAM)gFont,TRUE);
 
         HWND copy=CreateWindowExW(0,L"STATIC",L"Copyright \x00A9 2026 Maximiliano Carnevali",
-            WS_CHILD|WS_VISIBLE,DIALOG_MARGIN,118,client.right-2*DIALOG_MARGIN,22,w,nullptr,gInst,nullptr);
+            WS_CHILD|WS_VISIBLE,22,118,350,22,w,nullptr,gInst,nullptr);
         SendMessageW(copy,WM_SETFONT,(WPARAM)gFont,TRUE);
 
-        HWND github=CreateWindowExW(0,L"BUTTON",L"GitHub",WS_CHILD|WS_VISIBLE|BS_OWNERDRAW,
-            client.right-DIALOG_MARGIN-(3*DIALOG_BUTTON_WIDTH+2*DIALOG_BUTTON_GAP),buttonY,
-            DIALOG_BUTTON_WIDTH,DIALOG_BUTTON_HEIGHT,w,(HMENU)3001,gInst,nullptr);
+        HWND github=CreateWindowExW(0,L"BUTTON",L"GitHub",WS_CHILD|WS_VISIBLE|BS_OWNERDRAW,126,158,100,36,w,(HMENU)3001,gInst,nullptr);
         SendMessageW(github,WM_SETFONT,(WPARAM)gFontBold,TRUE);
-        HWND support=CreateWindowExW(0,L"BUTTON",L"Support",WS_CHILD|WS_VISIBLE|BS_OWNERDRAW,
-            client.right-DIALOG_MARGIN-(2*DIALOG_BUTTON_WIDTH+DIALOG_BUTTON_GAP),buttonY,
-            DIALOG_BUTTON_WIDTH,DIALOG_BUTTON_HEIGHT,w,(HMENU)3002,gInst,nullptr);
+        HWND support=CreateWindowExW(0,L"BUTTON",L"Support",WS_CHILD|WS_VISIBLE|BS_OWNERDRAW,238,158,100,36,w,(HMENU)3002,gInst,nullptr);
         SendMessageW(support,WM_SETFONT,(WPARAM)gFontBold,TRUE);
-        HWND close=CreateWindowExW(0,L"BUTTON",L"Close",WS_CHILD|WS_VISIBLE|BS_OWNERDRAW,
-            client.right-DIALOG_MARGIN-DIALOG_BUTTON_WIDTH,buttonY,
-            DIALOG_BUTTON_WIDTH,DIALOG_BUTTON_HEIGHT,w,(HMENU)IDCANCEL,gInst,nullptr);
+        HWND close=CreateWindowExW(0,L"BUTTON",L"Close",WS_CHILD|WS_VISIBLE|BS_OWNERDRAW,350,158,100,36,w,(HMENU)IDCANCEL,gInst,nullptr);
         SendMessageW(close,WM_SETFONT,(WPARAM)gFontBold,TRUE);
         return 0;
     }
@@ -3463,12 +3489,8 @@ void ShowAbout(){
         return;
     }
 
-    const int contentBottom=140;
-    const int clientHeight=contentBottom+DIALOG_CONTENT_GAP+
-        DIALOG_BUTTON_HEIGHT+DIALOG_MARGIN;
-    const SIZE windowSize=DialogWindowSize(clientHeight);
     HWND a=CreateWindowExW(WS_EX_DLGMODALFRAME|WS_EX_TOPMOST,L"NvProfileSwitcherAbout",L"About NvProfileSwitcher",
-        WS_CAPTION|WS_SYSMENU,0,0,windowSize.cx,windowSize.cy,nullptr,nullptr,gInst,nullptr);
+        WS_CAPTION|WS_SYSMENU,0,0,488,242,nullptr,nullptr,gInst,nullptr);
     if(!a)return;
 
     BOOL darkTitle=TRUE;
@@ -3518,10 +3540,28 @@ void ToggleMainVisibility(){
     else ShowMain();
 }
 void ToggleWindowsOverride(){
-    DiscardPreview();gWindowsOverride=!gWindowsOverride;gActive.clear();CheckProcesses();InvalidateRect(gWnd,nullptr,FALSE);
+    DiscardPreview();
+    gOverrideMode=gOverrideMode==OverrideMode::Windows
+        ?OverrideMode::Automatic:OverrideMode::Windows;
+    gActive.clear();
+    CheckProcesses();
+    InvalidateRect(gWnd,nullptr,FALSE);
+}
+void ToggleProfileOverride(size_t profileIndex){
+    if(profileIndex>=gSettings.profiles.size())return;
+    DiscardPreview();
+    if(gOverrideMode==OverrideMode::Profile&&gOverrideProfileIndex==profileIndex){
+        gOverrideMode=OverrideMode::Automatic;
+    }else{
+        gOverrideMode=OverrideMode::Profile;
+        gOverrideProfileIndex=profileIndex;
+    }
+    gActive.clear();
+    CheckProcesses();
+    InvalidateRect(gWnd,nullptr,FALSE);
 }
 void RestoreDesktop(){RestoreAllDesktopProfiles();gActive=L"Windows";InvalidateRect(gWnd,nullptr,FALSE);}
-LRESULT CALLBACK Proc(HWND w,UINT m,WPARAM wp,LPARAM lp){switch(m){case WM_SHOW_EXISTING_INSTANCE:ShowMain();return 0;case WM_UPDATE_AVAILABLE:ShowUpdateAvailable((UpdateInfo*)lp);return 0;case WM_SHOW_APP_MESSAGE:{auto* data=(AppMessageData*)lp;if(data){std::wstring title=data->title,text=data->text;delete data;ShowAppMessage(title,text);}return 0;}case WM_CREATE:gWnd=w;BuildControls();RegisterConfiguredHotkeys();RefreshList();LoadSelected();SetTimer(w,1,250,nullptr);return 0;case WM_HOTKEY:if(wp==ID_HOTKEY_SHOW_HIDE){ToggleMainVisibility();return 0;}if(wp==ID_HOTKEY_WINDOWS_OVERRIDE){ToggleWindowsOverride();return 0;}break;case WM_ACTIVATE:
+LRESULT CALLBACK Proc(HWND w,UINT m,WPARAM wp,LPARAM lp){switch(m){case WM_SHOW_EXISTING_INSTANCE:ShowMain();return 0;case WM_UPDATE_AVAILABLE:ShowUpdateAvailable((UpdateInfo*)lp);return 0;case WM_SHOW_APP_MESSAGE:{auto* data=(AppMessageData*)lp;if(data){std::wstring title=data->title,text=data->text;delete data;ShowAppMessage(title,text);}return 0;}case WM_CREATE:gWnd=w;BuildControls();RegisterConfiguredHotkeys();RefreshList();LoadSelected();SetTimer(w,1,250,nullptr);return 0;case WM_HOTKEY:if(wp==ID_HOTKEY_SHOW_HIDE){ToggleMainVisibility();return 0;}if(wp==ID_HOTKEY_WINDOWS_OVERRIDE){ToggleWindowsOverride();return 0;}if(wp>=ID_HOTKEY_PROFILE_BASE&&wp<ID_HOTKEY_PROFILE_BASE+(WPARAM)gSettings.profiles.size()){ToggleProfileOverride((size_t)(wp-ID_HOTKEY_PROFILE_BASE));return 0;}break;case WM_ACTIVATE:
     if(LOWORD(wp)!=WA_INACTIVE) RefreshDriverVersion();
     return 0;case WM_SIZE:
     if(wp==SIZE_MINIMIZED){
@@ -3579,7 +3619,7 @@ case WM_CTLCOLORSTATIC:{HDC dc=(HDC)wp;SetTextColor(dc,C_TEXT);SetBkColor(dc,C_P
     if(d->CtlID==IDC_ADD||d->CtlID==IDC_REMOVE){
         DrawProfileHeaderButton(d);return TRUE;
     }
-    if(d->CtlID==IDC_SAVE||d->CtlID==IDC_DEFAULTS||d->CtlID==IDC_BROWSE||d->CtlID==IDC_HOTKEY_SHOW_CLEAR||d->CtlID==IDC_HOTKEY_OVERRIDE_CLEAR){
+    if(d->CtlID==IDC_SAVE||d->CtlID==IDC_DEFAULTS||d->CtlID==IDC_BROWSE||d->CtlID==IDC_HOTKEY_SHOW_CLEAR||d->CtlID==IDC_HOTKEY_OVERRIDE_CLEAR||d->CtlID==IDC_PROFILE_HOTKEY_CLEAR){
         DrawOwnerButton(d);return TRUE;
     }
     if(d->CtlID==IDC_FOOT_GITHUB||d->CtlID==IDC_FOOT_SUPPORT||d->CtlID==IDC_FOOT_ABOUT){
@@ -3643,13 +3683,25 @@ case WM_CTLCOLORSTATIC:{HDC dc=(HDC)wp;SetTextColor(dc,C_TEXT);SetBkColor(dc,C_P
             }
         }
 
-        const wchar_t* title=desktop?L"Windows":p->name.c_str();
-        RECT titleRect{x+58,d->rcItem.top,d->rcItem.right-14,d->rcItem.bottom};
         SetBkMode(d->hDC,TRANSPARENT);
         SetTextColor(d->hDC,C_TEXT);
         SelectObject(d->hDC,gFontBold);
-        DrawTextW(d->hDC,title,-1,&titleRect,
-            DT_LEFT|DT_VCENTER|DT_SINGLELINE|DT_END_ELLIPSIS|DT_NOPREFIX);
+        const wchar_t* title=desktop?L"Windows":p->name.c_str();
+        if(!desktop&&p->hotkey){
+            RECT titleRect{x+58,d->rcItem.top+9,d->rcItem.right-14,d->rcItem.top+34};
+            DrawTextW(d->hDC,title,-1,&titleRect,
+                DT_LEFT|DT_VCENTER|DT_SINGLELINE|DT_END_ELLIPSIS|DT_NOPREFIX);
+            std::wstring shortcut=HotkeyDisplayText(p->hotkey);
+            RECT shortcutRect{x+58,d->rcItem.top+34,d->rcItem.right-14,d->rcItem.bottom-7};
+            SetTextColor(d->hDC,C_MUTED);
+            SelectObject(d->hDC,gFontSmall);
+            DrawTextW(d->hDC,shortcut.c_str(),-1,&shortcutRect,
+                DT_LEFT|DT_VCENTER|DT_SINGLELINE|DT_END_ELLIPSIS|DT_NOPREFIX);
+        }else{
+            RECT titleRect{x+58,d->rcItem.top,d->rcItem.right-14,d->rcItem.bottom};
+            DrawTextW(d->hDC,title,-1,&titleRect,
+                DT_LEFT|DT_VCENTER|DT_SINGLELINE|DT_END_ELLIPSIS|DT_NOPREFIX);
+        }
 
         if(!selected){
             Fill(d->hDC,d->rcItem.left+12,d->rcItem.bottom-1,
@@ -3680,7 +3732,7 @@ case WM_TIMER:
         return 0;
     }
     return 0;
-case WM_COMMAND:{int id=LOWORD(wp);if(id==IDC_HOTKEY_SHOW&&HIWORD(wp)==EN_CHANGE){UpdateConfiguredHotkey(IDC_HOTKEY_SHOW,ID_HOTKEY_SHOW_HIDE,gSettings.showHideHotkey);return 0;}if(id==IDC_HOTKEY_OVERRIDE&&HIWORD(wp)==EN_CHANGE){UpdateConfiguredHotkey(IDC_HOTKEY_OVERRIDE,ID_HOTKEY_WINDOWS_OVERRIDE,gSettings.windowsOverrideHotkey);return 0;}if(id==IDC_LIST&&HIWORD(wp)==LBN_SELCHANGE){HideExecutableTooltip();DiscardPreview();LoadSelected();return 0;}if(id==IDC_DISPLAY&&HIWORD(wp)==CBN_SELCHANGE){DiscardPreview();int ds=(int)SendMessageW(H(IDC_DISPLAY),CB_GETCURSEL,0,0);if(ds>=0&&ds<(int)gDisplays.size()){if(IsDesktopSelected()){auto*p=EnsureDesktopProfile(gDisplays[ds].gdiName,gDisplays[ds].monitorId);LoadValuesToSliders(ValuesFromFlatProfile(*p));}else{auto*p=SelectedProfile();if(p){LoadValuesToSliders(*EnsureApplicationValuesForDisplay(*p,gDisplays[ds].gdiName,gDisplays[ds].monitorId));}}}return 0;}switch(id){case IDC_HOTKEY_SHOW_CLEAR:ClearConfiguredHotkey(IDC_HOTKEY_SHOW,ID_HOTKEY_SHOW_HIDE,gSettings.showHideHotkey);break;case IDC_HOTKEY_OVERRIDE_CLEAR:ClearConfiguredHotkey(IDC_HOTKEY_OVERRIDE,ID_HOTKEY_WINDOWS_OVERRIDE,gSettings.windowsOverrideHotkey);break;case IDC_BROWSE:{OPENFILENAMEW o{sizeof(o)};wchar_t f[MAX_PATH]{};o.hwndOwner=w;o.lpstrFilter=L"Executables (*.exe)\0*.exe\0All files\0*.*\0";o.lpstrFile=f;o.nMaxFile=MAX_PATH;o.Flags=OFN_FILEMUSTEXIST;if(GetOpenFileNameW(&o)){Txt(IDC_EXE,f);InvalidateRect(H(IDC_EXE),nullptr,TRUE);auto* p=SelectedProfile();if(p&&!IsDesktopSelected()){p->exePath=f;InvalidateRect(H(IDC_LIST),nullptr,TRUE);}}break;}case IDC_DEFAULTS:ResetSlidersToDefaults();break;case IDC_SAVE:SaveSelected();break;case IDC_ADD:{ApplicationProfile np{};if(!gDisplays.empty()){for(const auto&d:gDisplays)np.displayProfiles.push_back(ApplicationDefaultsForDisplay(d.gdiName,d.monitorId));}gSettings.profiles.push_back(np);gSelected=(int)gSettings.profiles.size();Save();RefreshList();LoadSelected();break;}case IDC_REMOVE:if(gSelected>0&&gSelected<=(int)gSettings.profiles.size()){gSettings.profiles.erase(gSettings.profiles.begin()+(gSelected-1));gSelected=std::max<int>(0,gSelected-1);Save();RefreshList();LoadSelected();}break;case IDC_STARTWIN:gSettings.startWindows=SendMessageW(H(IDC_STARTWIN),BM_GETCHECK,0,0)==BST_CHECKED;SetStartup(gSettings.startWindows);Save();break;case IDC_STARTMIN:gSettings.startMinimized=SendMessageW(H(IDC_STARTMIN),BM_GETCHECK,0,0)==BST_CHECKED;Save();break;case IDC_MINTRAY:
+case WM_COMMAND:{int id=LOWORD(wp);if(id==IDC_HOTKEY_SHOW&&HIWORD(wp)==EN_CHANGE){UpdateConfiguredHotkey(IDC_HOTKEY_SHOW,gSettings.showHideHotkey);return 0;}if(id==IDC_HOTKEY_OVERRIDE&&HIWORD(wp)==EN_CHANGE){UpdateConfiguredHotkey(IDC_HOTKEY_OVERRIDE,gSettings.windowsOverrideHotkey);return 0;}if(id==IDC_PROFILE_HOTKEY&&HIWORD(wp)==EN_CHANGE&&!IsDesktopSelected()){if(auto*p=SelectedProfile()){UpdateConfiguredHotkey(IDC_PROFILE_HOTKEY,p->hotkey);InvalidateRect(H(IDC_LIST),nullptr,TRUE);}return 0;}if(id==IDC_LIST&&HIWORD(wp)==LBN_SELCHANGE){HideExecutableTooltip();DiscardPreview();LoadSelected();return 0;}if(id==IDC_DISPLAY&&HIWORD(wp)==CBN_SELCHANGE){DiscardPreview();int ds=(int)SendMessageW(H(IDC_DISPLAY),CB_GETCURSEL,0,0);if(ds>=0&&ds<(int)gDisplays.size()){if(IsDesktopSelected()){auto*p=EnsureDesktopProfile(gDisplays[ds].gdiName,gDisplays[ds].monitorId);LoadValuesToSliders(ValuesFromFlatProfile(*p));}else{auto*p=SelectedProfile();if(p){LoadValuesToSliders(*EnsureApplicationValuesForDisplay(*p,gDisplays[ds].gdiName,gDisplays[ds].monitorId));}}}return 0;}switch(id){case IDC_HOTKEY_SHOW_CLEAR:ClearConfiguredHotkey(IDC_HOTKEY_SHOW,gSettings.showHideHotkey);break;case IDC_HOTKEY_OVERRIDE_CLEAR:ClearConfiguredHotkey(IDC_HOTKEY_OVERRIDE,gSettings.windowsOverrideHotkey);break;case IDC_PROFILE_HOTKEY_CLEAR:if(!IsDesktopSelected()){if(auto*p=SelectedProfile()){ClearConfiguredHotkey(IDC_PROFILE_HOTKEY,p->hotkey);InvalidateRect(H(IDC_LIST),nullptr,TRUE);}}break;case IDC_BROWSE:{OPENFILENAMEW o{sizeof(o)};wchar_t f[MAX_PATH]{};o.hwndOwner=w;o.lpstrFilter=L"Executables (*.exe)\0*.exe\0All files\0*.*\0";o.lpstrFile=f;o.nMaxFile=MAX_PATH;o.Flags=OFN_FILEMUSTEXIST;if(GetOpenFileNameW(&o)){Txt(IDC_EXE,f);InvalidateRect(H(IDC_EXE),nullptr,TRUE);auto* p=SelectedProfile();if(p&&!IsDesktopSelected()){p->exePath=f;InvalidateRect(H(IDC_LIST),nullptr,TRUE);}}break;}case IDC_DEFAULTS:ResetSlidersToDefaults();break;case IDC_SAVE:SaveSelected();break;case IDC_ADD:{ApplicationProfile np{};if(!gDisplays.empty()){for(const auto&d:gDisplays)np.displayProfiles.push_back(ApplicationDefaultsForDisplay(d.gdiName,d.monitorId));}gSettings.profiles.push_back(np);gSelected=(int)gSettings.profiles.size();Save();RefreshList();LoadSelected();break;}case IDC_REMOVE:if(gSelected>0&&gSelected<=(int)gSettings.profiles.size()){size_t removed=(size_t)(gSelected-1);UnregisterConfiguredHotkeys();if(gOverrideMode==OverrideMode::Profile){if(gOverrideProfileIndex==removed)gOverrideMode=OverrideMode::Automatic;else if(gOverrideProfileIndex>removed)--gOverrideProfileIndex;}gSettings.profiles.erase(gSettings.profiles.begin()+removed);RegisterConfiguredHotkeys();gSelected=std::max<int>(0,gSelected-1);Save();RefreshList();LoadSelected();gActive.clear();CheckProcesses();}break;case IDC_STARTWIN:gSettings.startWindows=SendMessageW(H(IDC_STARTWIN),BM_GETCHECK,0,0)==BST_CHECKED;SetStartup(gSettings.startWindows);Save();break;case IDC_STARTMIN:gSettings.startMinimized=SendMessageW(H(IDC_STARTMIN),BM_GETCHECK,0,0)==BST_CHECKED;Save();break;case IDC_MINTRAY:
     gSettings.minimizeToTray=SendMessageW(H(IDC_MINTRAY),BM_GETCHECK,0,0)==BST_CHECKED;
     if(!gSettings.minimizeToTray)
         SetTrayIconVisible(false);
@@ -3690,7 +3742,7 @@ case IDC_FOOT_SUPPORT:ShellExecuteW(w,L"open",SUPPORT_URL,nullptr,nullptr,SW_SHO
 case IDC_FOOT_ABOUT:ShowAbout();break;
 case ID_TRAY_OPEN:ShowMain();break;case ID_TRAY_CHECK_UPDATE:{if(HANDLE h=CreateThread(nullptr,0,UpdateCheckThread,(LPVOID)1,0,nullptr))CloseHandle(h);break;}case ID_TRAY_ABOUT:ShowAbout();break;case ID_TRAY_EXIT:DestroyWindow(w);break;}return 0;}case WM_CLOSE:
     DestroyWindow(w);
-    return 0;case WM_TRAY:if(lp==WM_LBUTTONDBLCLK){ShowMain();return 0;}if(lp==WM_RBUTTONUP||lp==WM_CONTEXTMENU){POINT p;GetCursorPos(&p);SetForegroundWindow(w);TrackPopupMenu(gTrayMenu,TPM_RIGHTBUTTON,p.x,p.y,0,w,nullptr);return 0;}break;case WM_DESTROY:UnregisterHotKey(w,ID_HOTKEY_SHOW_HIDE);UnregisterHotKey(w,ID_HOTKEY_WINDOWS_OVERRIDE);KillTimer(w,1);KillTimer(w,2);SetTrayIconVisible(false);if(pUnload)pUnload();if(gNv)FreeLibrary(gNv);PostQuitMessage(0);return 0;}return DefWindowProcW(w,m,wp,lp);} 
+    return 0;case WM_TRAY:if(lp==WM_LBUTTONDBLCLK){ShowMain();return 0;}if(lp==WM_RBUTTONUP||lp==WM_CONTEXTMENU){POINT p;GetCursorPos(&p);SetForegroundWindow(w);TrackPopupMenu(gTrayMenu,TPM_RIGHTBUTTON,p.x,p.y,0,w,nullptr);return 0;}break;case WM_DESTROY:UnregisterConfiguredHotkeys();KillTimer(w,1);KillTimer(w,2);SetTrayIconVisible(false);if(pUnload)pUnload();if(gNv)FreeLibrary(gNv);PostQuitMessage(0);return 0;}return DefWindowProcW(w,m,wp,lp);}
 
 int CALLBACK DetectFontFamily(const LOGFONTW*,const TEXTMETRICW*,DWORD,LPARAM data){
     *reinterpret_cast<bool*>(data)=true;
