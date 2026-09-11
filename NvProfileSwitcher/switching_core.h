@@ -29,6 +29,7 @@ std::optional<std::size_t> FindMatchingProfile(
 
 SwitchTarget SelectSwitchTarget(
     const std::vector<ProfileDescriptor>& profiles,
-    std::wstring_view foregroundExecutable);
+    std::wstring_view foregroundExecutable,
+    bool windowsOverride=false);
 
 } // namespace nvps

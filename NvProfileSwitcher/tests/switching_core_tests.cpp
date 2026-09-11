@@ -57,6 +57,14 @@ int main(){
     target=SelectSwitchTarget(profiles,L"");
     Expect(target.IsDesktop(),"handles a missing foreground process");
 
+    target=SelectSwitchTarget(profiles,L"EscapeFromTarkov.exe",true);
+    Expect(target.IsDesktop()&&target.activeName==L"Windows",
+           "Windows override wins while an application profile is active");
+
+    target=SelectSwitchTarget(profiles,L"EscapeFromTarkov.exe",false);
+    Expect(target.profileIndex==0&&target.activeName==L"Escape From Tarkov",
+           "removing Windows override restores automatic selection");
+
     auto duplicateProfiles=profiles;
     duplicateProfiles.insert(duplicateProfiles.begin(),
         {L"First match",L"E:\\Duplicate\\EscapeFromTarkov.exe",true});

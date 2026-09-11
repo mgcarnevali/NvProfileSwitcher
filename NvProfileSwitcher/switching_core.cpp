@@ -36,8 +36,10 @@ std::optional<std::size_t> FindMatchingProfile(
 
 SwitchTarget SelectSwitchTarget(
     const std::vector<ProfileDescriptor>& profiles,
-    std::wstring_view foregroundExecutable){
+    std::wstring_view foregroundExecutable,
+    bool windowsOverride){
     SwitchTarget target;
+    if(windowsOverride) return target;
     target.profileIndex=FindMatchingProfile(profiles,foregroundExecutable);
     if(target.profileIndex)
         target.activeName=profiles[*target.profileIndex].name;
