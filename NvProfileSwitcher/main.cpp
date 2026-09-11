@@ -953,23 +953,56 @@ std::wstring HotkeyDisplayText(WORD hotkey){
     return text;
 }
 
-LRESULT CALLBACK HotkeyColorSubclassProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp,
+void RegisterConfiguredHotkeys();
+
+LRESULT CALLBACK HotkeyFieldSubclassProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp,
                                          UINT_PTR subclassId,DWORD_PTR refData){
     switch(msg){
-    case WM_ERASEBKGND:return 1;
+    case WM_ERASEBKGND:
+        return 1;
+    case WM_NCPAINT:
+        // The app paints the rounded outer frame; suppress the native hotkey
+        // control's light non-client outline so only that frame is visible.
+        return 0;
+    case WM_SETFOCUS:
+        UnregisterHotKey(gWnd,ID_HOTKEY_SHOW_HIDE);
+        UnregisterHotKey(gWnd,ID_HOTKEY_WINDOWS_OVERRIDE);
+        return DefSubclassProc(hwnd,msg,wp,lp);
+    case WM_KILLFOCUS:{
+        LRESULT result=DefSubclassProc(hwnd,msg,wp,lp);
+        UnregisterHotKey(gWnd,ID_HOTKEY_SHOW_HIDE);
+        UnregisterHotKey(gWnd,ID_HOTKEY_WINDOWS_OVERRIDE);
+        RegisterConfiguredHotkeys();
+        return result;
+    }
     case WM_PAINT:{
-        PAINTSTRUCT ps{}; HDC dc=BeginPaint(hwnd,&ps); RECT r{}; GetClientRect(hwnd,&r);
+        PAINTSTRUCT ps{};
+        HDC dc=BeginPaint(hwnd,&ps);
+        RECT r{};
+        GetClientRect(hwnd,&r);
         FillRect(dc,&r,gFieldBrush);
         const std::wstring text=HotkeyDisplayText((WORD)SendMessageW(hwnd,HKM_GETHOTKEY,0,0));
         RECT tr=r; tr.left+=8; tr.right-=6;
-        SetBkMode(dc,TRANSPARENT); SetTextColor(dc,text==L"None"?C_MUTED:C_TEXT);
+        SetBkMode(dc,TRANSPARENT);
+        SetTextColor(dc,text==L"None"?C_MUTED:C_TEXT);
         HFONT oldFont=(HFONT)SelectObject(dc,gFont);
         DrawTextW(dc,text.c_str(),-1,&tr,DT_LEFT|DT_VCENTER|DT_SINGLELINE|DT_END_ELLIPSIS|DT_NOPREFIX);
-        SelectObject(dc,oldFont); EndPaint(hwnd,&ps); return 0;
+        SelectObject(dc,oldFont);
+        EndPaint(hwnd,&ps);
+        return 0;
     }
-    case WM_NCDESTROY:RemoveWindowSubclass(hwnd,HotkeyColorSubclassProc,subclassId);break;
+    case WM_NCDESTROY:
+        RemoveWindowSubclass(hwnd,HotkeyFieldSubclassProc,subclassId);
+        break;
     }
     return DefSubclassProc(hwnd,msg,wp,lp);
+}
+
+void RemoveNativeHotkeyFrame(HWND hwnd){
+    SetWindowLongPtrW(hwnd,GWL_STYLE,GetWindowLongPtrW(hwnd,GWL_STYLE)&~WS_BORDER);
+    SetWindowLongPtrW(hwnd,GWL_EXSTYLE,GetWindowLongPtrW(hwnd,GWL_EXSTYLE)&~WS_EX_CLIENTEDGE);
+    SetWindowPos(hwnd,nullptr,0,0,0,0,
+                 SWP_NOMOVE|SWP_NOSIZE|SWP_NOZORDER|SWP_NOACTIVATE|SWP_FRAMECHANGED);
 }
 
 UINT HotkeyModifiers(WORD hotkey){
@@ -985,6 +1018,13 @@ bool IsCtrlAltHotkey(WORD hotkey){
     return (flags&(HOTKEYF_CONTROL|HOTKEYF_ALT))==(HOTKEYF_CONTROL|HOTKEYF_ALT) && !(flags&HOTKEYF_SHIFT);
 }
 
+bool NeedsHotkeyModifier(WORD hotkey){
+    const BYTE key=LOBYTE(hotkey);
+    const BYTE flags=HIBYTE(hotkey);
+    const bool functionKey=key>=VK_F1&&key<=VK_F24;
+    return !functionKey&&!(flags&(HOTKEYF_CONTROL|HOTKEYF_ALT));
+}
+
 bool RegisterStoredHotkey(int registrationId,WORD hotkey){
     if(!hotkey) return true;
     if(IsCtrlAltHotkey(hotkey)) return false;
@@ -998,10 +1038,29 @@ void SetHotkeyControl(int controlId,WORD hotkey){
 bool UpdateConfiguredHotkey(int controlId,int registrationId,WORD& stored){
     if(gUpdatingHotkeyControls) return true;
     const WORD requested=(WORD)SendMessageW(H(controlId),HKM_GETHOTKEY,0,0);
-    if(requested==stored) return true;
+    if(!LOBYTE(requested)) return true;
+    if(requested==stored){SetFocus(gWnd);return true;}
+    if(NeedsHotkeyModifier(requested)){
+        SetHotkeyControl(controlId,stored);
+        MessageBoxW(gWnd,L"Shortcuts must use Ctrl or Alt with another key. Function keys can be used alone.\n\nUse Ctrl + Shift, Alt + Shift, or a function key instead.",L"NvProfileSwitcher",MB_OK|MB_ICONWARNING);
+        return false;
+    }
     if(IsCtrlAltHotkey(requested)){
         SetHotkeyControl(controlId,stored);
         MessageBoxW(gWnd,L"Ctrl + Alt shortcuts are not supported because Windows may treat Right Alt (AltGr) as Ctrl + Alt.\n\nUse Ctrl + Shift, Alt + Shift, or a function key instead.",L"NvProfileSwitcher",MB_OK|MB_ICONWARNING);
+        return false;
+    }
+    const WORD otherHotkey=controlId==IDC_HOTKEY_SHOW
+        ?gSettings.windowsOverrideHotkey:gSettings.showHideHotkey;
+    if(requested==otherHotkey){
+        const wchar_t* otherAction=controlId==IDC_HOTKEY_SHOW
+            ?L"Windows override":L"Show / hide window";
+        SetHotkeyControl(controlId,stored);
+        std::wstring message=L"That shortcut is already assigned to ";
+        message+=otherAction;
+        message+=L".\n\nChoose a different combination.";
+        MessageBoxW(gWnd,message.c_str(),L"NvProfileSwitcher",MB_OK|MB_ICONWARNING);
+        SetFocus(H(controlId));
         return false;
     }
     const WORD previous=stored; UnregisterHotKey(gWnd,registrationId);
@@ -1010,7 +1069,7 @@ bool UpdateConfiguredHotkey(int controlId,int registrationId,WORD& stored){
         MessageBoxW(gWnd,L"That shortcut is already being used by another application.",L"NvProfileSwitcher",MB_OK|MB_ICONWARNING);
         return false;
     }
-    stored=requested; Save(); return true;
+    stored=requested; Save(); SetFocus(gWnd); return true;
 }
 
 void ClearConfiguredHotkey(int controlId,int registrationId,WORD& stored){
@@ -1781,11 +1840,11 @@ void SetDesktopUi(bool desktop){
     MoveWindow(GetWindow(H(IDC_CHECKUPDATES),GW_HWNDNEXT),appX+27,234,220,22,TRUE);
     MoveWindow(H(IDC_HOTKEYS_TITLE),appX,294,250,24,TRUE);
     MoveWindow(H(IDC_HOTKEY_SHOW_LABEL),appX,330,286,22,TRUE);
-    MoveWindow(H(IDC_HOTKEY_SHOW),appX,356,210,34,TRUE);
-    MoveWindow(H(IDC_HOTKEY_SHOW_CLEAR),appX+218,355,68,36,TRUE);
+    MoveWindow(H(IDC_HOTKEY_SHOW),appX+2,362,206,22,TRUE);
+    MoveWindow(H(IDC_HOTKEY_SHOW_CLEAR),appX+218,356,68,34,TRUE);
     MoveWindow(H(IDC_HOTKEY_OVERRIDE_LABEL),appX,414,286,22,TRUE);
-    MoveWindow(H(IDC_HOTKEY_OVERRIDE),appX,440,210,34,TRUE);
-    MoveWindow(H(IDC_HOTKEY_OVERRIDE_CLEAR),appX+218,439,68,36,TRUE);
+    MoveWindow(H(IDC_HOTKEY_OVERRIDE),appX+2,446,206,22,TRUE);
+    MoveWindow(H(IDC_HOTKEY_OVERRIDE_CLEAR),appX+218,440,68,34,TRUE);
 
     InvalidateRect(gWnd,nullptr,TRUE);
 }
@@ -2521,6 +2580,13 @@ void Paint(HWND w){
     Fill(dc,settings.left+1,separatorY,settingsW-2,1,C_BORDER);
     Fill(dc,settings.left+22,278,settingsW-44,1,C_BORDER);
 
+    // Match the application text fields: the app paints the complete rounded
+    // frame and the native hotkey control sits borderless inside it.
+    RECT showHotkeyFrame{settingsX+22,356,settingsX+232,390};
+    RECT overrideHotkeyFrame{settingsX+22,440,settingsX+232,474};
+    FillRound(dc,showHotkeyFrame,C_FIELD,C_BORDER,8);
+    FillRound(dc,overrideHotkeyFrame,C_FIELD,C_BORDER,8);
+
     const bool desktop=IsDesktopSelected();
     const int displayY=desktop?154:320;
 
@@ -2735,18 +2801,18 @@ void BuildControls(){
     HWND hotkeysTitle=Add(L"STATIC",L"Hotkeys",0,appX,294,250,24,IDC_HOTKEYS_TITLE);
     SendMessageW(hotkeysTitle,WM_SETFONT,(WPARAM)gFontBold,TRUE);
     Add(L"STATIC",L"Show / hide window",0,appX,330,286,22,IDC_HOTKEY_SHOW_LABEL);
-    HWND showHotkey=Add(HOTKEY_CLASSW,L"",WS_BORDER|WS_TABSTOP,appX,356,210,34,IDC_HOTKEY_SHOW);
-    SetWindowTheme(showHotkey,L"DarkMode_Explorer",nullptr);
-    SetWindowSubclass(showHotkey,HotkeyColorSubclassProc,1,0);
-    SendMessageW(showHotkey,HKM_SETRULES,HKCOMB_NONE,MAKELPARAM(HOTKEYF_CONTROL|HOTKEYF_SHIFT,0));
-    HWND clearShow=Add(L"BUTTON",L"Clear",BS_OWNERDRAW,appX+218,355,68,36,IDC_HOTKEY_SHOW_CLEAR);
+    HWND showHotkey=Add(HOTKEY_CLASSW,L"",WS_TABSTOP,appX+2,362,206,22,IDC_HOTKEY_SHOW);
+    SetWindowSubclass(showHotkey,HotkeyFieldSubclassProc,1,0);
+    RemoveNativeHotkeyFrame(showHotkey);
+    SendMessageW(showHotkey,HKM_SETRULES,0,0);
+    HWND clearShow=Add(L"BUTTON",L"Clear",BS_OWNERDRAW,appX+218,356,68,34,IDC_HOTKEY_SHOW_CLEAR);
     StyleMainButton(clearShow);
     Add(L"STATIC",L"Windows override",0,appX,414,286,22,IDC_HOTKEY_OVERRIDE_LABEL);
-    HWND overrideHotkey=Add(HOTKEY_CLASSW,L"",WS_BORDER|WS_TABSTOP,appX,440,210,34,IDC_HOTKEY_OVERRIDE);
-    SetWindowTheme(overrideHotkey,L"DarkMode_Explorer",nullptr);
-    SetWindowSubclass(overrideHotkey,HotkeyColorSubclassProc,1,0);
-    SendMessageW(overrideHotkey,HKM_SETRULES,HKCOMB_NONE,MAKELPARAM(HOTKEYF_CONTROL|HOTKEYF_SHIFT,0));
-    HWND clearOverride=Add(L"BUTTON",L"Clear",BS_OWNERDRAW,appX+218,439,68,36,IDC_HOTKEY_OVERRIDE_CLEAR);
+    HWND overrideHotkey=Add(HOTKEY_CLASSW,L"",WS_TABSTOP,appX+2,446,206,22,IDC_HOTKEY_OVERRIDE);
+    SetWindowSubclass(overrideHotkey,HotkeyFieldSubclassProc,1,0);
+    RemoveNativeHotkeyFrame(overrideHotkey);
+    SendMessageW(overrideHotkey,HKM_SETRULES,0,0);
+    HWND clearOverride=Add(L"BUTTON",L"Clear",BS_OWNERDRAW,appX+218,440,68,34,IDC_HOTKEY_OVERRIDE_CLEAR);
     StyleMainButton(clearOverride);
     SetHotkeyControl(IDC_HOTKEY_SHOW,gSettings.showHideHotkey);
     SetHotkeyControl(IDC_HOTKEY_OVERRIDE,gSettings.windowsOverrideHotkey);
