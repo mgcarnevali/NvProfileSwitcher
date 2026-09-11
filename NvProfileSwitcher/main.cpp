@@ -958,36 +958,14 @@ LRESULT CALLBACK HotkeyFieldSubclassProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp,
     switch(msg){
     case WM_ERASEBKGND:
         return 1;
-    case WM_SETFOCUS:
-    case WM_KILLFOCUS:{
-        LRESULT result=DefSubclassProc(hwnd,msg,wp,lp);
-        InvalidateRect(hwnd,nullptr,TRUE);
-        return result;
-    }
     case WM_PAINT:{
         PAINTSTRUCT ps{};
         HDC dc=BeginPaint(hwnd,&ps);
         RECT r{};
         GetClientRect(hwnd,&r);
-        FillRect(dc,&r,gPanelBrush);
-        {
-            Gdiplus::Graphics graphics(dc);
-            graphics.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
-            graphics.SetPixelOffsetMode(Gdiplus::PixelOffsetModeHalf);
-            Gdiplus::RectF bounds(0.5f,0.5f,
-                (Gdiplus::REAL)(r.right-r.left)-1.0f,
-                (Gdiplus::REAL)(r.bottom-r.top)-1.0f);
-            Gdiplus::GraphicsPath path;
-            AddRoundedRectPath(path,bounds,6.0f);
-            Gdiplus::SolidBrush background(
-                Gdiplus::Color(255,GetRValue(C_FIELD),GetGValue(C_FIELD),GetBValue(C_FIELD)));
-            Gdiplus::Pen border(
-                Gdiplus::Color(255,GetRValue(C_BORDER),GetGValue(C_BORDER),GetBValue(C_BORDER)),1.0f);
-            graphics.FillPath(&background,&path);
-            graphics.DrawPath(&border,&path);
-        }
+        FillRect(dc,&r,gFieldBrush);
         const std::wstring text=HotkeyDisplayText((WORD)SendMessageW(hwnd,HKM_GETHOTKEY,0,0));
-        RECT tr=r; tr.left+=10; tr.right-=8;
+        RECT tr=r; tr.left+=8; tr.right-=6;
         SetBkMode(dc,TRANSPARENT);
         SetTextColor(dc,text==L"None"?C_MUTED:C_TEXT);
         HFONT oldFont=(HFONT)SelectObject(dc,gFont);
@@ -1812,10 +1790,10 @@ void SetDesktopUi(bool desktop){
     MoveWindow(GetWindow(H(IDC_CHECKUPDATES),GW_HWNDNEXT),appX+27,234,220,22,TRUE);
     MoveWindow(H(IDC_HOTKEYS_TITLE),appX,294,250,24,TRUE);
     MoveWindow(H(IDC_HOTKEY_SHOW_LABEL),appX,330,286,22,TRUE);
-    MoveWindow(H(IDC_HOTKEY_SHOW),appX,356,210,34,TRUE);
+    MoveWindow(H(IDC_HOTKEY_SHOW),appX+2,362,206,22,TRUE);
     MoveWindow(H(IDC_HOTKEY_SHOW_CLEAR),appX+218,355,68,36,TRUE);
     MoveWindow(H(IDC_HOTKEY_OVERRIDE_LABEL),appX,414,286,22,TRUE);
-    MoveWindow(H(IDC_HOTKEY_OVERRIDE),appX,440,210,34,TRUE);
+    MoveWindow(H(IDC_HOTKEY_OVERRIDE),appX+2,446,206,22,TRUE);
     MoveWindow(H(IDC_HOTKEY_OVERRIDE_CLEAR),appX+218,439,68,36,TRUE);
 
     InvalidateRect(gWnd,nullptr,TRUE);
@@ -2552,6 +2530,13 @@ void Paint(HWND w){
     Fill(dc,settings.left+1,separatorY,settingsW-2,1,C_BORDER);
     Fill(dc,settings.left+22,278,settingsW-44,1,C_BORDER);
 
+    // Match the application text fields: the app paints the complete rounded
+    // frame and the native hotkey control sits borderless inside it.
+    RECT showHotkeyFrame{settingsX+22,356,settingsX+232,390};
+    RECT overrideHotkeyFrame{settingsX+22,440,settingsX+232,474};
+    FillRound(dc,showHotkeyFrame,C_FIELD,C_BORDER,8);
+    FillRound(dc,overrideHotkeyFrame,C_FIELD,C_BORDER,8);
+
     const bool desktop=IsDesktopSelected();
     const int displayY=desktop?154:320;
 
@@ -2766,14 +2751,14 @@ void BuildControls(){
     HWND hotkeysTitle=Add(L"STATIC",L"Hotkeys",0,appX,294,250,24,IDC_HOTKEYS_TITLE);
     SendMessageW(hotkeysTitle,WM_SETFONT,(WPARAM)gFontBold,TRUE);
     Add(L"STATIC",L"Show / hide window",0,appX,330,286,22,IDC_HOTKEY_SHOW_LABEL);
-    HWND showHotkey=Add(HOTKEY_CLASSW,L"",WS_TABSTOP,appX,356,210,34,IDC_HOTKEY_SHOW);
+    HWND showHotkey=Add(HOTKEY_CLASSW,L"",WS_TABSTOP,appX+2,362,206,22,IDC_HOTKEY_SHOW);
     SetWindowTheme(showHotkey,L"DarkMode_Explorer",nullptr);
     SetWindowSubclass(showHotkey,HotkeyFieldSubclassProc,1,0);
     SendMessageW(showHotkey,HKM_SETRULES,HKCOMB_NONE,MAKELPARAM(HOTKEYF_CONTROL|HOTKEYF_SHIFT,0));
     HWND clearShow=Add(L"BUTTON",L"Clear",BS_OWNERDRAW,appX+218,355,68,36,IDC_HOTKEY_SHOW_CLEAR);
     StyleMainButton(clearShow);
     Add(L"STATIC",L"Windows override",0,appX,414,286,22,IDC_HOTKEY_OVERRIDE_LABEL);
-    HWND overrideHotkey=Add(HOTKEY_CLASSW,L"",WS_TABSTOP,appX,440,210,34,IDC_HOTKEY_OVERRIDE);
+    HWND overrideHotkey=Add(HOTKEY_CLASSW,L"",WS_TABSTOP,appX+2,446,206,22,IDC_HOTKEY_OVERRIDE);
     SetWindowTheme(overrideHotkey,L"DarkMode_Explorer",nullptr);
     SetWindowSubclass(overrideHotkey,HotkeyFieldSubclassProc,1,0);
     SendMessageW(overrideHotkey,HKM_SETRULES,HKCOMB_NONE,MAKELPARAM(HOTKEYF_CONTROL|HOTKEYF_SHIFT,0));
