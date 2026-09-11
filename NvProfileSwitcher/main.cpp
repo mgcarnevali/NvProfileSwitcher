@@ -953,6 +953,8 @@ std::wstring HotkeyDisplayText(WORD hotkey){
     return text;
 }
 
+void RegisterConfiguredHotkeys();
+
 LRESULT CALLBACK HotkeyFieldSubclassProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp,
                                          UINT_PTR subclassId,DWORD_PTR refData){
     switch(msg){
@@ -962,6 +964,17 @@ LRESULT CALLBACK HotkeyFieldSubclassProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp,
         // The app paints the rounded outer frame; suppress the native hotkey
         // control's light non-client outline so only that frame is visible.
         return 0;
+    case WM_SETFOCUS:
+        UnregisterHotKey(gWnd,ID_HOTKEY_SHOW_HIDE);
+        UnregisterHotKey(gWnd,ID_HOTKEY_WINDOWS_OVERRIDE);
+        return DefSubclassProc(hwnd,msg,wp,lp);
+    case WM_KILLFOCUS:{
+        LRESULT result=DefSubclassProc(hwnd,msg,wp,lp);
+        UnregisterHotKey(gWnd,ID_HOTKEY_SHOW_HIDE);
+        UnregisterHotKey(gWnd,ID_HOTKEY_WINDOWS_OVERRIDE);
+        RegisterConfiguredHotkeys();
+        return result;
+    }
     case WM_PAINT:{
         PAINTSTRUCT ps{};
         HDC dc=BeginPaint(hwnd,&ps);
