@@ -71,7 +71,7 @@ struct Settings {
     std::vector<ApplicationProfile> desktopProfiles;
     std::vector<ApplicationProfile> profiles;
     bool startWindows=false, startMinimized=false, minimizeToTray=false, checkUpdates=true;
-    WORD showHideHotkey=0, windowsOverrideHotkey=0;
+    WORD showHideHotkey=0, windowsOverrideHotkey=0, resumeAutomaticHotkey=0;
 };
 
 constexpr COLORREF C_BACK=RGB(10,13,16), C_PANEL=RGB(18,22,26), C_PANEL2=RGB(24,29,34), C_FIELD=RGB(20,24,28), C_BORDER=RGB(45,52,59);
@@ -87,9 +87,9 @@ constexpr wchar_t APP_URL[]=L"https://github.com/mgcarnevali/NvProfileSwitcher";
 constexpr wchar_t SUPPORT_URL[]=L"https://ko-fi.com/mgcarnevali";
 constexpr wchar_t UPDATE_HOST[]=L"api.github.com";
 constexpr wchar_t UPDATE_PATH[]=L"/repos/mgcarnevali/NvProfileSwitcher/releases/latest";
-enum {IDC_LIST=1001,IDC_NAME,IDC_EXE,IDC_BROWSE,IDC_ENABLED,IDC_DISPLAY,IDC_LBL_DISPLAY,IDC_VIB,IDC_HUE,IDC_BRI,IDC_CON,IDC_GAM,IDC_SAVE,IDC_ADD=1015,IDC_REMOVE,IDC_STARTWIN=1018,IDC_STARTMIN,IDC_VALVIB,IDC_VALHUE,IDC_VALBRI,IDC_VALCON,IDC_VALGAM,IDC_LBL_NAME,IDC_LBL_EXE,IDC_LBL_ENABLED,IDC_LBL_VIB,IDC_LBL_HUE,IDC_LBL_BRI,IDC_LBL_CON,IDC_LBL_GAM,IDC_DEFAULTS,IDC_MINTRAY,IDC_CHECKUPDATES,IDC_FOOT_GITHUB,IDC_FOOT_SUPPORT,IDC_FOOT_ABOUT,IDC_HOTKEYS_TITLE,IDC_HOTKEY_SHOW_LABEL,IDC_HOTKEY_SHOW,IDC_HOTKEY_SHOW_CLEAR,IDC_HOTKEY_OVERRIDE_LABEL,IDC_HOTKEY_OVERRIDE,IDC_HOTKEY_OVERRIDE_CLEAR,IDC_PROFILE_HOTKEY_LABEL,IDC_PROFILE_HOTKEY,IDC_PROFILE_HOTKEY_CLEAR};
+enum {IDC_LIST=1001,IDC_NAME,IDC_EXE,IDC_BROWSE,IDC_ENABLED,IDC_DISPLAY,IDC_LBL_DISPLAY,IDC_VIB,IDC_HUE,IDC_BRI,IDC_CON,IDC_GAM,IDC_SAVE,IDC_ADD=1015,IDC_REMOVE,IDC_STARTWIN=1018,IDC_STARTMIN,IDC_VALVIB,IDC_VALHUE,IDC_VALBRI,IDC_VALCON,IDC_VALGAM,IDC_LBL_NAME,IDC_LBL_EXE,IDC_LBL_ENABLED,IDC_LBL_VIB,IDC_LBL_HUE,IDC_LBL_BRI,IDC_LBL_CON,IDC_LBL_GAM,IDC_DEFAULTS,IDC_MINTRAY,IDC_CHECKUPDATES,IDC_FOOT_GITHUB,IDC_FOOT_SUPPORT,IDC_FOOT_ABOUT,IDC_HOTKEYS_TITLE,IDC_HOTKEY_SHOW_LABEL,IDC_HOTKEY_SHOW,IDC_HOTKEY_SHOW_CLEAR,IDC_HOTKEY_OVERRIDE_LABEL,IDC_HOTKEY_OVERRIDE,IDC_HOTKEY_OVERRIDE_CLEAR,IDC_PROFILE_HOTKEY_LABEL,IDC_PROFILE_HOTKEY,IDC_PROFILE_HOTKEY_CLEAR,IDC_HOTKEY_RESUME_LABEL,IDC_HOTKEY_RESUME,IDC_HOTKEY_RESUME_CLEAR};
 enum {ID_TRAY_OPEN=2001,ID_TRAY_CHECK_UPDATE,ID_TRAY_ABOUT,ID_TRAY_EXIT};
-enum {ID_HOTKEY_SHOW_HIDE=3001,ID_HOTKEY_WINDOWS_OVERRIDE,ID_HOTKEY_TEST};
+enum {ID_HOTKEY_SHOW_HIDE=3001,ID_HOTKEY_WINDOWS_OVERRIDE,ID_HOTKEY_RESUME_AUTOMATIC,ID_HOTKEY_TEST};
 constexpr int ID_HOTKEY_PROFILE_BASE=4000;
 
 struct AppMessageData {
@@ -363,7 +363,8 @@ void Save(){
      <<",\n  \"StartMinimized\": "<<(gSettings.startMinimized?"true":"false")
      <<",\n  \"MinimizeToTray\": "<<(gSettings.minimizeToTray?"true":"false")<<",\n  \"CheckForUpdates\": "<<(gSettings.checkUpdates?"true":"false")
      <<",\n  \"ShowHideHotkey\": "<<gSettings.showHideHotkey
-     <<",\n  \"WindowsOverrideHotkey\": "<<gSettings.windowsOverrideHotkey<<"\n}\n";
+     <<",\n  \"WindowsOverrideHotkey\": "<<gSettings.windowsOverrideHotkey
+     <<",\n  \"ResumeAutomaticHotkey\": "<<gSettings.resumeAutomaticHotkey<<"\n}\n";
 }
 void Load(){
     std::string s=ReadAll(AppDataFile());
@@ -374,6 +375,7 @@ void Load(){
     gSettings.checkUpdates=FieldB(s,"CheckForUpdates",true);
     gSettings.showHideHotkey=(WORD)FieldN(s,"ShowHideHotkey",0);
     gSettings.windowsOverrideHotkey=(WORD)FieldN(s,"WindowsOverrideHotkey",0);
+    gSettings.resumeAutomaticHotkey=(WORD)FieldN(s,"ResumeAutomaticHotkey",0);
 
     size_t wp=s.find("\"Windows Profiles\"");
     if(wp!=std::string::npos){
@@ -1218,6 +1220,8 @@ std::wstring HotkeyOwnerName(WORD hotkey,const WORD* excluded){
         return L"Show / hide window";
     if(&gSettings.windowsOverrideHotkey!=excluded&&gSettings.windowsOverrideHotkey==hotkey)
         return L"Windows override";
+    if(&gSettings.resumeAutomaticHotkey!=excluded&&gSettings.resumeAutomaticHotkey==hotkey)
+        return L"Resume automatic switching";
     for(const auto& profile:gSettings.profiles){
         if(&profile.hotkey!=excluded&&profile.hotkey==hotkey)
             return profile.name;
@@ -1272,6 +1276,7 @@ void ClearConfiguredHotkey(int controlId,WORD& stored){
 void UnregisterConfiguredHotkeys(){
     UnregisterHotKey(gWnd,ID_HOTKEY_SHOW_HIDE);
     UnregisterHotKey(gWnd,ID_HOTKEY_WINDOWS_OVERRIDE);
+    UnregisterHotKey(gWnd,ID_HOTKEY_RESUME_AUTOMATIC);
     UnregisterHotKey(gWnd,ID_HOTKEY_TEST);
     for(size_t i=0;i<gSettings.profiles.size();++i)
         UnregisterHotKey(gWnd,ID_HOTKEY_PROFILE_BASE+(int)i);
@@ -1281,6 +1286,7 @@ void RegisterConfiguredHotkeys(){
     bool unavailable=false;
     if(!RegisterStoredHotkey(ID_HOTKEY_SHOW_HIDE,gSettings.showHideHotkey)) unavailable=true;
     if(!RegisterStoredHotkey(ID_HOTKEY_WINDOWS_OVERRIDE,gSettings.windowsOverrideHotkey)) unavailable=true;
+    if(!RegisterStoredHotkey(ID_HOTKEY_RESUME_AUTOMATIC,gSettings.resumeAutomaticHotkey)) unavailable=true;
     for(size_t i=0;i<gSettings.profiles.size();++i){
         if(!gSettings.profiles[i].enabled)continue;
         if(ID_HOTKEY_PROFILE_BASE+(int)i>0xBFFF){unavailable=true;break;}
@@ -2067,6 +2073,9 @@ void SetDesktopUi(bool desktop){
     MoveWindow(H(IDC_HOTKEY_OVERRIDE_LABEL),appX,414,286,22,TRUE);
     MoveWindow(H(IDC_HOTKEY_OVERRIDE),appX+2,446,206,22,TRUE);
     MoveWindow(H(IDC_HOTKEY_OVERRIDE_CLEAR),appX+218,440,68,34,TRUE);
+    MoveWindow(H(IDC_HOTKEY_RESUME_LABEL),appX,498,286,22,TRUE);
+    MoveWindow(H(IDC_HOTKEY_RESUME),appX+2,530,206,22,TRUE);
+    MoveWindow(H(IDC_HOTKEY_RESUME_CLEAR),appX+218,524,68,34,TRUE);
 
     InvalidateRect(gWnd,nullptr,TRUE);
 }
@@ -2817,8 +2826,10 @@ void Paint(HWND w){
     // frame and the native hotkey control sits borderless inside it.
     RECT showHotkeyFrame{settingsX+22,356,settingsX+232,390};
     RECT overrideHotkeyFrame{settingsX+22,440,settingsX+232,474};
+    RECT resumeHotkeyFrame{settingsX+22,524,settingsX+232,558};
     FillRound(dc,showHotkeyFrame,C_FIELD,C_BORDER,8);
     FillRound(dc,overrideHotkeyFrame,C_FIELD,C_BORDER,8);
+    FillRound(dc,resumeHotkeyFrame,C_FIELD,C_BORDER,8);
 
     const bool desktop=IsDesktopSelected();
     const int displayY=desktop?154:358;
@@ -3061,8 +3072,16 @@ void BuildControls(){
     SendMessageW(overrideHotkey,HKM_SETRULES,0,0);
     HWND clearOverride=Add(L"BUTTON",L"Clear",BS_OWNERDRAW,appX+218,440,68,34,IDC_HOTKEY_OVERRIDE_CLEAR);
     StyleMainButton(clearOverride);
+    Add(L"STATIC",L"Resume automatic switching",0,appX,498,286,22,IDC_HOTKEY_RESUME_LABEL);
+    HWND resumeHotkey=Add(HOTKEY_CLASSW,L"",WS_TABSTOP,appX+2,530,206,22,IDC_HOTKEY_RESUME);
+    SetWindowSubclass(resumeHotkey,HotkeyFieldSubclassProc,1,0);
+    RemoveNativeHotkeyFrame(resumeHotkey);
+    SendMessageW(resumeHotkey,HKM_SETRULES,0,0);
+    HWND clearResume=Add(L"BUTTON",L"Clear",BS_OWNERDRAW,appX+218,524,68,34,IDC_HOTKEY_RESUME_CLEAR);
+    StyleMainButton(clearResume);
     SetHotkeyControl(IDC_HOTKEY_SHOW,gSettings.showHideHotkey);
     SetHotkeyControl(IDC_HOTKEY_OVERRIDE,gSettings.windowsOverrideHotkey);
+    SetHotkeyControl(IDC_HOTKEY_RESUME,gSettings.resumeAutomaticHotkey);
 
     SendMessageW(H(IDC_STARTWIN),BM_SETCHECK,gSettings.startWindows?BST_CHECKED:BST_UNCHECKED,0);
     SendMessageW(H(IDC_STARTMIN),BM_SETCHECK,gSettings.startMinimized?BST_CHECKED:BST_UNCHECKED,0);
@@ -3563,6 +3582,13 @@ void ToggleWindowsOverride(){
     CheckProcesses();
     InvalidateRect(gWnd,nullptr,FALSE);
 }
+void ResumeAutomaticSwitching(){
+    DiscardPreview();
+    gOverrideMode=OverrideMode::Automatic;
+    gActive.clear();
+    CheckProcesses();
+    InvalidateRect(gWnd,nullptr,FALSE);
+}
 void ToggleProfileOverride(size_t profileIndex){
     if(profileIndex>=gSettings.profiles.size()||!gSettings.profiles[profileIndex].enabled)return;
     DiscardPreview();
@@ -3577,7 +3603,7 @@ void ToggleProfileOverride(size_t profileIndex){
     InvalidateRect(gWnd,nullptr,FALSE);
 }
 void RestoreDesktop(){RestoreAllDesktopProfiles();gActive=L"Windows";InvalidateRect(gWnd,nullptr,FALSE);}
-LRESULT CALLBACK Proc(HWND w,UINT m,WPARAM wp,LPARAM lp){switch(m){case WM_SHOW_EXISTING_INSTANCE:ShowMain();return 0;case WM_UPDATE_AVAILABLE:ShowUpdateAvailable((UpdateInfo*)lp);return 0;case WM_SHOW_APP_MESSAGE:{auto* data=(AppMessageData*)lp;if(data){std::wstring title=data->title,text=data->text;delete data;ShowAppMessage(title,text);}return 0;}case WM_CREATE:gWnd=w;BuildControls();RegisterConfiguredHotkeys();RefreshList();LoadSelected();SetTimer(w,1,250,nullptr);return 0;case WM_HOTKEY:if(wp==ID_HOTKEY_SHOW_HIDE){ToggleMainVisibility();return 0;}if(wp==ID_HOTKEY_WINDOWS_OVERRIDE){ToggleWindowsOverride();return 0;}if(wp>=ID_HOTKEY_PROFILE_BASE&&wp<ID_HOTKEY_PROFILE_BASE+(WPARAM)gSettings.profiles.size()){ToggleProfileOverride((size_t)(wp-ID_HOTKEY_PROFILE_BASE));return 0;}break;case WM_ACTIVATE:
+LRESULT CALLBACK Proc(HWND w,UINT m,WPARAM wp,LPARAM lp){switch(m){case WM_SHOW_EXISTING_INSTANCE:ShowMain();return 0;case WM_UPDATE_AVAILABLE:ShowUpdateAvailable((UpdateInfo*)lp);return 0;case WM_SHOW_APP_MESSAGE:{auto* data=(AppMessageData*)lp;if(data){std::wstring title=data->title,text=data->text;delete data;ShowAppMessage(title,text);}return 0;}case WM_CREATE:gWnd=w;BuildControls();RegisterConfiguredHotkeys();RefreshList();LoadSelected();SetTimer(w,1,250,nullptr);return 0;case WM_HOTKEY:if(wp==ID_HOTKEY_SHOW_HIDE){ToggleMainVisibility();return 0;}if(wp==ID_HOTKEY_WINDOWS_OVERRIDE){ToggleWindowsOverride();return 0;}if(wp==ID_HOTKEY_RESUME_AUTOMATIC){ResumeAutomaticSwitching();return 0;}if(wp>=ID_HOTKEY_PROFILE_BASE&&wp<ID_HOTKEY_PROFILE_BASE+(WPARAM)gSettings.profiles.size()){ToggleProfileOverride((size_t)(wp-ID_HOTKEY_PROFILE_BASE));return 0;}break;case WM_ACTIVATE:
     if(LOWORD(wp)!=WA_INACTIVE) RefreshDriverVersion();
     return 0;case WM_SIZE:
     if(wp==SIZE_MINIMIZED){
@@ -3635,7 +3661,7 @@ case WM_CTLCOLORSTATIC:{HDC dc=(HDC)wp;SetTextColor(dc,C_TEXT);SetBkColor(dc,C_P
     if(d->CtlID==IDC_ADD||d->CtlID==IDC_REMOVE){
         DrawProfileHeaderButton(d);return TRUE;
     }
-    if(d->CtlID==IDC_SAVE||d->CtlID==IDC_DEFAULTS||d->CtlID==IDC_BROWSE||d->CtlID==IDC_HOTKEY_SHOW_CLEAR||d->CtlID==IDC_HOTKEY_OVERRIDE_CLEAR||d->CtlID==IDC_PROFILE_HOTKEY_CLEAR){
+    if(d->CtlID==IDC_SAVE||d->CtlID==IDC_DEFAULTS||d->CtlID==IDC_BROWSE||d->CtlID==IDC_HOTKEY_SHOW_CLEAR||d->CtlID==IDC_HOTKEY_OVERRIDE_CLEAR||d->CtlID==IDC_HOTKEY_RESUME_CLEAR||d->CtlID==IDC_PROFILE_HOTKEY_CLEAR){
         DrawOwnerButton(d);return TRUE;
     }
     if(d->CtlID==IDC_FOOT_GITHUB||d->CtlID==IDC_FOOT_SUPPORT||d->CtlID==IDC_FOOT_ABOUT){
@@ -3748,7 +3774,7 @@ case WM_TIMER:
         return 0;
     }
     return 0;
-case WM_COMMAND:{int id=LOWORD(wp);if(id==IDC_HOTKEY_SHOW&&HIWORD(wp)==EN_CHANGE){UpdateConfiguredHotkey(IDC_HOTKEY_SHOW,gSettings.showHideHotkey);return 0;}if(id==IDC_HOTKEY_OVERRIDE&&HIWORD(wp)==EN_CHANGE){UpdateConfiguredHotkey(IDC_HOTKEY_OVERRIDE,gSettings.windowsOverrideHotkey);return 0;}if(id==IDC_PROFILE_HOTKEY&&HIWORD(wp)==EN_CHANGE&&!IsDesktopSelected()){if(auto*p=SelectedProfile()){UpdateConfiguredHotkey(IDC_PROFILE_HOTKEY,p->hotkey);InvalidateRect(H(IDC_LIST),nullptr,TRUE);}return 0;}if(id==IDC_LIST&&HIWORD(wp)==LBN_SELCHANGE){HideExecutableTooltip();DiscardPreview();LoadSelected();return 0;}if(id==IDC_DISPLAY&&HIWORD(wp)==CBN_SELCHANGE){DiscardPreview();int ds=(int)SendMessageW(H(IDC_DISPLAY),CB_GETCURSEL,0,0);if(ds>=0&&ds<(int)gDisplays.size()){if(IsDesktopSelected()){auto*p=EnsureDesktopProfile(gDisplays[ds].gdiName,gDisplays[ds].monitorId);LoadValuesToSliders(ValuesFromFlatProfile(*p));}else{auto*p=SelectedProfile();if(p){LoadValuesToSliders(*EnsureApplicationValuesForDisplay(*p,gDisplays[ds].gdiName,gDisplays[ds].monitorId));}}}return 0;}switch(id){case IDC_HOTKEY_SHOW_CLEAR:ClearConfiguredHotkey(IDC_HOTKEY_SHOW,gSettings.showHideHotkey);break;case IDC_HOTKEY_OVERRIDE_CLEAR:ClearConfiguredHotkey(IDC_HOTKEY_OVERRIDE,gSettings.windowsOverrideHotkey);break;case IDC_PROFILE_HOTKEY_CLEAR:if(!IsDesktopSelected()){if(auto*p=SelectedProfile()){ClearConfiguredHotkey(IDC_PROFILE_HOTKEY,p->hotkey);InvalidateRect(H(IDC_LIST),nullptr,TRUE);}}break;case IDC_BROWSE:{OPENFILENAMEW o{sizeof(o)};wchar_t f[MAX_PATH]{};o.hwndOwner=w;o.lpstrFilter=L"Executables (*.exe)\0*.exe\0All files\0*.*\0";o.lpstrFile=f;o.nMaxFile=MAX_PATH;o.Flags=OFN_FILEMUSTEXIST;if(GetOpenFileNameW(&o)){Txt(IDC_EXE,f);InvalidateRect(H(IDC_EXE),nullptr,TRUE);auto* p=SelectedProfile();if(p&&!IsDesktopSelected()){p->exePath=f;InvalidateRect(H(IDC_LIST),nullptr,TRUE);}}break;}case IDC_DEFAULTS:ResetSlidersToDefaults();break;case IDC_SAVE:SaveSelected();break;case IDC_ADD:{ApplicationProfile np{};if(!gDisplays.empty()){for(const auto&d:gDisplays)np.displayProfiles.push_back(ApplicationDefaultsForDisplay(d.gdiName,d.monitorId));}gSettings.profiles.push_back(np);gSelected=(int)gSettings.profiles.size();Save();RefreshList();LoadSelected();break;}case IDC_REMOVE:if(gSelected>0&&gSelected<=(int)gSettings.profiles.size()){size_t removed=(size_t)(gSelected-1);UnregisterConfiguredHotkeys();if(gOverrideMode==OverrideMode::Profile){if(gOverrideProfileIndex==removed)gOverrideMode=OverrideMode::Automatic;else if(gOverrideProfileIndex>removed)--gOverrideProfileIndex;}gSettings.profiles.erase(gSettings.profiles.begin()+removed);RegisterConfiguredHotkeys();gSelected=std::max<int>(0,gSelected-1);Save();RefreshList();LoadSelected();gActive.clear();CheckProcesses();}break;case IDC_STARTWIN:gSettings.startWindows=SendMessageW(H(IDC_STARTWIN),BM_GETCHECK,0,0)==BST_CHECKED;SetStartup(gSettings.startWindows);Save();break;case IDC_STARTMIN:gSettings.startMinimized=SendMessageW(H(IDC_STARTMIN),BM_GETCHECK,0,0)==BST_CHECKED;Save();break;case IDC_MINTRAY:
+case WM_COMMAND:{int id=LOWORD(wp);if(id==IDC_HOTKEY_SHOW&&HIWORD(wp)==EN_CHANGE){UpdateConfiguredHotkey(IDC_HOTKEY_SHOW,gSettings.showHideHotkey);return 0;}if(id==IDC_HOTKEY_OVERRIDE&&HIWORD(wp)==EN_CHANGE){UpdateConfiguredHotkey(IDC_HOTKEY_OVERRIDE,gSettings.windowsOverrideHotkey);return 0;}if(id==IDC_HOTKEY_RESUME&&HIWORD(wp)==EN_CHANGE){UpdateConfiguredHotkey(IDC_HOTKEY_RESUME,gSettings.resumeAutomaticHotkey);return 0;}if(id==IDC_PROFILE_HOTKEY&&HIWORD(wp)==EN_CHANGE&&!IsDesktopSelected()){if(auto*p=SelectedProfile()){UpdateConfiguredHotkey(IDC_PROFILE_HOTKEY,p->hotkey);InvalidateRect(H(IDC_LIST),nullptr,TRUE);}return 0;}if(id==IDC_LIST&&HIWORD(wp)==LBN_SELCHANGE){HideExecutableTooltip();DiscardPreview();LoadSelected();return 0;}if(id==IDC_DISPLAY&&HIWORD(wp)==CBN_SELCHANGE){DiscardPreview();int ds=(int)SendMessageW(H(IDC_DISPLAY),CB_GETCURSEL,0,0);if(ds>=0&&ds<(int)gDisplays.size()){if(IsDesktopSelected()){auto*p=EnsureDesktopProfile(gDisplays[ds].gdiName,gDisplays[ds].monitorId);LoadValuesToSliders(ValuesFromFlatProfile(*p));}else{auto*p=SelectedProfile();if(p){LoadValuesToSliders(*EnsureApplicationValuesForDisplay(*p,gDisplays[ds].gdiName,gDisplays[ds].monitorId));}}}return 0;}switch(id){case IDC_HOTKEY_SHOW_CLEAR:ClearConfiguredHotkey(IDC_HOTKEY_SHOW,gSettings.showHideHotkey);break;case IDC_HOTKEY_OVERRIDE_CLEAR:ClearConfiguredHotkey(IDC_HOTKEY_OVERRIDE,gSettings.windowsOverrideHotkey);break;case IDC_HOTKEY_RESUME_CLEAR:ClearConfiguredHotkey(IDC_HOTKEY_RESUME,gSettings.resumeAutomaticHotkey);break;case IDC_PROFILE_HOTKEY_CLEAR:if(!IsDesktopSelected()){if(auto*p=SelectedProfile()){ClearConfiguredHotkey(IDC_PROFILE_HOTKEY,p->hotkey);InvalidateRect(H(IDC_LIST),nullptr,TRUE);}}break;case IDC_BROWSE:{OPENFILENAMEW o{sizeof(o)};wchar_t f[MAX_PATH]{};o.hwndOwner=w;o.lpstrFilter=L"Executables (*.exe)\0*.exe\0All files\0*.*\0";o.lpstrFile=f;o.nMaxFile=MAX_PATH;o.Flags=OFN_FILEMUSTEXIST;if(GetOpenFileNameW(&o)){Txt(IDC_EXE,f);InvalidateRect(H(IDC_EXE),nullptr,TRUE);auto* p=SelectedProfile();if(p&&!IsDesktopSelected()){p->exePath=f;InvalidateRect(H(IDC_LIST),nullptr,TRUE);}}break;}case IDC_DEFAULTS:ResetSlidersToDefaults();break;case IDC_SAVE:SaveSelected();break;case IDC_ADD:{ApplicationProfile np{};if(!gDisplays.empty()){for(const auto&d:gDisplays)np.displayProfiles.push_back(ApplicationDefaultsForDisplay(d.gdiName,d.monitorId));}gSettings.profiles.push_back(np);gSelected=(int)gSettings.profiles.size();Save();RefreshList();LoadSelected();break;}case IDC_REMOVE:if(gSelected>0&&gSelected<=(int)gSettings.profiles.size()){size_t removed=(size_t)(gSelected-1);UnregisterConfiguredHotkeys();if(gOverrideMode==OverrideMode::Profile){if(gOverrideProfileIndex==removed)gOverrideMode=OverrideMode::Automatic;else if(gOverrideProfileIndex>removed)--gOverrideProfileIndex;}gSettings.profiles.erase(gSettings.profiles.begin()+removed);RegisterConfiguredHotkeys();gSelected=std::max<int>(0,gSelected-1);Save();RefreshList();LoadSelected();gActive.clear();CheckProcesses();}break;case IDC_STARTWIN:gSettings.startWindows=SendMessageW(H(IDC_STARTWIN),BM_GETCHECK,0,0)==BST_CHECKED;SetStartup(gSettings.startWindows);Save();break;case IDC_STARTMIN:gSettings.startMinimized=SendMessageW(H(IDC_STARTMIN),BM_GETCHECK,0,0)==BST_CHECKED;Save();break;case IDC_MINTRAY:
     gSettings.minimizeToTray=SendMessageW(H(IDC_MINTRAY),BM_GETCHECK,0,0)==BST_CHECKED;
     if(!gSettings.minimizeToTray)
         SetTrayIconVisible(false);
