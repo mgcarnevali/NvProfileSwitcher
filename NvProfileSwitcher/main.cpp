@@ -836,6 +836,17 @@ HWND Add(const wchar_t*cls,const wchar_t*txt,DWORD style,int x,int y,int w,int h
 
 void FillRound(HDC dc,const RECT&r,COLORREF fill,COLORREF border,int radius);
 
+void AddRoundedRectPath(Gdiplus::GraphicsPath& path,const Gdiplus::RectF& r,
+                        Gdiplus::REAL radius){
+    const Gdiplus::REAL d=radius*2.0f;
+    path.StartFigure();
+    path.AddArc(r.X,r.Y,d,d,180.0f,90.0f);
+    path.AddArc(r.GetRight()-d,r.Y,d,d,270.0f,90.0f);
+    path.AddArc(r.GetRight()-d,r.GetBottom()-d,d,d,0.0f,90.0f);
+    path.AddArc(r.X,r.GetBottom()-d,d,d,90.0f,90.0f);
+    path.CloseFigure();
+}
+
 LRESULT CALLBACK FlatCheckboxSubclassProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp,
                                           UINT_PTR subclassId,DWORD_PTR refData){
     switch(msg){
@@ -858,22 +869,57 @@ LRESULT CALLBACK FlatCheckboxSubclassProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp
 
         const bool checked=SendMessageW(hwnd,BM_GETCHECK,0,0)==BST_CHECKED;
 
-        // Compact 16x16 box, centered inside a 22x22 clickable control.
-        RECT box{3,3,19,19};
-        const COLORREF offFill=RGB(22,27,32);
-        const COLORREF offBorder=RGB(57,65,73);
-        const COLORREF onFill=RGB(65,183,78);
-        const COLORREF onBorder=RGB(76,205,89);
-        FillRound(dc,box,checked?onFill:offFill,checked?onBorder:offBorder,2);
+        // Keep the proven 16x16 geometry, but render it with antialiasing and
+        // restrained depth so it matches the rest of the mockup-style UI.
+        if(gGdiPlusToken){
+            Gdiplus::Graphics g(dc);
+            g.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
+            g.SetPixelOffsetMode(Gdiplus::PixelOffsetModeHalf);
 
-        if(checked){
-            HPEN pen=CreatePen(PS_SOLID,1,RGB(12,32,16));
-            HGDIOBJ old=SelectObject(dc,pen);
-            MoveToEx(dc,7,11,nullptr);
-            LineTo(dc,10,14);
-            LineTo(dc,16,7);
-            SelectObject(dc,old);
-            DeleteObject(pen);
+            Gdiplus::GraphicsPath shadowPath;
+            AddRoundedRectPath(shadowPath,Gdiplus::RectF(3.5f,4.3f,15.0f,15.0f),3.2f);
+            Gdiplus::SolidBrush shadow(Gdiplus::Color(80,0,0,0));
+            g.FillPath(&shadow,&shadowPath);
+
+            Gdiplus::RectF box(3.5f,3.5f,15.0f,15.0f);
+            Gdiplus::GraphicsPath boxPath;
+            AddRoundedRectPath(boxPath,box,3.2f);
+
+            const Gdiplus::Color top=checked?Gdiplus::Color(255,82,196,76)
+                                              :Gdiplus::Color(255,37,44,51);
+            const Gdiplus::Color bottom=checked?Gdiplus::Color(255,55,164,60)
+                                                 :Gdiplus::Color(255,23,29,34);
+            Gdiplus::LinearGradientBrush fill(
+                Gdiplus::PointF(box.X,box.Y),
+                Gdiplus::PointF(box.X,box.GetBottom()),top,bottom);
+            g.FillPath(&fill,&boxPath);
+
+            Gdiplus::Pen border(
+                checked?Gdiplus::Color(255,43,145,49):Gdiplus::Color(255,59,69,78),
+                1.0f);
+            g.DrawPath(&border,&boxPath);
+
+            Gdiplus::Pen highlight(
+                checked?Gdiplus::Color(145,132,231,124):Gdiplus::Color(90,79,89,98),
+                0.8f);
+            highlight.SetStartCap(Gdiplus::LineCapRound);
+            highlight.SetEndCap(Gdiplus::LineCapRound);
+            g.DrawLine(&highlight,6.0f,4.6f,16.0f,4.6f);
+
+            if(checked){
+                Gdiplus::Pen check(Gdiplus::Color(255,12,48,17),1.65f);
+                check.SetStartCap(Gdiplus::LineCapRound);
+                check.SetEndCap(Gdiplus::LineCapRound);
+                check.SetLineJoin(Gdiplus::LineJoinRound);
+                Gdiplus::PointF points[]{
+                    {6.5f,11.0f},{9.5f,14.0f},{16.0f,7.5f}
+                };
+                g.DrawLines(&check,points,3);
+            }
+        }else{
+            RECT box{3,3,19,19};
+            FillRound(dc,box,checked?RGB(63,177,67):RGB(25,31,36),
+                checked?RGB(43,145,49):RGB(59,69,78),4);
         }
 
         EndPaint(hwnd,&ps);
