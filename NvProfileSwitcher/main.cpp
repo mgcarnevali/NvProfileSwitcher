@@ -958,6 +958,10 @@ LRESULT CALLBACK HotkeyFieldSubclassProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp,
     switch(msg){
     case WM_ERASEBKGND:
         return 1;
+    case WM_NCPAINT:
+        // The app paints the rounded outer frame; suppress the native hotkey
+        // control's light non-client outline so only that frame is visible.
+        return 0;
     case WM_PAINT:{
         PAINTSTRUCT ps{};
         HDC dc=BeginPaint(hwnd,&ps);
@@ -979,6 +983,13 @@ LRESULT CALLBACK HotkeyFieldSubclassProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp,
         break;
     }
     return DefSubclassProc(hwnd,msg,wp,lp);
+}
+
+void RemoveNativeHotkeyFrame(HWND hwnd){
+    SetWindowLongPtrW(hwnd,GWL_STYLE,GetWindowLongPtrW(hwnd,GWL_STYLE)&~WS_BORDER);
+    SetWindowLongPtrW(hwnd,GWL_EXSTYLE,GetWindowLongPtrW(hwnd,GWL_EXSTYLE)&~WS_EX_CLIENTEDGE);
+    SetWindowPos(hwnd,nullptr,0,0,0,0,
+                 SWP_NOMOVE|SWP_NOSIZE|SWP_NOZORDER|SWP_NOACTIVATE|SWP_FRAMECHANGED);
 }
 
 UINT HotkeyModifiers(WORD hotkey){
@@ -2752,15 +2763,15 @@ void BuildControls(){
     SendMessageW(hotkeysTitle,WM_SETFONT,(WPARAM)gFontBold,TRUE);
     Add(L"STATIC",L"Show / hide window",0,appX,330,286,22,IDC_HOTKEY_SHOW_LABEL);
     HWND showHotkey=Add(HOTKEY_CLASSW,L"",WS_TABSTOP,appX+2,362,206,22,IDC_HOTKEY_SHOW);
-    SetWindowTheme(showHotkey,L"DarkMode_Explorer",nullptr);
     SetWindowSubclass(showHotkey,HotkeyFieldSubclassProc,1,0);
+    RemoveNativeHotkeyFrame(showHotkey);
     SendMessageW(showHotkey,HKM_SETRULES,HKCOMB_NONE,MAKELPARAM(HOTKEYF_CONTROL|HOTKEYF_SHIFT,0));
     HWND clearShow=Add(L"BUTTON",L"Clear",BS_OWNERDRAW,appX+218,355,68,36,IDC_HOTKEY_SHOW_CLEAR);
     StyleMainButton(clearShow);
     Add(L"STATIC",L"Windows override",0,appX,414,286,22,IDC_HOTKEY_OVERRIDE_LABEL);
     HWND overrideHotkey=Add(HOTKEY_CLASSW,L"",WS_TABSTOP,appX+2,446,206,22,IDC_HOTKEY_OVERRIDE);
-    SetWindowTheme(overrideHotkey,L"DarkMode_Explorer",nullptr);
     SetWindowSubclass(overrideHotkey,HotkeyFieldSubclassProc,1,0);
+    RemoveNativeHotkeyFrame(overrideHotkey);
     SendMessageW(overrideHotkey,HKM_SETRULES,HKCOMB_NONE,MAKELPARAM(HOTKEYF_CONTROL|HOTKEYF_SHIFT,0));
     HWND clearOverride=Add(L"BUTTON",L"Clear",BS_OWNERDRAW,appX+218,439,68,36,IDC_HOTKEY_OVERRIDE_CLEAR);
     StyleMainButton(clearOverride);
