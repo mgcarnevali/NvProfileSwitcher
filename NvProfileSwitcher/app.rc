@@ -4,6 +4,7 @@
 
 IDI_APPICON ICON "assets\\branding\\NvProfileSwitcher.ico"
 IDR_HEADER_PNG RCDATA "assets\\branding\\header.png"
+IDR_HEADER_ACCENT_PNG RCDATA "assets\\branding\\header-accent-your-apps.png"
 IDR_SLIDER_BRIGHTNESS RCDATA "assets\\icons\\brightness.png"
 IDR_SLIDER_CONTRAST RCDATA "assets\\icons\\contrast.png"
 IDR_SLIDER_GAMMA RCDATA "assets\\icons\\gamma.png"
