@@ -945,6 +945,32 @@ void StyleMainButton(HWND hwnd){
     if(hwnd) SetWindowSubclass(hwnd,MainButtonHoverSubclassProc,2,0);
 }
 
+constexpr int DIALOG_CLIENT_WIDTH=472;
+constexpr int DIALOG_MARGIN=22;
+constexpr int DIALOG_BUTTON_WIDTH=100;
+constexpr int DIALOG_BUTTON_HEIGHT=36;
+constexpr int DIALOG_BUTTON_GAP=12;
+constexpr int DIALOG_CONTENT_GAP=20;
+
+SIZE DialogWindowSize(int clientHeight){
+    constexpr DWORD style=WS_CAPTION|WS_SYSMENU;
+    constexpr DWORD exStyle=WS_EX_DLGMODALFRAME|WS_EX_TOPMOST;
+    RECT r{0,0,DIALOG_CLIENT_WIDTH,clientHeight};
+    AdjustWindowRectEx(&r,style,FALSE,exStyle);
+    return {r.right-r.left,r.bottom-r.top};
+}
+
+int MeasureDialogTextHeight(const std::wstring& text,HFONT font,int width){
+    HDC dc=GetDC(nullptr);
+    if(!dc)return 0;
+    HFONT old=(HFONT)SelectObject(dc,font);
+    RECT r{0,0,width,0};
+    DrawTextW(dc,text.c_str(),-1,&r,DT_CALCRECT|DT_WORDBREAK|DT_NOPREFIX);
+    SelectObject(dc,old);
+    ReleaseDC(nullptr,dc);
+    return static_cast<int>(r.bottom-r.top);
+}
+
 LRESULT CALLBACK AppMessageProc(HWND w,UINT m,WPARAM wp,LPARAM lp){
     auto* data=(AppMessageData*)GetWindowLongPtrW(w,GWLP_USERDATA);
     switch(m){
@@ -954,19 +980,23 @@ LRESULT CALLBACK AppMessageProc(HWND w,UINT m,WPARAM wp,LPARAM lp){
         SetWindowLongPtrW(w,GWLP_USERDATA,(LONG_PTR)data);
 
         HWND icon=CreateWindowExW(0,L"STATIC",nullptr,WS_CHILD|WS_VISIBLE|SS_ICON,
-            22,24,40,40,w,nullptr,gInst,nullptr);
+            DIALOG_MARGIN,DIALOG_MARGIN,40,40,w,nullptr,gInst,nullptr);
         SendMessageW(icon,STM_SETICON,(WPARAM)gIcon,0);
 
         RECT client{};
         GetClientRect(w,&client);
-        const int buttonY=client.bottom-58;
+        const int buttonY=client.bottom-DIALOG_MARGIN-DIALOG_BUTTON_HEIGHT;
+        const int textX=DIALOG_MARGIN+54;
         HWND message=CreateWindowExW(0,L"STATIC",data?data->text.c_str():L"",
-            WS_CHILD|WS_VISIBLE|SS_LEFT,76,22,374,buttonY-42,w,nullptr,gInst,nullptr);
+            WS_CHILD|WS_VISIBLE|SS_LEFT,textX,DIALOG_MARGIN,
+            client.right-DIALOG_MARGIN-textX,buttonY-DIALOG_CONTENT_GAP-DIALOG_MARGIN,
+            w,nullptr,gInst,nullptr);
         SendMessageW(message,WM_SETFONT,(WPARAM)gFont,TRUE);
 
         HWND ok=CreateWindowExW(0,L"BUTTON",L"OK",
             WS_CHILD|WS_VISIBLE|WS_TABSTOP|BS_OWNERDRAW,
-            350,buttonY,100,36,w,(HMENU)IDOK,gInst,nullptr);
+            client.right-DIALOG_MARGIN-DIALOG_BUTTON_WIDTH,buttonY,
+            DIALOG_BUTTON_WIDTH,DIALOG_BUTTON_HEIGHT,w,(HMENU)IDOK,gInst,nullptr);
         SendMessageW(ok,WM_SETFONT,(WPARAM)gFontBold,TRUE);
         SetFocus(ok);
         return 0;
@@ -1026,18 +1056,16 @@ HWND CreateAppMessageWindow(AppMessageData* data,HWND owner){
         registered=true;
     }
 
-    HDC measureDc=GetDC(nullptr);
-    RECT measure{0,0,374,0};
-    HFONT oldFont=(HFONT)SelectObject(measureDc,gFont);
-    DrawTextW(measureDc,data->text.c_str(),-1,&measure,
-        DT_CALCRECT|DT_WORDBREAK|DT_NOPREFIX);
-    SelectObject(measureDc,oldFont);
-    ReleaseDC(nullptr,measureDc);
-    const int windowHeight=std::max(228,static_cast<int>(measure.bottom)+139);
+    const int textWidth=DIALOG_CLIENT_WIDTH-(DIALOG_MARGIN+54)-DIALOG_MARGIN;
+    const int textHeight=MeasureDialogTextHeight(data->text,gFont,textWidth);
+    const int contentHeight=std::max(40,textHeight);
+    const int clientHeight=DIALOG_MARGIN+contentHeight+DIALOG_CONTENT_GAP+
+        DIALOG_BUTTON_HEIGHT+DIALOG_MARGIN;
+    const SIZE windowSize=DialogWindowSize(clientHeight);
 
     HWND dialog=CreateWindowExW(WS_EX_DLGMODALFRAME|WS_EX_TOPMOST,
         L"NvProfileSwitcherMessage",data->title.c_str(),WS_CAPTION|WS_SYSMENU,
-        0,0,488,windowHeight,owner,nullptr,gInst,data);
+        0,0,windowSize.cx,windowSize.cy,owner,nullptr,gInst,data);
     if(!dialog)return nullptr;
 
     BOOL darkTitle=TRUE;
@@ -3192,6 +3220,10 @@ LRESULT CALLBACK UpdateProc(HWND w,UINT m,WPARAM wp,LPARAM lp){
         info=(UpdateInfo*)cs->lpCreateParams;
         SetWindowLongPtrW(w,GWLP_USERDATA,(LONG_PTR)info);
 
+        RECT client{};
+        GetClientRect(w,&client);
+        const int buttonY=client.bottom-DIALOG_MARGIN-DIALOG_BUTTON_HEIGHT;
+
         HFONT title=CreateFontW(-20,0,0,0,FW_SEMIBOLD,0,0,0,DEFAULT_CHARSET,0,0,
             CLEARTYPE_QUALITY,DEFAULT_PITCH,L"Segoe UI");
         SetPropW(w,L"UpdateTitleFont",title);
@@ -3201,27 +3233,29 @@ LRESULT CALLBACK UpdateProc(HWND w,UINT m,WPARAM wp,LPARAM lp){
         heading+=L" is available";
 
         HWND hTitle=CreateWindowExW(0,L"STATIC",heading.c_str(),WS_CHILD|WS_VISIBLE,
-            22,20,420,28,w,nullptr,gInst,nullptr);
+            DIALOG_MARGIN,DIALOG_MARGIN,client.right-2*DIALOG_MARGIN,28,w,nullptr,gInst,nullptr);
         SendMessageW(hTitle,WM_SETFONT,(WPARAM)title,TRUE);
 
         std::wstring current=L"You are currently running version ";
         current+=APP_VERSION;
         current+=L".";
         HWND hCurrent=CreateWindowExW(0,L"STATIC",current.c_str(),WS_CHILD|WS_VISIBLE,
-            22,60,420,22,w,nullptr,gInst,nullptr);
+            DIALOG_MARGIN,62,client.right-2*DIALOG_MARGIN,22,w,nullptr,gInst,nullptr);
         SendMessageW(hCurrent,WM_SETFONT,(WPARAM)gFont,TRUE);
 
         HWND hText=CreateWindowExW(0,L"STATIC",
             L"A newer version is available on GitHub.",
-            WS_CHILD|WS_VISIBLE,22,88,420,22,w,nullptr,gInst,nullptr);
+            WS_CHILD|WS_VISIBLE,DIALOG_MARGIN,90,client.right-2*DIALOG_MARGIN,22,w,nullptr,gInst,nullptr);
         SendMessageW(hText,WM_SETFONT,(WPARAM)gFont,TRUE);
 
         HWND download=CreateWindowExW(0,L"BUTTON",L"Download",WS_CHILD|WS_VISIBLE|BS_OWNERDRAW,
-            238,130,100,36,w,(HMENU)3101,gInst,nullptr);
+            client.right-DIALOG_MARGIN-(2*DIALOG_BUTTON_WIDTH+DIALOG_BUTTON_GAP),buttonY,
+            DIALOG_BUTTON_WIDTH,DIALOG_BUTTON_HEIGHT,w,(HMENU)3101,gInst,nullptr);
         SendMessageW(download,WM_SETFONT,(WPARAM)gFontBold,TRUE);
 
         HWND later=CreateWindowExW(0,L"BUTTON",L"Later",WS_CHILD|WS_VISIBLE|BS_OWNERDRAW,
-            350,130,100,36,w,(HMENU)IDCANCEL,gInst,nullptr);
+            client.right-DIALOG_MARGIN-DIALOG_BUTTON_WIDTH,buttonY,
+            DIALOG_BUTTON_WIDTH,DIALOG_BUTTON_HEIGHT,w,(HMENU)IDCANCEL,gInst,nullptr);
         SendMessageW(later,WM_SETFONT,(WPARAM)gFontBold,TRUE);
         return 0;
     }
@@ -3290,9 +3324,13 @@ void ShowUpdateAvailable(UpdateInfo* info){
         registered=true;
     }
 
+    const int contentBottom=112;
+    const int clientHeight=contentBottom+DIALOG_CONTENT_GAP+
+        DIALOG_BUTTON_HEIGHT+DIALOG_MARGIN;
+    const SIZE windowSize=DialogWindowSize(clientHeight);
     HWND a=CreateWindowExW(WS_EX_DLGMODALFRAME|WS_EX_TOPMOST,L"NvProfileSwitcherUpdate",
         L"NvProfileSwitcher Update",WS_CAPTION|WS_SYSMENU,
-        0,0,488,214,nullptr,nullptr,gInst,info);
+        0,0,windowSize.cx,windowSize.cy,nullptr,nullptr,gInst,info);
     if(!a){delete info;return;}
 
     BOOL darkTitle=TRUE;
@@ -3317,30 +3355,43 @@ LRESULT CALLBACK AboutProc(HWND w,UINT m,WPARAM wp,LPARAM lp){
         HFONT title=CreateFontW(-21,0,0,0,FW_SEMIBOLD,0,0,0,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,DEFAULT_PITCH,L"Segoe UI");
         SetPropW(w,L"AboutTitleFont",title);
 
-        HWND icon=CreateWindowExW(0,L"STATIC",nullptr,WS_CHILD|WS_VISIBLE|SS_ICON,22,22,40,40,w,nullptr,gInst,nullptr);
+        RECT client{};
+        GetClientRect(w,&client);
+        const int buttonY=client.bottom-DIALOG_MARGIN-DIALOG_BUTTON_HEIGHT;
+
+        HWND icon=CreateWindowExW(0,L"STATIC",nullptr,WS_CHILD|WS_VISIBLE|SS_ICON,
+            DIALOG_MARGIN,DIALOG_MARGIN,40,40,w,nullptr,gInst,nullptr);
         SendMessageW(icon,STM_SETICON,(WPARAM)gIcon,0);
 
-        HWND name=CreateWindowExW(0,L"STATIC",L"NvProfileSwitcher",WS_CHILD|WS_VISIBLE,76,19,260,30,w,nullptr,gInst,nullptr);
+        HWND name=CreateWindowExW(0,L"STATIC",L"NvProfileSwitcher",WS_CHILD|WS_VISIBLE,
+            DIALOG_MARGIN+54,19,260,30,w,nullptr,gInst,nullptr);
         SendMessageW(name,WM_SETFONT,(WPARAM)title,TRUE);
 
         std::wstring ver=L"Version ";
         ver+=APP_VERSION;
-        HWND version=CreateWindowExW(0,L"STATIC",ver.c_str(),WS_CHILD|WS_VISIBLE,76,48,260,22,w,nullptr,gInst,nullptr);
+        HWND version=CreateWindowExW(0,L"STATIC",ver.c_str(),WS_CHILD|WS_VISIBLE,
+            DIALOG_MARGIN+54,48,260,22,w,nullptr,gInst,nullptr);
         SendMessageW(version,WM_SETFONT,(WPARAM)gFont,TRUE);
 
         HWND desc=CreateWindowExW(0,L"STATIC",L"Automatic per-app NVIDIA display color profiles for Windows",
-            WS_CHILD|WS_VISIBLE,22,84,430,22,w,nullptr,gInst,nullptr);
+            WS_CHILD|WS_VISIBLE,DIALOG_MARGIN,84,client.right-2*DIALOG_MARGIN,22,w,nullptr,gInst,nullptr);
         SendMessageW(desc,WM_SETFONT,(WPARAM)gFont,TRUE);
 
         HWND copy=CreateWindowExW(0,L"STATIC",L"Copyright \x00A9 2026 Maximiliano Carnevali",
-            WS_CHILD|WS_VISIBLE,22,118,350,22,w,nullptr,gInst,nullptr);
+            WS_CHILD|WS_VISIBLE,DIALOG_MARGIN,118,client.right-2*DIALOG_MARGIN,22,w,nullptr,gInst,nullptr);
         SendMessageW(copy,WM_SETFONT,(WPARAM)gFont,TRUE);
 
-        HWND github=CreateWindowExW(0,L"BUTTON",L"GitHub",WS_CHILD|WS_VISIBLE|BS_OWNERDRAW,126,158,100,36,w,(HMENU)3001,gInst,nullptr);
+        HWND github=CreateWindowExW(0,L"BUTTON",L"GitHub",WS_CHILD|WS_VISIBLE|BS_OWNERDRAW,
+            client.right-DIALOG_MARGIN-(3*DIALOG_BUTTON_WIDTH+2*DIALOG_BUTTON_GAP),buttonY,
+            DIALOG_BUTTON_WIDTH,DIALOG_BUTTON_HEIGHT,w,(HMENU)3001,gInst,nullptr);
         SendMessageW(github,WM_SETFONT,(WPARAM)gFontBold,TRUE);
-        HWND support=CreateWindowExW(0,L"BUTTON",L"Support",WS_CHILD|WS_VISIBLE|BS_OWNERDRAW,238,158,100,36,w,(HMENU)3002,gInst,nullptr);
+        HWND support=CreateWindowExW(0,L"BUTTON",L"Support",WS_CHILD|WS_VISIBLE|BS_OWNERDRAW,
+            client.right-DIALOG_MARGIN-(2*DIALOG_BUTTON_WIDTH+DIALOG_BUTTON_GAP),buttonY,
+            DIALOG_BUTTON_WIDTH,DIALOG_BUTTON_HEIGHT,w,(HMENU)3002,gInst,nullptr);
         SendMessageW(support,WM_SETFONT,(WPARAM)gFontBold,TRUE);
-        HWND close=CreateWindowExW(0,L"BUTTON",L"Close",WS_CHILD|WS_VISIBLE|BS_OWNERDRAW,350,158,100,36,w,(HMENU)IDCANCEL,gInst,nullptr);
+        HWND close=CreateWindowExW(0,L"BUTTON",L"Close",WS_CHILD|WS_VISIBLE|BS_OWNERDRAW,
+            client.right-DIALOG_MARGIN-DIALOG_BUTTON_WIDTH,buttonY,
+            DIALOG_BUTTON_WIDTH,DIALOG_BUTTON_HEIGHT,w,(HMENU)IDCANCEL,gInst,nullptr);
         SendMessageW(close,WM_SETFONT,(WPARAM)gFontBold,TRUE);
         return 0;
     }
@@ -3412,8 +3463,12 @@ void ShowAbout(){
         return;
     }
 
+    const int contentBottom=140;
+    const int clientHeight=contentBottom+DIALOG_CONTENT_GAP+
+        DIALOG_BUTTON_HEIGHT+DIALOG_MARGIN;
+    const SIZE windowSize=DialogWindowSize(clientHeight);
     HWND a=CreateWindowExW(WS_EX_DLGMODALFRAME|WS_EX_TOPMOST,L"NvProfileSwitcherAbout",L"About NvProfileSwitcher",
-        WS_CAPTION|WS_SYSMENU,0,0,488,242,nullptr,nullptr,gInst,nullptr);
+        WS_CAPTION|WS_SYSMENU,0,0,windowSize.cx,windowSize.cy,nullptr,nullptr,gInst,nullptr);
     if(!a)return;
 
     BOOL darkTitle=TRUE;
