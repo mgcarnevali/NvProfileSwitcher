@@ -1818,18 +1818,43 @@ void DrawAddButtonIcon(HDC dc,int x,int y,COLORREF c){
 void DrawRemoveButtonIcon(HDC dc,int x,int y,COLORREF c){
     Gdiplus::Graphics g(dc);
     g.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
+    g.SetPixelOffsetMode(Gdiplus::PixelOffsetModeHalf);
     Gdiplus::Color color(255,GetRValue(c),GetGValue(c),GetBValue(c));
-    Gdiplus::Pen pen(color,1.15f);
+    Gdiplus::Pen pen(color,1.45f);
     pen.SetStartCap(Gdiplus::LineCapRound);
     pen.SetEndCap(Gdiplus::LineCapRound);
     pen.SetLineJoin(Gdiplus::LineJoinRound);
-    g.DrawLine(&pen,x+1.5f,y+4.5f,x+14.5f,y+4.5f);
-    g.DrawLine(&pen,x+5.0f,y+2.0f,x+11.0f,y+2.0f);
-    g.DrawLine(&pen,x+3.0f,y+6.0f,x+4.0f,y+17.0f);
-    g.DrawLine(&pen,x+4.0f,y+17.0f,x+12.0f,y+17.0f);
-    g.DrawLine(&pen,x+12.0f,y+17.0f,x+13.0f,y+6.0f);
-    g.DrawLine(&pen,x+6.5f,y+8.0f,x+6.8f,y+14.5f);
-    g.DrawLine(&pen,x+9.5f,y+8.0f,x+9.2f,y+14.5f);
+
+    // Lid and raised handle.
+    g.DrawLine(&pen,x+1.5f,y+5.0f,x+15.5f,y+5.0f);
+    Gdiplus::GraphicsPath handle;
+    handle.StartFigure();
+    handle.AddLine(x+5.8f,y+4.8f,x+6.5f,y+2.7f);
+    handle.AddLine(x+6.5f,y+2.7f,x+10.5f,y+2.7f);
+    handle.AddLine(x+10.5f,y+2.7f,x+11.2f,y+4.8f);
+    g.DrawPath(&pen,&handle);
+
+    // Wider body with subtly rounded lower corners.
+    Gdiplus::GraphicsPath body;
+    body.StartFigure();
+    body.AddLine(x+3.0f,y+7.0f,x+14.0f,y+7.0f);
+    body.AddLine(x+14.0f,y+7.0f,x+13.2f,y+15.8f);
+    body.AddBezier(x+13.2f,y+15.8f,x+13.1f,y+16.9f,
+                   x+12.4f,y+17.4f,x+11.3f,y+17.4f);
+    body.AddLine(x+11.3f,y+17.4f,x+5.7f,y+17.4f);
+    body.AddBezier(x+5.7f,y+17.4f,x+4.6f,y+17.4f,
+                   x+3.9f,y+16.9f,x+3.8f,y+15.8f);
+    body.CloseFigure();
+    Gdiplus::SolidBrush bodyFill(Gdiplus::Color(24,GetRValue(c),GetGValue(c),GetBValue(c)));
+    g.FillPath(&bodyFill,&body);
+    g.DrawPath(&pen,&body);
+
+    // Two clean inner slots, matching the mockup proportions.
+    Gdiplus::Pen slotPen(Gdiplus::Color(220,GetRValue(c),GetGValue(c),GetBValue(c)),1.1f);
+    slotPen.SetStartCap(Gdiplus::LineCapRound);
+    slotPen.SetEndCap(Gdiplus::LineCapRound);
+    g.DrawLine(&slotPen,x+7.0f,y+9.3f,x+7.3f,y+14.8f);
+    g.DrawLine(&slotPen,x+10.7f,y+9.3f,x+10.4f,y+14.8f);
 }
 
 void DrawFolderIcon(HDC dc,int x,int y,COLORREF c){
@@ -1922,20 +1947,7 @@ void DrawProfileHeaderButton(const DRAWITEMSTRUCT* d){
         SelectObject(d->hDC,oldPen);
         DeleteObject(pen);
     }else{
-        // Compact trash can, drawn to the same 16 px visual box.
-        HPEN pen=CreatePen(PS_SOLID,1,iconColor);
-        HGDIOBJ oldPen=SelectObject(d->hDC,pen);
-        MoveToEx(d->hDC,contentLeft+3,cy-5,nullptr);
-        LineTo(d->hDC,contentLeft+13,cy-5);
-        MoveToEx(d->hDC,contentLeft+5,cy-8,nullptr);
-        LineTo(d->hDC,contentLeft+11,cy-8);
-        Rectangle(d->hDC,contentLeft+4,cy-3,contentLeft+13,cy+8);
-        MoveToEx(d->hDC,contentLeft+7,cy-1,nullptr);
-        LineTo(d->hDC,contentLeft+7,cy+6);
-        MoveToEx(d->hDC,contentLeft+10,cy-1,nullptr);
-        LineTo(d->hDC,contentLeft+10,cy+6);
-        SelectObject(d->hDC,oldPen);
-        DeleteObject(pen);
+        DrawRemoveButtonIcon(d->hDC,contentLeft,cy-10,iconColor);
     }
 
     RECT tr{
