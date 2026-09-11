@@ -953,6 +953,18 @@ std::wstring HotkeyDisplayText(WORD hotkey){
     return text;
 }
 
+constexpr wchar_t HOTKEY_CARET_HIDDEN_PROP[]=L"NvpsHotkeyCaretHidden";
+
+void SetHotkeyCaretHidden(HWND hwnd,bool hidden){
+    const bool currentlyHidden=GetPropW(hwnd,HOTKEY_CARET_HIDDEN_PROP)!=nullptr;
+    if(hidden&&!currentlyHidden){
+        if(HideCaret(hwnd)) SetPropW(hwnd,HOTKEY_CARET_HIDDEN_PROP,(HANDLE)1);
+    }else if(!hidden&&currentlyHidden){
+        ShowCaret(hwnd);
+        RemovePropW(hwnd,HOTKEY_CARET_HIDDEN_PROP);
+    }
+}
+
 LRESULT CALLBACK HotkeyFieldSubclassProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp,
                                          UINT_PTR subclassId,DWORD_PTR refData){
     switch(msg){
@@ -964,12 +976,17 @@ LRESULT CALLBACK HotkeyFieldSubclassProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp,
         return 0;
     case WM_SETFOCUS:{
         LRESULT result=DefSubclassProc(hwnd,msg,wp,lp);
-        HideCaret(hwnd);
+        SetHotkeyCaretHidden(hwnd,false);
         InvalidateRect(hwnd,nullptr,TRUE);
         return result;
     }
+    case WM_LBUTTONDOWN:{
+        LRESULT result=DefSubclassProc(hwnd,msg,wp,lp);
+        SetHotkeyCaretHidden(hwnd,false);
+        return result;
+    }
     case WM_KILLFOCUS:{
-        ShowCaret(hwnd);
+        SetHotkeyCaretHidden(hwnd,false);
         LRESULT result=DefSubclassProc(hwnd,msg,wp,lp);
         InvalidateRect(hwnd,nullptr,TRUE);
         return result;
@@ -991,6 +1008,7 @@ LRESULT CALLBACK HotkeyFieldSubclassProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp,
         return 0;
     }
     case WM_NCDESTROY:
+        SetHotkeyCaretHidden(hwnd,false);
         RemoveWindowSubclass(hwnd,HotkeyFieldSubclassProc,subclassId);
         break;
     }
@@ -1030,7 +1048,7 @@ void SetHotkeyControl(int controlId,WORD hotkey){
 bool UpdateConfiguredHotkey(int controlId,int registrationId,WORD& stored){
     if(gUpdatingHotkeyControls) return true;
     const WORD requested=(WORD)SendMessageW(H(controlId),HKM_GETHOTKEY,0,0);
-    if(requested==stored) return true;
+    if(requested==stored){SetHotkeyCaretHidden(H(controlId),true);return true;}
     if(IsCtrlAltHotkey(requested)){
         SetHotkeyControl(controlId,stored);
         MessageBoxW(gWnd,L"Ctrl + Alt shortcuts are not supported because Windows may treat Right Alt (AltGr) as Ctrl + Alt.\n\nUse Ctrl + Shift, Alt + Shift, or a function key instead.",L"NvProfileSwitcher",MB_OK|MB_ICONWARNING);
@@ -1042,7 +1060,7 @@ bool UpdateConfiguredHotkey(int controlId,int registrationId,WORD& stored){
         MessageBoxW(gWnd,L"That shortcut is already being used by another application.",L"NvProfileSwitcher",MB_OK|MB_ICONWARNING);
         return false;
     }
-    stored=requested; Save(); return true;
+    stored=requested; Save(); SetHotkeyCaretHidden(H(controlId),true); return true;
 }
 
 void ClearConfiguredHotkey(int controlId,int registrationId,WORD& stored){
