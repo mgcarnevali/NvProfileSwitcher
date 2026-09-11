@@ -79,6 +79,7 @@ constexpr COLORREF C_TRACK=RGB(61,67,73), C_WINBLUE=RGB(0,120,215);
 constexpr UINT WM_TRAY=WM_APP+1;
 constexpr UINT WM_UPDATE_AVAILABLE=WM_APP+2;
 constexpr UINT WM_SHOW_EXISTING_INSTANCE=WM_APP+3;
+constexpr UINT WM_SHOW_APP_MESSAGE=WM_APP+4;
 constexpr wchar_t INSTANCE_MUTEX_NAME[]=L"Local\\NvProfileSwitcher_SingleInstance";
 constexpr wchar_t APP_VERSION[]=NVPS_VERSION_WSTR;
 constexpr wchar_t APP_URL[]=L"https://github.com/mgcarnevali/NvProfileSwitcher";
@@ -88,6 +89,12 @@ constexpr wchar_t UPDATE_PATH[]=L"/repos/mgcarnevali/NvProfileSwitcher/releases/
 enum {IDC_LIST=1001,IDC_NAME,IDC_EXE,IDC_BROWSE,IDC_ENABLED,IDC_DISPLAY,IDC_LBL_DISPLAY,IDC_VIB,IDC_HUE,IDC_BRI,IDC_CON,IDC_GAM,IDC_SAVE,IDC_ADD=1015,IDC_REMOVE,IDC_STARTWIN=1018,IDC_STARTMIN,IDC_VALVIB,IDC_VALHUE,IDC_VALBRI,IDC_VALCON,IDC_VALGAM,IDC_LBL_NAME,IDC_LBL_EXE,IDC_LBL_ENABLED,IDC_LBL_VIB,IDC_LBL_HUE,IDC_LBL_BRI,IDC_LBL_CON,IDC_LBL_GAM,IDC_DEFAULTS,IDC_MINTRAY,IDC_CHECKUPDATES,IDC_FOOT_GITHUB,IDC_FOOT_SUPPORT,IDC_FOOT_ABOUT,IDC_HOTKEYS_TITLE,IDC_HOTKEY_SHOW_LABEL,IDC_HOTKEY_SHOW,IDC_HOTKEY_SHOW_CLEAR,IDC_HOTKEY_OVERRIDE_LABEL,IDC_HOTKEY_OVERRIDE,IDC_HOTKEY_OVERRIDE_CLEAR};
 enum {ID_TRAY_OPEN=2001,ID_TRAY_CHECK_UPDATE,ID_TRAY_ABOUT,ID_TRAY_EXIT};
 enum {ID_HOTKEY_SHOW_HIDE=3001,ID_HOTKEY_WINDOWS_OVERRIDE};
+
+struct AppMessageData {
+    std::wstring title;
+    std::wstring text;
+    bool deleteOnClose=false;
+};
 
 HINSTANCE gInst{}; HWND gWnd{}; HFONT gFont{},gFontBold{},gFontPanelTitle{},gFontTitle{},gFontSmall{},gFontHeaderButton{},gIconFont{}; HBRUSH gBackBrush{},gPanelBrush{},gPanel2Brush{},gFieldBrush{}; HICON gIcon{};
 ULONG_PTR gGdiPlusToken{}; Gdiplus::Image* gHeaderImage{};
@@ -938,6 +945,157 @@ void StyleMainButton(HWND hwnd){
     if(hwnd) SetWindowSubclass(hwnd,MainButtonHoverSubclassProc,2,0);
 }
 
+LRESULT CALLBACK AppMessageProc(HWND w,UINT m,WPARAM wp,LPARAM lp){
+    auto* data=(AppMessageData*)GetWindowLongPtrW(w,GWLP_USERDATA);
+    switch(m){
+    case WM_CREATE:{
+        auto* cs=(CREATESTRUCTW*)lp;
+        data=(AppMessageData*)cs->lpCreateParams;
+        SetWindowLongPtrW(w,GWLP_USERDATA,(LONG_PTR)data);
+
+        HWND icon=CreateWindowExW(0,L"STATIC",nullptr,WS_CHILD|WS_VISIBLE|SS_ICON,
+            22,24,40,40,w,nullptr,gInst,nullptr);
+        SendMessageW(icon,STM_SETICON,(WPARAM)gIcon,0);
+
+        RECT client{};
+        GetClientRect(w,&client);
+        const int buttonY=client.bottom-58;
+        HWND message=CreateWindowExW(0,L"STATIC",data?data->text.c_str():L"",
+            WS_CHILD|WS_VISIBLE|SS_LEFT,76,22,374,buttonY-42,w,nullptr,gInst,nullptr);
+        SendMessageW(message,WM_SETFONT,(WPARAM)gFont,TRUE);
+
+        HWND ok=CreateWindowExW(0,L"BUTTON",L"OK",
+            WS_CHILD|WS_VISIBLE|WS_TABSTOP|BS_OWNERDRAW,
+            350,buttonY,100,36,w,(HMENU)IDOK,gInst,nullptr);
+        SendMessageW(ok,WM_SETFONT,(WPARAM)gFontBold,TRUE);
+        SetFocus(ok);
+        return 0;
+    }
+    case WM_CTLCOLORSTATIC:{
+        HDC dc=(HDC)wp;
+        SetTextColor(dc,C_TEXT);
+        SetBkColor(dc,C_BACK);
+        SetBkMode(dc,TRANSPARENT);
+        return (LRESULT)gBackBrush;
+    }
+    case WM_DRAWITEM:{
+        auto* d=(DRAWITEMSTRUCT*)lp;
+        if(d->CtlID==IDOK){
+            const bool down=(d->itemState&ODS_SELECTED)!=0;
+            RECT r=d->rcItem;
+            FillRound(d->hDC,r,down?C_ACCENT_DARK:C_PANEL2,C_BORDER,7);
+            SetBkMode(d->hDC,TRANSPARENT);
+            SetTextColor(d->hDC,C_TEXT);
+            HFONT old=(HFONT)SelectObject(d->hDC,gFontBold);
+            DrawTextW(d->hDC,L"OK",-1,&r,DT_CENTER|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);
+            SelectObject(d->hDC,old);
+            return TRUE;
+        }
+        break;
+    }
+    case WM_COMMAND:
+        if(LOWORD(wp)==IDOK||LOWORD(wp)==IDCANCEL){
+            DestroyWindow(w);
+            return 0;
+        }
+        break;
+    case WM_CLOSE:
+        DestroyWindow(w);
+        return 0;
+    case WM_DESTROY:
+        if(data&&data->deleteOnClose) delete data;
+        SetWindowLongPtrW(w,GWLP_USERDATA,0);
+        return 0;
+    }
+    return DefWindowProcW(w,m,wp,lp);
+}
+
+HWND CreateAppMessageWindow(AppMessageData* data,HWND owner){
+    static bool registered=false;
+    if(!registered){
+        WNDCLASSEXW wc{sizeof(wc)};
+        wc.lpfnWndProc=AppMessageProc;
+        wc.hInstance=gInst;
+        wc.hIcon=gIcon;
+        wc.hIconSm=gIcon;
+        wc.hCursor=LoadCursor(nullptr,IDC_ARROW);
+        wc.hbrBackground=gBackBrush;
+        wc.lpszClassName=L"NvProfileSwitcherMessage";
+        if(!RegisterClassExW(&wc)&&GetLastError()!=ERROR_CLASS_ALREADY_EXISTS)
+            return nullptr;
+        registered=true;
+    }
+
+    HDC measureDc=GetDC(nullptr);
+    RECT measure{0,0,374,0};
+    HFONT oldFont=(HFONT)SelectObject(measureDc,gFont);
+    DrawTextW(measureDc,data->text.c_str(),-1,&measure,
+        DT_CALCRECT|DT_WORDBREAK|DT_NOPREFIX);
+    SelectObject(measureDc,oldFont);
+    ReleaseDC(nullptr,measureDc);
+    const int windowHeight=std::max(228,measure.bottom+139);
+
+    HWND dialog=CreateWindowExW(WS_EX_DLGMODALFRAME|WS_EX_TOPMOST,
+        L"NvProfileSwitcherMessage",data->title.c_str(),WS_CAPTION|WS_SYSMENU,
+        0,0,488,windowHeight,owner,nullptr,gInst,data);
+    if(!dialog)return nullptr;
+
+    BOOL darkTitle=TRUE;
+    DwmSetWindowAttribute(dialog,20,&darkTitle,sizeof(darkTitle));
+
+    RECT wr{},target{};
+    GetWindowRect(dialog,&wr);
+    if(!owner||!IsWindowVisible(owner)){
+        SystemParametersInfoW(SPI_GETWORKAREA,0,&target,0);
+    }else{
+        GetWindowRect(owner,&target);
+    }
+    const int ww=wr.right-wr.left,wh=wr.bottom-wr.top;
+    const int x=target.left+((target.right-target.left)-ww)/2;
+    const int y=target.top+((target.bottom-target.top)-wh)/2;
+    SetWindowPos(dialog,HWND_TOPMOST,x,y,0,0,SWP_NOSIZE|SWP_SHOWWINDOW);
+    UpdateWindow(dialog);
+    SetForegroundWindow(dialog);
+    return dialog;
+}
+
+void ShowAppMessage(const std::wstring& title,const std::wstring& text){
+    AppMessageData data{title,text,false};
+    HWND owner=gWnd;
+    HWND previousFocus=GetFocus();
+    const bool disableOwner=owner&&IsWindowEnabled(owner);
+    if(disableOwner)EnableWindow(owner,FALSE);
+    HWND dialog=CreateAppMessageWindow(&data,owner);
+    if(!dialog){
+        if(disableOwner)EnableWindow(owner,TRUE);
+        return;
+    }
+
+    MSG msg{};
+    while(IsWindow(dialog)&&GetMessageW(&msg,nullptr,0,0)>0){
+        if(msg.message==WM_KEYDOWN&&(msg.wParam==VK_RETURN||msg.wParam==VK_ESCAPE)
+            &&(msg.hwnd==dialog||IsChild(dialog,msg.hwnd))){
+            DestroyWindow(dialog);
+            continue;
+        }
+        if(!IsDialogMessageW(dialog,&msg)){
+            TranslateMessage(&msg);
+            DispatchMessageW(&msg);
+        }
+    }
+    if(disableOwner){
+        EnableWindow(owner,TRUE);
+        if(previousFocus&&IsWindow(previousFocus))SetFocus(previousFocus);
+        else SetFocus(owner);
+        SetForegroundWindow(owner);
+    }
+}
+
+void QueueAppMessage(const std::wstring& title,const std::wstring& text){
+    auto* data=new AppMessageData{title,text,true};
+    if(!PostMessageW(gWnd,WM_SHOW_APP_MESSAGE,0,(LPARAM)data))delete data;
+}
+
 std::wstring HotkeyDisplayText(WORD hotkey){
     if(!hotkey) return L"None";
     std::wstring text;
@@ -1042,12 +1200,12 @@ bool UpdateConfiguredHotkey(int controlId,int registrationId,WORD& stored){
     if(requested==stored){SetFocus(gWnd);return true;}
     if(NeedsHotkeyModifier(requested)){
         SetHotkeyControl(controlId,stored);
-        MessageBoxW(gWnd,L"Shortcuts must use Ctrl or Alt with another key. Function keys can be used alone.\n\nUse Ctrl + Shift, Alt + Shift, or a function key instead.",L"NvProfileSwitcher",MB_OK|MB_ICONWARNING);
+        ShowAppMessage(L"NvProfileSwitcher",L"Shortcuts must use Ctrl or Alt with another key. Function keys can be used alone.\n\nUse Ctrl + Shift, Alt + Shift, or a function key instead.");
         return false;
     }
     if(IsCtrlAltHotkey(requested)){
         SetHotkeyControl(controlId,stored);
-        MessageBoxW(gWnd,L"Ctrl + Alt shortcuts are not supported because Windows may treat Right Alt (AltGr) as Ctrl + Alt.\n\nUse Ctrl + Shift, Alt + Shift, or a function key instead.",L"NvProfileSwitcher",MB_OK|MB_ICONWARNING);
+        ShowAppMessage(L"NvProfileSwitcher",L"Ctrl + Alt shortcuts are not supported because Windows may treat Right Alt (AltGr) as Ctrl + Alt.\n\nUse Ctrl + Shift, Alt + Shift, or a function key instead.");
         return false;
     }
     const WORD otherHotkey=controlId==IDC_HOTKEY_SHOW
@@ -1059,14 +1217,14 @@ bool UpdateConfiguredHotkey(int controlId,int registrationId,WORD& stored){
         std::wstring message=L"That shortcut is already assigned to ";
         message+=otherAction;
         message+=L".\n\nChoose a different combination.";
-        MessageBoxW(gWnd,message.c_str(),L"NvProfileSwitcher",MB_OK|MB_ICONWARNING);
+        ShowAppMessage(L"NvProfileSwitcher",message);
         SetFocus(H(controlId));
         return false;
     }
     const WORD previous=stored; UnregisterHotKey(gWnd,registrationId);
     if(requested&&!RegisterStoredHotkey(registrationId,requested)){
         RegisterStoredHotkey(registrationId,previous); SetHotkeyControl(controlId,previous);
-        MessageBoxW(gWnd,L"That shortcut is already being used by another application.",L"NvProfileSwitcher",MB_OK|MB_ICONWARNING);
+        ShowAppMessage(L"NvProfileSwitcher",L"That shortcut is already being used by another application.");
         return false;
     }
     stored=requested; Save(); SetFocus(gWnd); return true;
@@ -1080,7 +1238,7 @@ void RegisterConfiguredHotkeys(){
     bool unavailable=false;
     if(!RegisterStoredHotkey(ID_HOTKEY_SHOW_HIDE,gSettings.showHideHotkey)) unavailable=true;
     if(!RegisterStoredHotkey(ID_HOTKEY_WINDOWS_OVERRIDE,gSettings.windowsOverrideHotkey)) unavailable=true;
-    if(unavailable) MessageBoxW(gWnd,L"One or more saved shortcuts could not be enabled.\n\nChoose a supported, unused combination in Application Settings.",L"NvProfileSwitcher",MB_OK|MB_ICONWARNING);
+    if(unavailable) ShowAppMessage(L"NvProfileSwitcher",L"One or more saved shortcuts could not be enabled.\n\nChoose a supported, unused combination in Application Settings.");
 }
 
 LRESULT CALLBACK FlatCheckboxSubclassProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp,
@@ -3018,11 +3176,10 @@ DWORD WINAPI UpdateCheckThread(LPVOID param){
         }else if(manual){
             std::wstring msg=L"NvProfileSwitcher is up to date.\n\nCurrent version: ";
             msg+=APP_VERSION;
-            MessageBoxW(gWnd,msg.c_str(),L"Check for updates",MB_OK|MB_ICONINFORMATION);
+            QueueAppMessage(L"Check for updates",msg);
         }
     }else if(manual){
-        MessageBoxW(gWnd,L"Could not check for updates.\n\nPlease try again later.",
-            L"Check for updates",MB_OK|MB_ICONWARNING);
+        QueueAppMessage(L"Check for updates",L"Could not check for updates.\n\nPlease try again later.");
     }
     return 0;
 }
@@ -3309,7 +3466,7 @@ void ToggleWindowsOverride(){
     DiscardPreview();gWindowsOverride=!gWindowsOverride;gActive.clear();CheckProcesses();InvalidateRect(gWnd,nullptr,FALSE);
 }
 void RestoreDesktop(){RestoreAllDesktopProfiles();gActive=L"Windows";InvalidateRect(gWnd,nullptr,FALSE);}
-LRESULT CALLBACK Proc(HWND w,UINT m,WPARAM wp,LPARAM lp){switch(m){case WM_SHOW_EXISTING_INSTANCE:ShowMain();return 0;case WM_UPDATE_AVAILABLE:ShowUpdateAvailable((UpdateInfo*)lp);return 0;case WM_CREATE:gWnd=w;BuildControls();RegisterConfiguredHotkeys();RefreshList();LoadSelected();SetTimer(w,1,250,nullptr);return 0;case WM_HOTKEY:if(wp==ID_HOTKEY_SHOW_HIDE){ToggleMainVisibility();return 0;}if(wp==ID_HOTKEY_WINDOWS_OVERRIDE){ToggleWindowsOverride();return 0;}break;case WM_ACTIVATE:
+LRESULT CALLBACK Proc(HWND w,UINT m,WPARAM wp,LPARAM lp){switch(m){case WM_SHOW_EXISTING_INSTANCE:ShowMain();return 0;case WM_UPDATE_AVAILABLE:ShowUpdateAvailable((UpdateInfo*)lp);return 0;case WM_SHOW_APP_MESSAGE:{auto* data=(AppMessageData*)lp;if(data){std::wstring title=data->title,text=data->text;delete data;ShowAppMessage(title,text);}return 0;}case WM_CREATE:gWnd=w;BuildControls();RegisterConfiguredHotkeys();RefreshList();LoadSelected();SetTimer(w,1,250,nullptr);return 0;case WM_HOTKEY:if(wp==ID_HOTKEY_SHOW_HIDE){ToggleMainVisibility();return 0;}if(wp==ID_HOTKEY_WINDOWS_OVERRIDE){ToggleWindowsOverride();return 0;}break;case WM_ACTIVATE:
     if(LOWORD(wp)!=WA_INACTIVE) RefreshDriverVersion();
     return 0;case WM_SIZE:
     if(wp==SIZE_MINIMIZED){
