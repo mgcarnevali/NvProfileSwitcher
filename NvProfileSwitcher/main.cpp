@@ -92,6 +92,7 @@ Gdiplus::Image *gSliderBrightness{},*gSliderContrast{},*gSliderGamma{},*gSliderV
 Settings gSettings; int gSelected=-1; std::wstring gActive=L"Windows", gStatus=L"Not initialized", gDriverVersion=L"--"; bool gStatusOk=false;
 NOTIFYICONDATAW gNid{}; HMENU gTrayMenu{};
 HWND gFooterHover{};
+HWND gMainButtonHover{};
 HWND gProfileTooltip{};
 HWND gExeTooltip{};
 bool gExeTooltipVisible=false;
@@ -845,6 +846,87 @@ void AddRoundedRectPath(Gdiplus::GraphicsPath& path,const Gdiplus::RectF& r,
     path.AddArc(r.GetRight()-d,r.GetBottom()-d,d,d,0.0f,90.0f);
     path.AddArc(r.X,r.GetBottom()-d,d,d,90.0f,90.0f);
     path.CloseFigure();
+}
+
+void DrawMainButtonSurface(HDC dc,const RECT& r,bool accent,bool hover,bool down,
+                           bool disabled){
+    Gdiplus::Graphics g(dc);
+    g.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
+    g.SetPixelOffsetMode(Gdiplus::PixelOffsetModeHalf);
+
+    const Gdiplus::REAL width=(Gdiplus::REAL)(r.right-r.left)-1.0f;
+    const Gdiplus::REAL height=(Gdiplus::REAL)(r.bottom-r.top)-1.0f;
+    Gdiplus::RectF bounds((Gdiplus::REAL)r.left+0.5f,(Gdiplus::REAL)r.top+0.5f,
+                          width,height);
+    Gdiplus::GraphicsPath path;
+    AddRoundedRectPath(path,bounds,6.0f);
+
+    Gdiplus::Color top;
+    Gdiplus::Color bottom;
+    Gdiplus::Color outline;
+    if(accent){
+        top=Gdiplus::Color(255,hover?48:39,hover?132:112,hover?54:45);
+        bottom=Gdiplus::Color(255,hover?25:21,hover?91:78,hover?31:27);
+        outline=Gdiplus::Color(255,hover?91:73,hover?218:188,hover?72:60);
+    }else{
+        top=Gdiplus::Color(255,hover?42:34,hover?49:40,hover?56:46);
+        bottom=Gdiplus::Color(255,hover?29:24,hover?35:29,hover?41:34);
+        outline=Gdiplus::Color(255,hover?83:64,hover?94:73,hover?104:82);
+    }
+    if(down) std::swap(top,bottom);
+    if(disabled){
+        top=Gdiplus::Color(255,28,33,38);
+        bottom=Gdiplus::Color(255,22,27,31);
+        outline=Gdiplus::Color(255,49,56,63);
+    }
+
+    Gdiplus::LinearGradientBrush fill(
+        Gdiplus::PointF(bounds.X,bounds.Y),
+        Gdiplus::PointF(bounds.X,bounds.GetBottom()),top,bottom);
+    g.FillPath(&fill,&path);
+
+    Gdiplus::Pen border(outline,1.0f);
+    g.DrawPath(&border,&path);
+
+    Gdiplus::Pen topEdge(
+        accent?Gdiplus::Color(95,126,226,111):Gdiplus::Color(85,105,116,126),
+        0.8f);
+    topEdge.SetStartCap(Gdiplus::LineCapRound);
+    topEdge.SetEndCap(Gdiplus::LineCapRound);
+    g.DrawLine(&topEdge,bounds.X+6.0f,bounds.Y+1.2f,
+               bounds.GetRight()-6.0f,bounds.Y+1.2f);
+}
+
+LRESULT CALLBACK MainButtonHoverSubclassProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp,
+                                             UINT_PTR subclassId,DWORD_PTR refData){
+    switch(msg){
+    case WM_MOUSEMOVE:{
+        if(gMainButtonHover!=hwnd){
+            HWND old=gMainButtonHover;
+            gMainButtonHover=hwnd;
+            if(old) InvalidateRect(old,nullptr,FALSE);
+            InvalidateRect(hwnd,nullptr,FALSE);
+        }
+        TRACKMOUSEEVENT tme{sizeof(tme),TME_LEAVE,hwnd,0};
+        TrackMouseEvent(&tme);
+        break;
+    }
+    case WM_MOUSELEAVE:
+        if(gMainButtonHover==hwnd){
+            gMainButtonHover=nullptr;
+            InvalidateRect(hwnd,nullptr,FALSE);
+        }
+        break;
+    case WM_NCDESTROY:
+        if(gMainButtonHover==hwnd) gMainButtonHover=nullptr;
+        RemoveWindowSubclass(hwnd,MainButtonHoverSubclassProc,subclassId);
+        break;
+    }
+    return DefSubclassProc(hwnd,msg,wp,lp);
+}
+
+void StyleMainButton(HWND hwnd){
+    if(hwnd) SetWindowSubclass(hwnd,MainButtonHoverSubclassProc,2,0);
 }
 
 LRESULT CALLBACK FlatCheckboxSubclassProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp,
@@ -1781,14 +1863,13 @@ void DrawProfileHeaderButton(const DRAWITEMSTRUCT* d){
     const int id=(int)d->CtlID;
     const bool down=(d->itemState&ODS_SELECTED)!=0;
     const bool disabled=(d->itemState&ODS_DISABLED)!=0;
+    const bool hover=d->hwndItem==gMainButtonHover;
 
     RECT r=d->rcItem;
-    const COLORREF fill=down?RGB(37,43,49):RGB(31,37,43);
-    const COLORREF border=RGB(64,72,80);
     const COLORREF textColor=disabled?C_MUTED:RGB(230,233,236);
     const COLORREF iconColor=disabled?C_MUTED:(id==IDC_REMOVE?C_DANGER:RGB(218,222,226));
 
-    FillRound(d->hDC,r,fill,border,7);
+    DrawMainButtonSurface(d->hDC,r,false,hover,down,disabled);
 
     wchar_t caption[64]{};
     GetWindowTextW(d->hwndItem,caption,64);
@@ -1804,8 +1885,9 @@ void DrawProfileHeaderButton(const DRAWITEMSTRUCT* d){
     const int iconVisualW=16;
     const int gap=6;
     const int totalW=iconVisualW+gap+textSize.cx;
-    const int contentLeft=r.left+((r.right-r.left)-totalW)/2;
-    const int cy=(r.top+r.bottom)/2;
+    const int pressOffset=down?1:0;
+    const int contentLeft=r.left+((r.right-r.left)-totalW)/2+pressOffset;
+    const int cy=(r.top+r.bottom)/2+pressOffset;
 
     if(id==IDC_ADD){
         // Smaller 12 px plus, centered inside the same 16 px visual slot.
@@ -1837,9 +1919,9 @@ void DrawProfileHeaderButton(const DRAWITEMSTRUCT* d){
 
     RECT tr{
         contentLeft+iconVisualW+gap,
-        r.top,
+        r.top+pressOffset,
         r.right-2,
-        r.bottom
+        r.bottom+pressOffset
     };
     DrawTextW(d->hDC,caption,-1,&tr,DT_LEFT|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);
 
@@ -1850,16 +1932,13 @@ void DrawOwnerButton(const DRAWITEMSTRUCT* d){
     int id=(int)d->CtlID;
     bool down=(d->itemState&ODS_SELECTED)!=0;
     bool disabled=(d->itemState&ODS_DISABLED)!=0;
+    bool hover=d->hwndItem==gMainButtonHover;
 
-    COLORREF fill=C_PANEL2, border=C_BORDER, textColor=disabled?C_MUTED:C_TEXT, icon=C_MUTED;
+    COLORREF textColor=disabled?C_MUTED:C_TEXT, icon=C_MUTED;
     if(id==IDC_SAVE){
-        fill=down?C_ACCENT2:RGB(28,104,36);
-        border=C_ACCENT;
         textColor=disabled?C_MUTED:C_TEXT;
         icon=disabled?C_MUTED:C_TEXT;
     }else if(id==IDC_DEFAULTS){
-        fill=down?C_FIELD:C_PANEL2;
-        border=C_BORDER;
         textColor=disabled?C_MUTED:C_TEXT;
         icon=C_MUTED;
     }else if(id==IDC_BROWSE){
@@ -1867,8 +1946,7 @@ void DrawOwnerButton(const DRAWITEMSTRUCT* d){
     }
 
     RECT r=d->rcItem;
-    const int radius=8;
-    FillRound(d->hDC,r,fill,border,radius);
+    DrawMainButtonSurface(d->hDC,r,id==IDC_SAVE,hover,down,disabled);
 
     wchar_t caption[128]{};
     GetWindowTextW(d->hwndItem,caption,128);
@@ -1877,7 +1955,8 @@ void DrawOwnerButton(const DRAWITEMSTRUCT* d){
     SelectObject(d->hDC,buttonFont);
     GetTextExtentPoint32W(d->hDC,caption,(int)wcslen(caption),&sz);
 
-    const int cy=(r.top+r.bottom)/2;
+    const int pressOffset=down?1:0;
+    const int cy=(r.top+r.bottom)/2+pressOffset;
 
     SetBkMode(d->hDC,TRANSPARENT);
     SetTextColor(d->hDC,textColor);
@@ -1889,9 +1968,12 @@ void DrawOwnerButton(const DRAWITEMSTRUCT* d){
         if(id==IDC_BROWSE){ iconW=20; gap=7; }
 
         int total=iconW+gap+sz.cx;
-        int contentX=r.left+((r.right-r.left)-total)/2;
+        int contentX=r.left+((r.right-r.left)-total)/2+pressOffset;
 
-        if(id==IDC_BROWSE) DrawFolderIcon(d->hDC,contentX,cy-12,icon);
+        if(id==IDC_BROWSE){
+            DrawFolderIcon(d->hDC,contentX+1,cy-11,RGB(65,72,79));
+            DrawFolderIcon(d->hDC,contentX,cy-12,icon);
+        }
 
         int textY=cy-sz.cy/2;
         if(id==IDC_BROWSE) textY-=1;
@@ -2392,8 +2474,10 @@ void BuildControls(){
         SetWindowSubclass(list,ProfileListSubclassProc,1,0);
     }
 
-    Add(L"BUTTON",L"Add profile",BS_OWNERDRAW,158,95,112,32,IDC_ADD);
-    Add(L"BUTTON",L"Remove",BS_OWNERDRAW,274,95,92,32,IDC_REMOVE);
+    HWND addProfile=Add(L"BUTTON",L"Add profile",BS_OWNERDRAW,158,95,112,32,IDC_ADD);
+    HWND removeProfile=Add(L"BUTTON",L"Remove",BS_OWNERDRAW,274,95,92,32,IDC_REMOVE);
+    StyleMainButton(addProfile);
+    StyleMainButton(removeProfile);
 
     Add(L"STATIC",L"Profile name",0,rightX,152,110,22,IDC_LBL_NAME);
     HWND eName=Add(L"EDIT",L"",ES_AUTOHSCROLL,rightX+120,153,rightW-122,22,IDC_NAME);
@@ -2415,7 +2499,9 @@ void BuildControls(){
         SetWindowSubclass(gExeTooltip,ProfileTooltipSubclassProc,3,0);
     }
 
-    Add(L"BUTTON",L"Browse...",BS_OWNERDRAW,rightX+rightW-browseW,222,browseW,36,IDC_BROWSE);
+    HWND browse=Add(L"BUTTON",L"Browse...",BS_OWNERDRAW,
+        rightX+rightW-browseW,222,browseW,36,IDC_BROWSE);
+    StyleMainButton(browse);
 
     HWND enabled=Add(L"BUTTON",L"",BS_AUTOCHECKBOX,rightX,272,22,22,IDC_ENABLED);
     StyleFlatCheckbox(enabled);
@@ -2448,7 +2534,8 @@ void BuildControls(){
     slider(L"Digital Vibrance (%)",IDC_LBL_VIB,IDC_VIB,IDC_VALVIB,624,0,100);
     slider(L"Hue (\x00B0)",IDC_LBL_HUE,IDC_HUE,IDC_VALHUE,692,0,359);
 
-    Add(L"BUTTON",L"Reset",BS_OWNERDRAW,rightX,756,132,38,IDC_DEFAULTS);
+    HWND reset=Add(L"BUTTON",L"Reset",BS_OWNERDRAW,rightX,756,132,38,IDC_DEFAULTS);
+    StyleMainButton(reset);
     gResetTooltip=CreateWindowExW(WS_EX_TOOLWINDOW|WS_EX_TOPMOST,L"STATIC",
         L"Reset to NVIDIA defaults",WS_POPUP,0,0,0,0,gWnd,nullptr,gInst,nullptr);
     if(gResetTooltip){
@@ -2456,7 +2543,9 @@ void BuildControls(){
         SetWindowSubclass(gResetTooltip,ProfileTooltipSubclassProc,2,0);
         SetWindowSubclass(H(IDC_DEFAULTS),ResetButtonSubclassProc,1,0);
     }
-    Add(L"BUTTON",L"Save profile",BS_OWNERDRAW,rightX+rightW-160,756,160,38,IDC_SAVE);
+    HWND saveProfile=Add(L"BUTTON",L"Save profile",BS_OWNERDRAW,
+        rightX+rightW-160,756,160,38,IDC_SAVE);
+    StyleMainButton(saveProfile);
 
     const int appX=centerPanelX+centerPanelW+gap+22;
 
