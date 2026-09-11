@@ -1005,6 +1005,13 @@ bool IsCtrlAltHotkey(WORD hotkey){
     return (flags&(HOTKEYF_CONTROL|HOTKEYF_ALT))==(HOTKEYF_CONTROL|HOTKEYF_ALT) && !(flags&HOTKEYF_SHIFT);
 }
 
+bool NeedsHotkeyModifier(WORD hotkey){
+    const BYTE key=LOBYTE(hotkey);
+    const BYTE flags=HIBYTE(hotkey);
+    const bool functionKey=key>=VK_F1&&key<=VK_F24;
+    return !functionKey&&!(flags&(HOTKEYF_CONTROL|HOTKEYF_ALT));
+}
+
 bool RegisterStoredHotkey(int registrationId,WORD hotkey){
     if(!hotkey) return true;
     if(IsCtrlAltHotkey(hotkey)) return false;
@@ -1018,7 +1025,13 @@ void SetHotkeyControl(int controlId,WORD hotkey){
 bool UpdateConfiguredHotkey(int controlId,int registrationId,WORD& stored){
     if(gUpdatingHotkeyControls) return true;
     const WORD requested=(WORD)SendMessageW(H(controlId),HKM_GETHOTKEY,0,0);
+    if(!LOBYTE(requested)) return true;
     if(requested==stored){SetFocus(gWnd);return true;}
+    if(NeedsHotkeyModifier(requested)){
+        SetHotkeyControl(controlId,stored);
+        MessageBoxW(gWnd,L"Shortcuts must use Ctrl or Alt with another key. Function keys can be used alone.\n\nUse Ctrl + Shift, Alt + Shift, or a function key instead.",L"NvProfileSwitcher",MB_OK|MB_ICONWARNING);
+        return false;
+    }
     if(IsCtrlAltHotkey(requested)){
         SetHotkeyControl(controlId,stored);
         MessageBoxW(gWnd,L"Ctrl + Alt shortcuts are not supported because Windows may treat Right Alt (AltGr) as Ctrl + Alt.\n\nUse Ctrl + Shift, Alt + Shift, or a function key instead.",L"NvProfileSwitcher",MB_OK|MB_ICONWARNING);
@@ -2765,14 +2778,14 @@ void BuildControls(){
     HWND showHotkey=Add(HOTKEY_CLASSW,L"",WS_TABSTOP,appX+2,362,206,22,IDC_HOTKEY_SHOW);
     SetWindowSubclass(showHotkey,HotkeyFieldSubclassProc,1,0);
     RemoveNativeHotkeyFrame(showHotkey);
-    SendMessageW(showHotkey,HKM_SETRULES,HKCOMB_NONE,MAKELPARAM(HOTKEYF_CONTROL|HOTKEYF_SHIFT,0));
+    SendMessageW(showHotkey,HKM_SETRULES,0,0);
     HWND clearShow=Add(L"BUTTON",L"Clear",BS_OWNERDRAW,appX+218,356,68,34,IDC_HOTKEY_SHOW_CLEAR);
     StyleMainButton(clearShow);
     Add(L"STATIC",L"Windows override",0,appX,414,286,22,IDC_HOTKEY_OVERRIDE_LABEL);
     HWND overrideHotkey=Add(HOTKEY_CLASSW,L"",WS_TABSTOP,appX+2,446,206,22,IDC_HOTKEY_OVERRIDE);
     SetWindowSubclass(overrideHotkey,HotkeyFieldSubclassProc,1,0);
     RemoveNativeHotkeyFrame(overrideHotkey);
-    SendMessageW(overrideHotkey,HKM_SETRULES,HKCOMB_NONE,MAKELPARAM(HOTKEYF_CONTROL|HOTKEYF_SHIFT,0));
+    SendMessageW(overrideHotkey,HKM_SETRULES,0,0);
     HWND clearOverride=Add(L"BUTTON",L"Clear",BS_OWNERDRAW,appX+218,440,68,34,IDC_HOTKEY_OVERRIDE_CLEAR);
     StyleMainButton(clearOverride);
     SetHotkeyControl(IDC_HOTKEY_SHOW,gSettings.showHideHotkey);
