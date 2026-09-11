@@ -1835,27 +1835,48 @@ void DrawRemoveButtonIcon(HDC dc,int x,int y,COLORREF c){
 void DrawFolderIcon(HDC dc,int x,int y,COLORREF c){
     Gdiplus::Graphics g(dc);
     g.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
+    g.SetPixelOffsetMode(Gdiplus::PixelOffsetModeHalf);
 
     Gdiplus::Color color(255,GetRValue(c),GetGValue(c),GetBValue(c));
-    Gdiplus::Pen pen(color,1.35f);
-    pen.SetStartCap(Gdiplus::LineCapRound);
-    pen.SetEndCap(Gdiplus::LineCapRound);
-    pen.SetLineJoin(Gdiplus::LineJoinRound);
+    Gdiplus::Color rearColor(190,GetRValue(c),GetGValue(c),GetBValue(c));
+    Gdiplus::Pen rearPen(rearColor,1.15f);
+    rearPen.SetStartCap(Gdiplus::LineCapRound);
+    rearPen.SetEndCap(Gdiplus::LineCapRound);
+    rearPen.SetLineJoin(Gdiplus::LineJoinRound);
 
-    Gdiplus::GraphicsPath path;
-    path.StartFigure();
-    path.AddLine((Gdiplus::REAL)x+1.5f,(Gdiplus::REAL)y+5.0f,
-                 (Gdiplus::REAL)x+6.8f,(Gdiplus::REAL)y+5.0f);
-    path.AddLine((Gdiplus::REAL)x+6.8f,(Gdiplus::REAL)y+5.0f,
-                 (Gdiplus::REAL)x+9.2f,(Gdiplus::REAL)y+7.4f);
-    path.AddLine((Gdiplus::REAL)x+9.2f,(Gdiplus::REAL)y+7.4f,
-                 (Gdiplus::REAL)x+18.0f,(Gdiplus::REAL)y+7.4f);
-    path.AddLine((Gdiplus::REAL)x+18.0f,(Gdiplus::REAL)y+7.4f,
-                 (Gdiplus::REAL)x+19.0f,(Gdiplus::REAL)y+16.5f);
-    path.AddLine((Gdiplus::REAL)x+19.0f,(Gdiplus::REAL)y+16.5f,
-                 (Gdiplus::REAL)x+1.5f,(Gdiplus::REAL)y+16.5f);
-    path.CloseFigure();
-    g.DrawPath(&pen,&path);
+    // Rear folder body and tab.
+    Gdiplus::GraphicsPath rear;
+    rear.StartFigure();
+    rear.AddLine((Gdiplus::REAL)x+2.0f,(Gdiplus::REAL)y+15.5f,
+                 (Gdiplus::REAL)x+2.0f,(Gdiplus::REAL)y+4.5f);
+    rear.AddLine((Gdiplus::REAL)x+2.0f,(Gdiplus::REAL)y+4.5f,
+                 (Gdiplus::REAL)x+7.0f,(Gdiplus::REAL)y+4.5f);
+    rear.AddLine((Gdiplus::REAL)x+7.0f,(Gdiplus::REAL)y+4.5f,
+                 (Gdiplus::REAL)x+9.2f,(Gdiplus::REAL)y+6.7f);
+    rear.AddLine((Gdiplus::REAL)x+9.2f,(Gdiplus::REAL)y+6.7f,
+                 (Gdiplus::REAL)x+17.5f,(Gdiplus::REAL)y+6.7f);
+    rear.AddLine((Gdiplus::REAL)x+17.5f,(Gdiplus::REAL)y+6.7f,
+                 (Gdiplus::REAL)x+18.2f,(Gdiplus::REAL)y+9.0f);
+    g.DrawPath(&rearPen,&rear);
+
+    // Open front flap, which gives the mockup icon its depth.
+    Gdiplus::GraphicsPath front;
+    front.StartFigure();
+    front.AddLine((Gdiplus::REAL)x+1.8f,(Gdiplus::REAL)y+9.0f,
+                  (Gdiplus::REAL)x+19.0f,(Gdiplus::REAL)y+9.0f);
+    front.AddLine((Gdiplus::REAL)x+19.0f,(Gdiplus::REAL)y+9.0f,
+                  (Gdiplus::REAL)x+16.2f,(Gdiplus::REAL)y+16.2f);
+    front.AddLine((Gdiplus::REAL)x+16.2f,(Gdiplus::REAL)y+16.2f,
+                  (Gdiplus::REAL)x+1.0f,(Gdiplus::REAL)y+16.2f);
+    front.CloseFigure();
+
+    Gdiplus::SolidBrush frontFill(Gdiplus::Color(28,GetRValue(c),GetGValue(c),GetBValue(c)));
+    Gdiplus::Pen frontPen(color,1.35f);
+    frontPen.SetStartCap(Gdiplus::LineCapRound);
+    frontPen.SetEndCap(Gdiplus::LineCapRound);
+    frontPen.SetLineJoin(Gdiplus::LineJoinRound);
+    g.FillPath(&frontFill,&front);
+    g.DrawPath(&frontPen,&front);
 }
 
 
@@ -1970,10 +1991,7 @@ void DrawOwnerButton(const DRAWITEMSTRUCT* d){
         int total=iconW+gap+sz.cx;
         int contentX=r.left+((r.right-r.left)-total)/2+pressOffset;
 
-        if(id==IDC_BROWSE){
-            DrawFolderIcon(d->hDC,contentX+1,cy-11,RGB(65,72,79));
-            DrawFolderIcon(d->hDC,contentX,cy-12,icon);
-        }
+        if(id==IDC_BROWSE) DrawFolderIcon(d->hDC,contentX,cy-10,icon);
 
         int textY=cy-sz.cy/2;
         if(id==IDC_BROWSE) textY-=1;
