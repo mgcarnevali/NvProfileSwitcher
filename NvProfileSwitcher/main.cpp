@@ -2009,17 +2009,18 @@ void SetDesktopUi(bool desktop){
         ShowWindow(H(id),showApplication);
     ShowWindow(H(IDC_REMOVE),desktop?SW_HIDE:SW_SHOW);
 
-    const int yDisplay=desktop?154:394;
-    const int yBri=desktop?230:480;
-    const int yCon=desktop?294:548;
-    const int yGam=desktop?358:616;
-    const int yVib=desktop?422:684;
-    const int yHue=desktop?486:752;
-    const int ySave=desktop?550:820;
+    const int yDisplay=desktop?154:350;
+    const int yBri=desktop?230:436;
+    const int yCon=desktop?294:504;
+    const int yGam=desktop?358:572;
+    const int yVib=desktop?422:640;
+    const int yHue=desktop?486:708;
+    const int ySave=desktop?550:772;
 
-    MoveWindow(H(IDC_PROFILE_HOTKEY_LABEL),rightX,306,220,22,TRUE);
-    MoveWindow(H(IDC_PROFILE_HOTKEY),rightX+2,344,206,22,TRUE);
-    MoveWindow(H(IDC_PROFILE_HOTKEY_CLEAR),rightX+220,338,68,34,TRUE);
+    const int profileHotkeyX=rightX+rightW-288;
+    MoveWindow(H(IDC_PROFILE_HOTKEY_LABEL),profileHotkeyX,272,220,22,TRUE);
+    MoveWindow(H(IDC_PROFILE_HOTKEY),profileHotkeyX+2,306,206,22,TRUE);
+    MoveWindow(H(IDC_PROFILE_HOTKEY_CLEAR),profileHotkeyX+220,300,68,34,TRUE);
 
     MoveWindow(H(IDC_LBL_DISPLAY),rightX+31,yDisplay,150,22,TRUE);
     MoveWindow(H(IDC_DISPLAY),rightX,yDisplay+24,rightW,34,TRUE);
@@ -2808,7 +2809,7 @@ void Paint(HWND w){
     FillRound(dc,overrideHotkeyFrame,C_FIELD,C_BORDER,8);
 
     const bool desktop=IsDesktopSelected();
-    const int displayY=desktop?154:394;
+    const int displayY=desktop?154:350;
 
     DrawDisplayPrototypeIcon(dc,centerX+22,displayY);
 
@@ -2823,16 +2824,17 @@ void Paint(HWND w){
         RECT exeFrame{rightX,222,rightX+rightW-browseW-fieldGap,258};
         FillRound(dc,exeFrame,C_FIELD,C_BORDER,8);
 
-        RECT profileHotkeyFrame{rightX,338,rightX+210,372};
+        const int profileHotkeyX=rightX+rightW-288;
+        RECT profileHotkeyFrame{profileHotkeyX,300,profileHotkeyX+210,334};
         FillRound(dc,profileHotkeyFrame,C_FIELD,C_BORDER,8);
     }
 
     const int iconX=centerX+22;
-    const int iconBri=desktop?230:480;
-    const int iconCon=desktop?294:548;
-    const int iconGam=desktop?358:616;
-    const int iconVib=desktop?422:684;
-    const int iconHue=desktop?486:752;
+    const int iconBri=desktop?230:436;
+    const int iconCon=desktop?294:504;
+    const int iconGam=desktop?358:572;
+    const int iconVib=desktop?422:640;
+    const int iconHue=desktop?486:708;
     DrawSliderIcon(dc,gSliderBrightness,iconX,iconBri-2);
     DrawSliderIcon(dc,gSliderContrast,iconX,iconCon-2);
     DrawSliderIcon(dc,gSliderGamma,iconX,iconGam-2);
@@ -2971,17 +2973,18 @@ void BuildControls(){
     StyleFlatCheckbox(enabled);
     Add(L"STATIC",L"Enable this profile",SS_CENTERIMAGE,rightX+27,272,205,22,IDC_LBL_ENABLED);
 
-    Add(L"STATIC",L"Profile hotkey",0,rightX,306,220,22,IDC_PROFILE_HOTKEY_LABEL);
-    HWND profileHotkey=Add(HOTKEY_CLASSW,L"",WS_TABSTOP,rightX+2,344,206,22,IDC_PROFILE_HOTKEY);
+    const int profileHotkeyX=rightX+rightW-288;
+    Add(L"STATIC",L"Profile hotkey",0,profileHotkeyX,272,220,22,IDC_PROFILE_HOTKEY_LABEL);
+    HWND profileHotkey=Add(HOTKEY_CLASSW,L"",WS_TABSTOP,profileHotkeyX+2,306,206,22,IDC_PROFILE_HOTKEY);
     SetWindowSubclass(profileHotkey,HotkeyFieldSubclassProc,1,0);
     RemoveNativeHotkeyFrame(profileHotkey);
     SendMessageW(profileHotkey,HKM_SETRULES,0,0);
-    HWND clearProfile=Add(L"BUTTON",L"Clear",BS_OWNERDRAW,rightX+220,338,68,34,IDC_PROFILE_HOTKEY_CLEAR);
+    HWND clearProfile=Add(L"BUTTON",L"Clear",BS_OWNERDRAW,profileHotkeyX+220,300,68,34,IDC_PROFILE_HOTKEY_CLEAR);
     StyleMainButton(clearProfile);
 
-    Add(L"STATIC",L"Display",0,rightX+31,394,150,22,IDC_LBL_DISPLAY);
+    Add(L"STATIC",L"Display",0,rightX+31,350,150,22,IDC_LBL_DISPLAY);
     HWND display=Add(L"COMBOBOX",L"",CBS_DROPDOWNLIST|CBS_OWNERDRAWFIXED|CBS_HASSTRINGS|WS_VSCROLL,
-        rightX,418,rightW,240,IDC_DISPLAY);
+        rightX,374,rightW,240,IDC_DISPLAY);
     SendMessageW(display,CB_SETITEMHEIGHT,0,28);
     SendMessageW(display,CB_SETITEMHEIGHT,(WPARAM)-1,26);
     StyleFlatCombo(display);
@@ -3000,13 +3003,13 @@ void BuildControls(){
         Add(L"STATIC",L"",SS_OWNERDRAW,valueX,y-5,valueW,28,vid);
     };
 
-    slider(L"Brightness",IDC_LBL_BRI,IDC_BRI,IDC_VALBRI,480,80,120);
-    slider(L"Contrast",IDC_LBL_CON,IDC_CON,IDC_VALCON,548,80,120);
-    slider(L"Gamma",IDC_LBL_GAM,IDC_GAM,IDC_VALGAM,616,30,280);
-    slider(L"Digital Vibrance (%)",IDC_LBL_VIB,IDC_VIB,IDC_VALVIB,684,0,100);
-    slider(L"Hue (\x00B0)",IDC_LBL_HUE,IDC_HUE,IDC_VALHUE,752,0,359);
+    slider(L"Brightness",IDC_LBL_BRI,IDC_BRI,IDC_VALBRI,436,80,120);
+    slider(L"Contrast",IDC_LBL_CON,IDC_CON,IDC_VALCON,504,80,120);
+    slider(L"Gamma",IDC_LBL_GAM,IDC_GAM,IDC_VALGAM,572,30,280);
+    slider(L"Digital Vibrance (%)",IDC_LBL_VIB,IDC_VIB,IDC_VALVIB,640,0,100);
+    slider(L"Hue (\x00B0)",IDC_LBL_HUE,IDC_HUE,IDC_VALHUE,708,0,359);
 
-    HWND reset=Add(L"BUTTON",L"Reset",BS_OWNERDRAW,rightX,820,132,38,IDC_DEFAULTS);
+    HWND reset=Add(L"BUTTON",L"Reset",BS_OWNERDRAW,rightX,772,132,38,IDC_DEFAULTS);
     StyleMainButton(reset);
     gResetTooltip=CreateWindowExW(WS_EX_TOOLWINDOW|WS_EX_TOPMOST,L"STATIC",
         L"Reset to NVIDIA defaults",WS_POPUP,0,0,0,0,gWnd,nullptr,gInst,nullptr);
@@ -3016,7 +3019,7 @@ void BuildControls(){
         SetWindowSubclass(H(IDC_DEFAULTS),ResetButtonSubclassProc,1,0);
     }
     HWND saveProfile=Add(L"BUTTON",L"Save profile",BS_OWNERDRAW,
-        rightX+rightW-160,820,160,38,IDC_SAVE);
+        rightX+rightW-160,772,160,38,IDC_SAVE);
     StyleMainButton(saveProfile);
 
     const int appX=centerPanelX+centerPanelW+gap+22;
@@ -3086,9 +3089,10 @@ void ResizeControls(){
     MoveWindow(H(IDC_BROWSE),rightX+rightW-browseW,222,browseW,36,TRUE);
     MoveWindow(H(IDC_ENABLED),rightX,272,22,22,TRUE);
     MoveWindow(H(IDC_LBL_ENABLED),rightX+27,272,205,22,TRUE);
-    MoveWindow(H(IDC_PROFILE_HOTKEY_LABEL),rightX,306,220,22,TRUE);
-    MoveWindow(H(IDC_PROFILE_HOTKEY),rightX+2,344,206,22,TRUE);
-    MoveWindow(H(IDC_PROFILE_HOTKEY_CLEAR),rightX+220,338,68,34,TRUE);
+    const int profileHotkeyX=rightX+rightW-288;
+    MoveWindow(H(IDC_PROFILE_HOTKEY_LABEL),profileHotkeyX,272,220,22,TRUE);
+    MoveWindow(H(IDC_PROFILE_HOTKEY),profileHotkeyX+2,306,206,22,TRUE);
+    MoveWindow(H(IDC_PROFILE_HOTKEY_CLEAR),profileHotkeyX+220,300,68,34,TRUE);
 
     MoveWindow(H(IDC_FOOT_GITHUB),r.right-284,r.bottom-43,66,24,TRUE);
     MoveWindow(H(IDC_FOOT_SUPPORT),r.right-212,r.bottom-43,98,24,TRUE);
