@@ -86,7 +86,7 @@ constexpr wchar_t UPDATE_PATH[]=L"/repos/mgcarnevali/NvProfileSwitcher/releases/
 enum {IDC_LIST=1001,IDC_NAME,IDC_EXE,IDC_BROWSE,IDC_ENABLED,IDC_DISPLAY,IDC_LBL_DISPLAY,IDC_VIB,IDC_HUE,IDC_BRI,IDC_CON,IDC_GAM,IDC_SAVE,IDC_ADD=1015,IDC_REMOVE,IDC_STARTWIN=1018,IDC_STARTMIN,IDC_VALVIB,IDC_VALHUE,IDC_VALBRI,IDC_VALCON,IDC_VALGAM,IDC_LBL_NAME,IDC_LBL_EXE,IDC_LBL_ENABLED,IDC_LBL_VIB,IDC_LBL_HUE,IDC_LBL_BRI,IDC_LBL_CON,IDC_LBL_GAM,IDC_DEFAULTS,IDC_MINTRAY,IDC_CHECKUPDATES,IDC_FOOT_GITHUB,IDC_FOOT_SUPPORT,IDC_FOOT_ABOUT};
 enum {ID_TRAY_OPEN=2001,ID_TRAY_CHECK_UPDATE,ID_TRAY_ABOUT,ID_TRAY_EXIT};
 
-HINSTANCE gInst{}; HWND gWnd{}; HFONT gFont{},gFontBold{},gFontTitle{},gFontSmall{},gFontHeaderButton{},gIconFont{}; HBRUSH gBackBrush{},gPanelBrush{},gPanel2Brush{},gFieldBrush{}; HICON gIcon{};
+HINSTANCE gInst{}; HWND gWnd{}; HFONT gFont{},gFontBold{},gFontPanelTitle{},gFontTitle{},gFontSmall{},gFontHeaderButton{},gIconFont{}; HBRUSH gBackBrush{},gPanelBrush{},gPanel2Brush{},gFieldBrush{}; HICON gIcon{};
 ULONG_PTR gGdiPlusToken{}; Gdiplus::Image* gHeaderImage{};
 Gdiplus::Image *gSliderBrightness{},*gSliderContrast{},*gSliderGamma{},*gSliderVibrance{},*gSliderHue{},*gNvidiaDriverIcon{};
 Settings gSettings; int gSelected=-1; std::wstring gActive=L"Windows", gStatus=L"Not initialized", gDriverVersion=L"--"; bool gStatusOk=false;
@@ -858,10 +858,8 @@ LRESULT CALLBACK FlatCheckboxSubclassProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp
 
         const bool checked=SendMessageW(hwnd,BM_GETCHECK,0,0)==BST_CHECKED;
 
-        // Compact mockup-style checkbox. The box is intentionally positioned
-        // slightly higher inside the 20x22 control so its visual center lines
-        // up with the adjacent caption.
-        RECT box{2,3,15,16}; // 13x13
+        // Mockup-style 22x22 checkbox inside a 24x24 clickable control.
+        RECT box{1,1,23,23};
         const COLORREF offFill=RGB(22,27,32);
         const COLORREF offBorder=RGB(57,65,73);
         const COLORREF onFill=RGB(65,183,78);
@@ -869,12 +867,11 @@ LRESULT CALLBACK FlatCheckboxSubclassProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp
         FillRound(dc,box,checked?onFill:offFill,checked?onBorder:offBorder,2);
 
         if(checked){
-            // Finer check for the smaller box.
-            HPEN pen=CreatePen(PS_SOLID,1,RGB(12,32,16));
+            HPEN pen=CreatePen(PS_SOLID,2,RGB(12,32,16));
             HGDIOBJ old=SelectObject(dc,pen);
-            MoveToEx(dc,5,9,nullptr);
-            LineTo(dc,8,12);
-            LineTo(dc,13,6);
+            MoveToEx(dc,6,12,nullptr);
+            LineTo(dc,10,16);
+            LineTo(dc,18,7);
             SelectObject(dc,old);
             DeleteObject(pen);
         }
@@ -1513,14 +1510,14 @@ void SetDesktopUi(bool desktop){
     MoveWindow(H(IDC_SAVE),rightX+rightW-160,ySave,160,38,TRUE);
 
     const int appX=centerPanelX+centerPanelW+gap+22;
-    MoveWindow(H(IDC_STARTWIN),appX,150,20,22,TRUE);
-    MoveWindow(GetWindow(H(IDC_STARTWIN),GW_HWNDNEXT),appX+22,150,220,22,TRUE);
-    MoveWindow(H(IDC_STARTMIN),appX,178,20,22,TRUE);
-    MoveWindow(GetWindow(H(IDC_STARTMIN),GW_HWNDNEXT),appX+22,178,220,22,TRUE);
-    MoveWindow(H(IDC_MINTRAY),appX,206,20,22,TRUE);
-    MoveWindow(GetWindow(H(IDC_MINTRAY),GW_HWNDNEXT),appX+22,206,220,22,TRUE);
-    MoveWindow(H(IDC_CHECKUPDATES),appX,234,20,22,TRUE);
-    MoveWindow(GetWindow(H(IDC_CHECKUPDATES),GW_HWNDNEXT),appX+22,234,220,22,TRUE);
+    MoveWindow(H(IDC_STARTWIN),appX,149,24,24,TRUE);
+    MoveWindow(GetWindow(H(IDC_STARTWIN),GW_HWNDNEXT),appX+34,150,220,22,TRUE);
+    MoveWindow(H(IDC_STARTMIN),appX,177,24,24,TRUE);
+    MoveWindow(GetWindow(H(IDC_STARTMIN),GW_HWNDNEXT),appX+34,178,220,22,TRUE);
+    MoveWindow(H(IDC_MINTRAY),appX,205,24,24,TRUE);
+    MoveWindow(GetWindow(H(IDC_MINTRAY),GW_HWNDNEXT),appX+34,206,220,22,TRUE);
+    MoveWindow(H(IDC_CHECKUPDATES),appX,233,24,24,TRUE);
+    MoveWindow(GetWindow(H(IDC_CHECKUPDATES),GW_HWNDNEXT),appX+34,234,220,22,TRUE);
 
     InvalidateRect(gWnd,nullptr,TRUE);
 }
@@ -2217,9 +2214,9 @@ void Paint(HWND w){
     PaintPanelHeader(center);
     PaintPanelHeader(settings);
 
-    DrawLabel(dc,L"Profiles",left.left+14,101,C_TEXT,gFontBold);
-    DrawLabel(dc,L"Profile Settings",center.left+14,101,C_TEXT,gFontBold);
-    DrawLabel(dc,L"Application Settings",settings.left+14,101,C_TEXT,gFontBold);
+    DrawLabel(dc,L"Profiles",left.left+14,99,C_TEXT,gFontPanelTitle);
+    DrawLabel(dc,L"Profile Settings",center.left+14,99,C_TEXT,gFontPanelTitle);
+    DrawLabel(dc,L"Application Settings",settings.left+14,99,C_TEXT,gFontPanelTitle);
 
     Fill(dc,left.left+1,separatorY,leftW-2,1,C_BORDER);
     Fill(dc,center.left+1,separatorY,centerW-2,1,C_BORDER);
@@ -2374,9 +2371,9 @@ void BuildControls(){
 
     Add(L"BUTTON",L"Browse...",BS_OWNERDRAW,rightX+rightW-browseW,222,browseW,36,IDC_BROWSE);
 
-    HWND enabled=Add(L"BUTTON",L"",BS_AUTOCHECKBOX,rightX,272,20,22,IDC_ENABLED);
+    HWND enabled=Add(L"BUTTON",L"",BS_AUTOCHECKBOX,rightX,271,24,24,IDC_ENABLED);
     StyleFlatCheckbox(enabled);
-    Add(L"STATIC",L"Enable this profile",0,rightX+24,272,205,22,IDC_LBL_ENABLED);
+    Add(L"STATIC",L"Enable this profile",0,rightX+34,272,205,22,IDC_LBL_ENABLED);
 
     Add(L"STATIC",L"Display",0,rightX+31,320,150,22,IDC_LBL_DISPLAY);
     HWND display=Add(L"COMBOBOX",L"",CBS_DROPDOWNLIST|CBS_OWNERDRAWFIXED|CBS_HASSTRINGS|WS_VSCROLL,
@@ -2417,14 +2414,14 @@ void BuildControls(){
 
     const int appX=centerPanelX+centerPanelW+gap+22;
 
-    { HWND cb=Add(L"BUTTON",L"",BS_AUTOCHECKBOX,appX,150,20,22,IDC_STARTWIN); StyleFlatCheckbox(cb); }
-    Add(L"STATIC",L"Start with Windows",0,appX+22,150,220,22,0);
-    { HWND cb=Add(L"BUTTON",L"",BS_AUTOCHECKBOX,appX,178,20,22,IDC_STARTMIN); StyleFlatCheckbox(cb); }
-    Add(L"STATIC",L"Start minimized",0,appX+22,178,220,22,0);
-    { HWND cb=Add(L"BUTTON",L"",BS_AUTOCHECKBOX,appX,206,20,22,IDC_MINTRAY); StyleFlatCheckbox(cb); }
-    Add(L"STATIC",L"Minimize to tray",0,appX+22,206,220,22,0);
-    { HWND cb=Add(L"BUTTON",L"",BS_AUTOCHECKBOX,appX,234,20,22,IDC_CHECKUPDATES); StyleFlatCheckbox(cb); }
-    Add(L"STATIC",L"Check for updates",0,appX+22,234,220,22,0);
+    { HWND cb=Add(L"BUTTON",L"",BS_AUTOCHECKBOX,appX,149,24,24,IDC_STARTWIN); StyleFlatCheckbox(cb); }
+    Add(L"STATIC",L"Start with Windows",0,appX+34,150,220,22,0);
+    { HWND cb=Add(L"BUTTON",L"",BS_AUTOCHECKBOX,appX,177,24,24,IDC_STARTMIN); StyleFlatCheckbox(cb); }
+    Add(L"STATIC",L"Start minimized",0,appX+34,178,220,22,0);
+    { HWND cb=Add(L"BUTTON",L"",BS_AUTOCHECKBOX,appX,205,24,24,IDC_MINTRAY); StyleFlatCheckbox(cb); }
+    Add(L"STATIC",L"Minimize to tray",0,appX+34,206,220,22,0);
+    { HWND cb=Add(L"BUTTON",L"",BS_AUTOCHECKBOX,appX,233,24,24,IDC_CHECKUPDATES); StyleFlatCheckbox(cb); }
+    Add(L"STATIC",L"Check for updates",0,appX+34,234,220,22,0);
 
     SendMessageW(H(IDC_STARTWIN),BM_SETCHECK,gSettings.startWindows?BST_CHECKED:BST_UNCHECKED,0);
     SendMessageW(H(IDC_STARTMIN),BM_SETCHECK,gSettings.startMinimized?BST_CHECKED:BST_UNCHECKED,0);
@@ -2461,8 +2458,8 @@ void ResizeControls(){
     MoveWindow(H(IDC_LBL_EXE),rightX,194,120,22,TRUE);
     MoveWindow(H(IDC_EXE),rightX+2,229,rightW-browseW-fieldGap-4,22,TRUE);
     MoveWindow(H(IDC_BROWSE),rightX+rightW-browseW,222,browseW,36,TRUE);
-    MoveWindow(H(IDC_ENABLED),rightX,272,20,22,TRUE);
-    MoveWindow(H(IDC_LBL_ENABLED),rightX+24,272,205,22,TRUE);
+    MoveWindow(H(IDC_ENABLED),rightX,271,24,24,TRUE);
+    MoveWindow(H(IDC_LBL_ENABLED),rightX+34,272,205,22,TRUE);
 
     MoveWindow(H(IDC_FOOT_GITHUB),r.right-284,r.bottom-43,66,24,TRUE);
     MoveWindow(H(IDC_FOOT_SUPPORT),r.right-212,r.bottom-43,98,24,TRUE);
@@ -3073,6 +3070,29 @@ case ID_TRAY_OPEN:ShowMain();break;case ID_TRAY_CHECK_UPDATE:{if(HANDLE h=Create
     DestroyWindow(w);
     return 0;case WM_TRAY:if(lp==WM_LBUTTONDBLCLK){ShowMain();return 0;}if(lp==WM_RBUTTONUP||lp==WM_CONTEXTMENU){POINT p;GetCursorPos(&p);SetForegroundWindow(w);TrackPopupMenu(gTrayMenu,TPM_RIGHTBUTTON,p.x,p.y,0,w,nullptr);return 0;}break;case WM_DESTROY:KillTimer(w,1);KillTimer(w,2);SetTrayIconVisible(false);if(pUnload)pUnload();if(gNv)FreeLibrary(gNv);PostQuitMessage(0);return 0;}return DefWindowProcW(w,m,wp,lp);} 
 
+int CALLBACK DetectFontFamily(const LOGFONTW*,const TEXTMETRICW*,DWORD,LPARAM data){
+    *reinterpret_cast<bool*>(data)=true;
+    return 0;
+}
+
+bool FontFamilyAvailable(const wchar_t* family){
+    HDC dc=GetDC(nullptr);
+    if(!dc) return false;
+    LOGFONTW lf{};
+    lf.lfCharSet=DEFAULT_CHARSET;
+    wcsncpy_s(lf.lfFaceName,family,_TRUNCATE);
+    bool found=false;
+    EnumFontFamiliesExW(dc,&lf,(FONTENUMPROCW)DetectFontFamily,(LPARAM)&found,0);
+    ReleaseDC(nullptr,dc);
+    return found;
+}
+
+HFONT CreateUiFont(int height,int weight,const wchar_t* family){
+    return CreateFontW(height,0,0,0,weight,FALSE,FALSE,FALSE,DEFAULT_CHARSET,
+        OUT_DEFAULT_PRECIS,CLIP_DEFAULT_PRECIS,CLEARTYPE_QUALITY,
+        DEFAULT_PITCH|FF_DONTCARE,family);
+}
+
 int WINAPI wWinMain(HINSTANCE h,HINSTANCE,LPWSTR cmd,int){
 HANDLE instanceMutex=CreateMutexW(nullptr,TRUE,INSTANCE_MUTEX_NAME);
 if(instanceMutex && GetLastError()==ERROR_ALREADY_EXISTS){
@@ -3094,7 +3114,14 @@ Gdiplus::GdiplusStartupInput gdiplusInput;
 if(Gdiplus::GdiplusStartup(&gGdiPlusToken,&gdiplusInput,nullptr)!=Gdiplus::Ok)
     gGdiPlusToken=0;
 if(gGdiPlusToken){LoadHeaderImage();LoadSliderIcons();}
-INITCOMMONCONTROLSEX ic{sizeof(ic),ICC_BAR_CLASSES|ICC_STANDARD_CLASSES};InitCommonControlsEx(&ic);Load();gSettings.desktop.name=L"Windows";gBackBrush=CreateSolidBrush(C_BACK);gPanelBrush=CreateSolidBrush(C_PANEL);gPanel2Brush=CreateSolidBrush(C_PANEL2);gFieldBrush=CreateSolidBrush(C_FIELD);gFont=CreateFontW(-15,0,0,0,FW_NORMAL,0,0,0,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,DEFAULT_PITCH,L"Segoe UI");gFontBold=CreateFontW(-15,0,0,0,FW_SEMIBOLD,0,0,0,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,DEFAULT_PITCH,L"Segoe UI");gFontTitle=CreateFontW(-24,0,0,0,FW_BOLD,0,0,0,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,DEFAULT_PITCH,L"Segoe UI");gFontSmall=CreateFontW(-13,0,0,0,FW_NORMAL,0,0,0,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,DEFAULT_PITCH,L"Segoe UI");gFontHeaderButton=CreateFontW(-14,0,0,0,FW_SEMIBOLD,0,0,0,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,DEFAULT_PITCH,L"Segoe UI");
+INITCOMMONCONTROLSEX ic{sizeof(ic),ICC_BAR_CLASSES|ICC_STANDARD_CLASSES};InitCommonControlsEx(&ic);Load();gSettings.desktop.name=L"Windows";gBackBrush=CreateSolidBrush(C_BACK);gPanelBrush=CreateSolidBrush(C_PANEL);gPanel2Brush=CreateSolidBrush(C_PANEL2);gFieldBrush=CreateSolidBrush(C_FIELD);
+const wchar_t* uiFamily=FontFamilyAvailable(L"Bahnschrift")?L"Bahnschrift":L"Segoe UI";
+gFont=CreateUiFont(-15,FW_NORMAL,uiFamily);
+gFontBold=CreateUiFont(-15,FW_SEMIBOLD,uiFamily);
+gFontPanelTitle=CreateUiFont(-18,FW_SEMIBOLD,uiFamily);
+gFontTitle=CreateUiFont(-24,FW_BOLD,uiFamily);
+gFontSmall=CreateUiFont(-13,FW_NORMAL,uiFamily);
+gFontHeaderButton=CreateUiFont(-14,FW_SEMIBOLD,uiFamily);
 gIconFont=CreateFontW(-18,0,0,0,FW_NORMAL,FALSE,FALSE,FALSE,DEFAULT_CHARSET,OUT_DEFAULT_PRECIS,CLIP_DEFAULT_PRECIS,CLEARTYPE_QUALITY,DEFAULT_PITCH,L"Segoe MDL2 Assets");gIcon=LoadIconW(h,MAKEINTRESOURCEW(IDI_APPICON));WNDCLASSEXW wc{sizeof(wc)};wc.style=CS_HREDRAW|CS_VREDRAW;wc.lpfnWndProc=Proc;wc.hInstance=h;wc.hIcon=gIcon;wc.hIconSm=gIcon;wc.hCursor=LoadCursor(nullptr,IDC_ARROW);wc.hbrBackground=gBackBrush;wc.lpszClassName=L"NvProfileSwitcherNative";RegisterClassExW(&wc);
 gWnd=CreateWindowExW(0,wc.lpszClassName,L"NvProfileSwitcher",WS_OVERLAPPED|WS_CAPTION|WS_SYSMENU|WS_MINIMIZEBOX,CW_USEDEFAULT,CW_USEDEFAULT,1360,930,nullptr,nullptr,h,nullptr);
 BOOL darkTitle=TRUE;DwmSetWindowAttribute(gWnd,20,&darkTitle,sizeof(darkTitle));
@@ -3110,7 +3137,7 @@ SetWindowPos(gWnd,nullptr,mainX,mainY,0,0,SWP_NOSIZE|SWP_NOZORDER|SWP_NOACTIVATE
 SetWindowLongPtrW(gWnd,GWLP_USERDATA,0);gTrayMenu=CreatePopupMenu();AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_OPEN,L"Open NvProfileSwitcher");AppendMenuW(gTrayMenu,MF_SEPARATOR,0,nullptr);AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_CHECK_UPDATE,L"Check for updates");AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_ABOUT,L"About NvProfileSwitcher");AppendMenuW(gTrayMenu,MF_SEPARATOR,0,nullptr);AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_EXIT,L"Exit");gNid.cbSize=sizeof(gNid);gNid.hWnd=gWnd;gNid.uID=1;gNid.uFlags=NIF_MESSAGE|NIF_ICON|NIF_TIP;gNid.uCallbackMessage=WM_TRAY;gNid.hIcon=gIcon;wcscpy_s(gNid.szTip,L"NvProfileSwitcher");gStatusOk=InitNv();if(gStatusOk){for(const auto&d:gDisplays)EnsureDesktopProfile(d.gdiName,d.monitorId);EnsureAllApplicationDisplayProfiles();Save();if(auto* p=SelectedProfile())RefreshDisplayCombo(*p);RestoreAllDesktopProfiles();LoadSelected();}gActive=L"Windows";bool min=(wcsstr(cmd,L"--minimized")!=nullptr);
 if(min) SetTrayIconVisible(true);
 ShowWindow(gWnd,min?SW_HIDE:SW_SHOW);
-UpdateWindow(gWnd);if(gSettings.checkUpdates){if(HANDLE h=CreateThread(nullptr,0,UpdateCheckThread,nullptr,0,nullptr))CloseHandle(h);}MSG msg;while(GetMessageW(&msg,nullptr,0,0)>0){TranslateMessage(&msg);DispatchMessageW(&msg);}DeleteObject(gFont);DeleteObject(gFontBold);DeleteObject(gFontTitle);DeleteObject(gFontSmall);DeleteObject(gFontHeaderButton);DeleteObject(gIconFont);DeleteObject(gBackBrush);DeleteObject(gPanelBrush);DeleteObject(gPanel2Brush);DeleteObject(gFieldBrush);
+UpdateWindow(gWnd);if(gSettings.checkUpdates){if(HANDLE h=CreateThread(nullptr,0,UpdateCheckThread,nullptr,0,nullptr))CloseHandle(h);}MSG msg;while(GetMessageW(&msg,nullptr,0,0)>0){TranslateMessage(&msg);DispatchMessageW(&msg);}DeleteObject(gFont);DeleteObject(gFontBold);DeleteObject(gFontPanelTitle);DeleteObject(gFontTitle);DeleteObject(gFontSmall);DeleteObject(gFontHeaderButton);DeleteObject(gIconFont);DeleteObject(gBackBrush);DeleteObject(gPanelBrush);DeleteObject(gPanel2Brush);DeleteObject(gFieldBrush);
 if(gHeaderImage){delete gHeaderImage;gHeaderImage=nullptr;}
 for(auto** image:{&gSliderBrightness,&gSliderContrast,&gSliderGamma,&gSliderVibrance,&gSliderHue,&gNvidiaDriverIcon}){
     if(*image){delete *image;*image=nullptr;}
