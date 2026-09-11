@@ -2503,9 +2503,11 @@ void Paint(HWND w){
     GetTextExtentPoint32W(dc,footerVersion.c_str(),(int)footerVersion.size(),&verSize);
     int activeDividerX=versionDividerX+16+verSize.cx+18;
     Fill(dc,activeDividerX,footerY,1,17,C_BORDER);
-    DrawLabel(dc,L"Active profile",activeDividerX+16,footerY,C_MUTED,gFont);
+    constexpr wchar_t activeProfileLabel[]=L"Active profile:";
+    DrawLabel(dc,activeProfileLabel,activeDividerX+16,footerY,C_MUTED,gFont);
     SIZE activeLabel{}; SelectObject(dc,gFont);
-    GetTextExtentPoint32W(dc,L"Active profile",14,&activeLabel);
+    GetTextExtentPoint32W(dc,activeProfileLabel,
+        (int)(sizeof(activeProfileLabel)/sizeof(activeProfileLabel[0])-1),&activeLabel);
     DrawLabel(dc,gActive.c_str(),activeDividerX+16+activeLabel.cx+8,footerY,C_TEXT,gFontBold);
 
     EndPaint(w,&ps);
