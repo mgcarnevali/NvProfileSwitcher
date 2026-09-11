@@ -2009,13 +2009,15 @@ void SetDesktopUi(bool desktop){
         ShowWindow(H(id),showApplication);
     ShowWindow(H(IDC_REMOVE),desktop?SW_HIDE:SW_SHOW);
 
-    const int yDisplay=desktop?154:350;
-    const int yBri=desktop?230:436;
-    const int yCon=desktop?294:504;
-    const int yGam=desktop?358:572;
-    const int yVib=desktop?422:640;
-    const int yHue=desktop?486:708;
-    const int ySave=desktop?550:772;
+    // Both views use the same vertical rhythm from Display down. Application
+    // profiles only start the block lower to make room for their extra fields.
+    const int yDisplay=desktop?154:358;
+    const int yBri=yDisplay+86;
+    const int yCon=yBri+64;
+    const int yGam=yCon+64;
+    const int yVib=yGam+64;
+    const int yHue=yVib+64;
+    const int ySave=yHue+64;
 
     const int profileHotkeyX=rightX+rightW-288;
     MoveWindow(H(IDC_PROFILE_HOTKEY_LABEL),profileHotkeyX,272,220,22,TRUE);
@@ -2809,7 +2811,7 @@ void Paint(HWND w){
     FillRound(dc,overrideHotkeyFrame,C_FIELD,C_BORDER,8);
 
     const bool desktop=IsDesktopSelected();
-    const int displayY=desktop?154:350;
+    const int displayY=desktop?154:358;
 
     DrawDisplayPrototypeIcon(dc,centerX+22,displayY);
 
@@ -2830,11 +2832,11 @@ void Paint(HWND w){
     }
 
     const int iconX=centerX+22;
-    const int iconBri=desktop?230:436;
-    const int iconCon=desktop?294:504;
-    const int iconGam=desktop?358:572;
-    const int iconVib=desktop?422:640;
-    const int iconHue=desktop?486:708;
+    const int iconBri=displayY+86;
+    const int iconCon=iconBri+64;
+    const int iconGam=iconCon+64;
+    const int iconVib=iconGam+64;
+    const int iconHue=iconVib+64;
     DrawSliderIcon(dc,gSliderBrightness,iconX,iconBri-2);
     DrawSliderIcon(dc,gSliderContrast,iconX,iconCon-2);
     DrawSliderIcon(dc,gSliderGamma,iconX,iconGam-2);
@@ -2982,9 +2984,9 @@ void BuildControls(){
     HWND clearProfile=Add(L"BUTTON",L"Clear",BS_OWNERDRAW,profileHotkeyX+220,300,68,34,IDC_PROFILE_HOTKEY_CLEAR);
     StyleMainButton(clearProfile);
 
-    Add(L"STATIC",L"Display",0,rightX+31,350,150,22,IDC_LBL_DISPLAY);
+    Add(L"STATIC",L"Display",0,rightX+31,358,150,22,IDC_LBL_DISPLAY);
     HWND display=Add(L"COMBOBOX",L"",CBS_DROPDOWNLIST|CBS_OWNERDRAWFIXED|CBS_HASSTRINGS|WS_VSCROLL,
-        rightX,374,rightW,240,IDC_DISPLAY);
+        rightX,382,rightW,240,IDC_DISPLAY);
     SendMessageW(display,CB_SETITEMHEIGHT,0,28);
     SendMessageW(display,CB_SETITEMHEIGHT,(WPARAM)-1,26);
     StyleFlatCombo(display);
@@ -3003,13 +3005,13 @@ void BuildControls(){
         Add(L"STATIC",L"",SS_OWNERDRAW,valueX,y-5,valueW,28,vid);
     };
 
-    slider(L"Brightness",IDC_LBL_BRI,IDC_BRI,IDC_VALBRI,436,80,120);
-    slider(L"Contrast",IDC_LBL_CON,IDC_CON,IDC_VALCON,504,80,120);
+    slider(L"Brightness",IDC_LBL_BRI,IDC_BRI,IDC_VALBRI,444,80,120);
+    slider(L"Contrast",IDC_LBL_CON,IDC_CON,IDC_VALCON,508,80,120);
     slider(L"Gamma",IDC_LBL_GAM,IDC_GAM,IDC_VALGAM,572,30,280);
-    slider(L"Digital Vibrance (%)",IDC_LBL_VIB,IDC_VIB,IDC_VALVIB,640,0,100);
-    slider(L"Hue (\x00B0)",IDC_LBL_HUE,IDC_HUE,IDC_VALHUE,708,0,359);
+    slider(L"Digital Vibrance (%)",IDC_LBL_VIB,IDC_VIB,IDC_VALVIB,636,0,100);
+    slider(L"Hue (\x00B0)",IDC_LBL_HUE,IDC_HUE,IDC_VALHUE,700,0,359);
 
-    HWND reset=Add(L"BUTTON",L"Reset",BS_OWNERDRAW,rightX,772,132,38,IDC_DEFAULTS);
+    HWND reset=Add(L"BUTTON",L"Reset",BS_OWNERDRAW,rightX,764,132,38,IDC_DEFAULTS);
     StyleMainButton(reset);
     gResetTooltip=CreateWindowExW(WS_EX_TOOLWINDOW|WS_EX_TOPMOST,L"STATIC",
         L"Reset to NVIDIA defaults",WS_POPUP,0,0,0,0,gWnd,nullptr,gInst,nullptr);
@@ -3019,7 +3021,7 @@ void BuildControls(){
         SetWindowSubclass(H(IDC_DEFAULTS),ResetButtonSubclassProc,1,0);
     }
     HWND saveProfile=Add(L"BUTTON",L"Save profile",BS_OWNERDRAW,
-        rightX+rightW-160,772,160,38,IDC_SAVE);
+        rightX+rightW-160,764,160,38,IDC_SAVE);
     StyleMainButton(saveProfile);
 
     const int appX=centerPanelX+centerPanelW+gap+22;
