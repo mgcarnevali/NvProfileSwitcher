@@ -850,7 +850,7 @@ void FillRoundedGradient(HDC dc,const RECT& r,COLORREF top,COLORREF bottom,
     int saved=SaveDC(dc);
     HRGN clip=CreateRoundRectRgn(r.left,r.top,r.right+1,r.bottom+1,radius,radius);
     SelectClipRgn(dc,clip);
-    const int height=std::max(1,r.bottom-r.top);
+    const int height=std::max(1,(int)(r.bottom-r.top));
     for(int y=r.top;y<r.bottom;++y){
         RECT line{r.left,y,r.right,y+1};
         HBRUSH brush=CreateSolidBrush(BlendColor(top,bottom,y-r.top,height-1));
