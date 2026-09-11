@@ -962,6 +962,18 @@ LRESULT CALLBACK HotkeyFieldSubclassProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp,
         // The app paints the rounded outer frame; suppress the native hotkey
         // control's light non-client outline so only that frame is visible.
         return 0;
+    case WM_SETFOCUS:{
+        LRESULT result=DefSubclassProc(hwnd,msg,wp,lp);
+        HideCaret(hwnd);
+        InvalidateRect(hwnd,nullptr,TRUE);
+        return result;
+    }
+    case WM_KILLFOCUS:{
+        ShowCaret(hwnd);
+        LRESULT result=DefSubclassProc(hwnd,msg,wp,lp);
+        InvalidateRect(hwnd,nullptr,TRUE);
+        return result;
+    }
     case WM_PAINT:{
         PAINTSTRUCT ps{};
         HDC dc=BeginPaint(hwnd,&ps);
@@ -1802,10 +1814,10 @@ void SetDesktopUi(bool desktop){
     MoveWindow(H(IDC_HOTKEYS_TITLE),appX,294,250,24,TRUE);
     MoveWindow(H(IDC_HOTKEY_SHOW_LABEL),appX,330,286,22,TRUE);
     MoveWindow(H(IDC_HOTKEY_SHOW),appX+2,362,206,22,TRUE);
-    MoveWindow(H(IDC_HOTKEY_SHOW_CLEAR),appX+218,355,68,36,TRUE);
+    MoveWindow(H(IDC_HOTKEY_SHOW_CLEAR),appX+218,356,68,34,TRUE);
     MoveWindow(H(IDC_HOTKEY_OVERRIDE_LABEL),appX,414,286,22,TRUE);
     MoveWindow(H(IDC_HOTKEY_OVERRIDE),appX+2,446,206,22,TRUE);
-    MoveWindow(H(IDC_HOTKEY_OVERRIDE_CLEAR),appX+218,439,68,36,TRUE);
+    MoveWindow(H(IDC_HOTKEY_OVERRIDE_CLEAR),appX+218,440,68,34,TRUE);
 
     InvalidateRect(gWnd,nullptr,TRUE);
 }
@@ -2766,14 +2778,14 @@ void BuildControls(){
     SetWindowSubclass(showHotkey,HotkeyFieldSubclassProc,1,0);
     RemoveNativeHotkeyFrame(showHotkey);
     SendMessageW(showHotkey,HKM_SETRULES,HKCOMB_NONE,MAKELPARAM(HOTKEYF_CONTROL|HOTKEYF_SHIFT,0));
-    HWND clearShow=Add(L"BUTTON",L"Clear",BS_OWNERDRAW,appX+218,355,68,36,IDC_HOTKEY_SHOW_CLEAR);
+    HWND clearShow=Add(L"BUTTON",L"Clear",BS_OWNERDRAW,appX+218,356,68,34,IDC_HOTKEY_SHOW_CLEAR);
     StyleMainButton(clearShow);
     Add(L"STATIC",L"Windows override",0,appX,414,286,22,IDC_HOTKEY_OVERRIDE_LABEL);
     HWND overrideHotkey=Add(HOTKEY_CLASSW,L"",WS_TABSTOP,appX+2,446,206,22,IDC_HOTKEY_OVERRIDE);
     SetWindowSubclass(overrideHotkey,HotkeyFieldSubclassProc,1,0);
     RemoveNativeHotkeyFrame(overrideHotkey);
     SendMessageW(overrideHotkey,HKM_SETRULES,HKCOMB_NONE,MAKELPARAM(HOTKEYF_CONTROL|HOTKEYF_SHIFT,0));
-    HWND clearOverride=Add(L"BUTTON",L"Clear",BS_OWNERDRAW,appX+218,439,68,36,IDC_HOTKEY_OVERRIDE_CLEAR);
+    HWND clearOverride=Add(L"BUTTON",L"Clear",BS_OWNERDRAW,appX+218,440,68,34,IDC_HOTKEY_OVERRIDE_CLEAR);
     StyleMainButton(clearOverride);
     SetHotkeyControl(IDC_HOTKEY_SHOW,gSettings.showHideHotkey);
     SetHotkeyControl(IDC_HOTKEY_OVERRIDE,gSettings.windowsOverrideHotkey);
