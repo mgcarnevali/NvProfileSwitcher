@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - 'refactor/**'
+      - 'feature/**'
   pull_request:
   workflow_dispatch:
 
