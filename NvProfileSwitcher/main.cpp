@@ -99,6 +99,8 @@ bool gExeTooltipVisible=false;
 HWND gResetTooltip{};
 bool gResetTooltipVisible=false;
 int gProfileTooltipItem=-1;
+int gProfileHoverItem=-1;
+int gProfilePressedItem=-1;
 std::wstring gProfileTooltipText;
 constexpr int TOOLTIP_GAP=3;
 
@@ -1419,18 +1421,59 @@ LRESULT CALLBACK ResetButtonSubclassProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp,
 
 LRESULT CALLBACK ProfileListSubclassProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp,
                                         UINT_PTR subclassId,DWORD_PTR refData){
+    auto itemAtPoint=[&](LPARAM point)->int{
+        LRESULT hit=SendMessageW(hwnd,LB_ITEMFROMPOINT,0,point);
+        if(HIWORD(hit)) return -1;
+        int item=LOWORD(hit);
+        int count=(int)SendMessageW(hwnd,LB_GETCOUNT,0,0);
+        return item>=0&&item<count?item:-1;
+    };
+    auto invalidateItem=[&](int item){
+        if(item<0) return;
+        RECT itemRect{};
+        if(SendMessageW(hwnd,LB_GETITEMRECT,item,(LPARAM)&itemRect)!=LB_ERR)
+            InvalidateRect(hwnd,&itemRect,FALSE);
+    };
+
     switch(msg){
     case WM_MOUSEMOVE:{
         POINT pt{GET_X_LPARAM(lp),GET_Y_LPARAM(lp)};
+        int item=itemAtPoint(lp);
+        if(item!=gProfileHoverItem){
+            int old=gProfileHoverItem;
+            gProfileHoverItem=item;
+            invalidateItem(old);
+            invalidateItem(item);
+        }
         UpdateProfileTooltip(pt);
         TRACKMOUSEEVENT tme{sizeof(tme),TME_LEAVE,hwnd,0};
         TrackMouseEvent(&tme);
         break;
     }
-    case WM_MOUSELEAVE:
+    case WM_LBUTTONDOWN:{
+        int old=gProfilePressedItem;
+        gProfilePressedItem=itemAtPoint(lp);
+        invalidateItem(old);
+        invalidateItem(gProfilePressedItem);
+        break;
+    }
+    case WM_LBUTTONUP:
+    case WM_CAPTURECHANGED:{
+        int old=gProfilePressedItem;
+        gProfilePressedItem=-1;
+        invalidateItem(old);
+        break;
+    }
+    case WM_MOUSELEAVE:{
+        int old=gProfileHoverItem;
+        gProfileHoverItem=-1;
+        invalidateItem(old);
         HideProfileTooltip();
         break;
+    }
     case WM_NCDESTROY:
+        gProfileHoverItem=-1;
+        gProfilePressedItem=-1;
         HideProfileTooltip();
         RemoveWindowSubclass(hwnd,ProfileListSubclassProc,subclassId);
         break;
@@ -3139,6 +3182,8 @@ case WM_CTLCOLORSTATIC:{HDC dc=(HDC)wp;SetTextColor(dc,C_TEXT);SetBkColor(dc,C_P
 
     if(d->CtlID==IDC_LIST&&d->itemID!=(UINT)-1){
         const bool selected=(d->itemState&ODS_SELECTED)!=0;
+        const bool hovered=(int)d->itemID==gProfileHoverItem;
+        const bool pressed=(int)d->itemID==gProfilePressedItem;
 
         RECT row=d->rcItem;
         row.left+=5;
@@ -3146,10 +3191,16 @@ case WM_CTLCOLORSTATIC:{HDC dc=(HDC)wp;SetTextColor(dc,C_TEXT);SetBkColor(dc,C_P
         row.top+=5;
         row.bottom-=5;
 
-        if(selected)
-            FillRound(d->hDC,row,RGB(15,34,20),C_ACCENT,9);
-        else
+        if(selected){
+            FillRound(d->hDC,row,pressed?RGB(11,28,16):RGB(15,34,20),
+                pressed?C_ACCENT2:C_ACCENT,9);
+        }else if(pressed){
+            FillRound(d->hDC,row,RGB(20,25,30),RGB(67,77,86),9);
+        }else if(hovered){
+            FillRound(d->hDC,row,RGB(25,31,36),RGB(54,63,71),9);
+        }else{
             FillRound(d->hDC,row,C_PANEL,C_PANEL,9);
+        }
 
         bool desktop=d->itemID==0;
         ApplicationProfile* p=desktop?&gSettings.desktop:&gSettings.profiles[d->itemID-1];
