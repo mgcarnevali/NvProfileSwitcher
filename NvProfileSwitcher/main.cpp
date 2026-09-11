@@ -1037,6 +1037,19 @@ bool UpdateConfiguredHotkey(int controlId,int registrationId,WORD& stored){
         MessageBoxW(gWnd,L"Ctrl + Alt shortcuts are not supported because Windows may treat Right Alt (AltGr) as Ctrl + Alt.\n\nUse Ctrl + Shift, Alt + Shift, or a function key instead.",L"NvProfileSwitcher",MB_OK|MB_ICONWARNING);
         return false;
     }
+    const WORD otherHotkey=controlId==IDC_HOTKEY_SHOW
+        ?gSettings.windowsOverrideHotkey:gSettings.showHideHotkey;
+    if(requested==otherHotkey){
+        const wchar_t* otherAction=controlId==IDC_HOTKEY_SHOW
+            ?L"Windows override":L"Show / hide window";
+        SetHotkeyControl(controlId,stored);
+        std::wstring message=L"That shortcut is already assigned to ";
+        message+=otherAction;
+        message+=L".\n\nChoose a different combination.";
+        MessageBoxW(gWnd,message.c_str(),L"NvProfileSwitcher",MB_OK|MB_ICONWARNING);
+        SetFocus(H(controlId));
+        return false;
+    }
     const WORD previous=stored; UnregisterHotKey(gWnd,registrationId);
     if(requested&&!RegisterStoredHotkey(registrationId,requested)){
         RegisterStoredHotkey(registrationId,previous); SetHotkeyControl(controlId,previous);
