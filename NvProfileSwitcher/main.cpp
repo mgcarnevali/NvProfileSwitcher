@@ -86,7 +86,7 @@ constexpr wchar_t UPDATE_PATH[]=L"/repos/mgcarnevali/NvProfileSwitcher/releases/
 enum {IDC_LIST=1001,IDC_NAME,IDC_EXE,IDC_BROWSE,IDC_ENABLED,IDC_DISPLAY,IDC_LBL_DISPLAY,IDC_VIB,IDC_HUE,IDC_BRI,IDC_CON,IDC_GAM,IDC_SAVE,IDC_ADD=1015,IDC_REMOVE,IDC_STARTWIN=1018,IDC_STARTMIN,IDC_VALVIB,IDC_VALHUE,IDC_VALBRI,IDC_VALCON,IDC_VALGAM,IDC_LBL_NAME,IDC_LBL_EXE,IDC_LBL_ENABLED,IDC_LBL_VIB,IDC_LBL_HUE,IDC_LBL_BRI,IDC_LBL_CON,IDC_LBL_GAM,IDC_DEFAULTS,IDC_MINTRAY,IDC_CHECKUPDATES,IDC_FOOT_GITHUB,IDC_FOOT_SUPPORT,IDC_FOOT_ABOUT};
 enum {ID_TRAY_OPEN=2001,ID_TRAY_CHECK_UPDATE,ID_TRAY_ABOUT,ID_TRAY_EXIT};
 
-HINSTANCE gInst{}; HWND gWnd{}; HFONT gFont{},gFontBold{},gFontPanelTitle{},gFontTitle{},gFontSmall{},gFontHeaderButton{},gIconFont{}; HBRUSH gBackBrush{},gPanelBrush{},gPanel2Brush{},gFieldBrush{}; HICON gIcon{};
+HINSTANCE gInst{}; HWND gWnd{}; HFONT gFont{},gFontBold{},gFontPanelTitle{},gFontTitle{},gFontSmall{},gFontHeaderButton{},gFontHeaderTagline{},gIconFont{}; HBRUSH gBackBrush{},gPanelBrush{},gPanel2Brush{},gFieldBrush{}; HICON gIcon{};
 ULONG_PTR gGdiPlusToken{}; Gdiplus::Image* gHeaderImage{};
 Gdiplus::Image *gSliderBrightness{},*gSliderContrast{},*gSliderGamma{},*gSliderVibrance{},*gSliderHue{},*gNvidiaDriverIcon{};
 Settings gSettings; int gSelected=-1; std::wstring gActive=L"Windows", gStatus=L"Not initialized", gDriverVersion=L"--"; bool gStatusOk=false;
@@ -2199,6 +2199,55 @@ void DrawHeaderImage(HDC dc){
     graphics.DrawImage(gHeaderImage,Gdiplus::Rect(27,9,targetW,targetH));
 }
 
+void DrawHeaderAccent(HDC dc,int width){
+    // Keep the branding clear on compact widths and use only the otherwise
+    // empty right side of the header on the normal window size.
+    if(width<900) return;
+
+    Gdiplus::Graphics graphics(dc);
+    graphics.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
+    graphics.SetCompositingMode(Gdiplus::CompositingModeSourceOver);
+    graphics.SetCompositingQuality(Gdiplus::CompositingQualityHighQuality);
+
+    const Gdiplus::REAL left=std::max(410.0f,(Gdiplus::REAL)width-760.0f);
+    const Gdiplus::REAL textLeft=(Gdiplus::REAL)width-330.0f;
+    Gdiplus::Region clip(Gdiplus::RectF(left,0.0f,(Gdiplus::REAL)width-left,78.0f));
+    graphics.SetClip(&clip,Gdiplus::CombineModeReplace);
+
+    auto ribbon=[&](const Gdiplus::PointF (&points)[4],
+                    const Gdiplus::Color& from,const Gdiplus::Color& to){
+        Gdiplus::GraphicsPath path;
+        path.AddPolygon(points,4);
+        Gdiplus::LinearGradientBrush brush(
+            Gdiplus::PointF(points[0].X,78.0f),
+            Gdiplus::PointF(points[2].X,0.0f),from,to);
+        graphics.FillPath(&brush,&path);
+    };
+
+    const Gdiplus::PointF shadow1[4]={
+        {left,78.0f},{left+92.0f,0.0f},{left+172.0f,0.0f},{left+80.0f,78.0f}};
+    const Gdiplus::PointF greenDark[4]={
+        {left+82.0f,78.0f},{left+188.0f,0.0f},{left+275.0f,0.0f},{left+169.0f,78.0f}};
+    const Gdiplus::PointF greenLight[4]={
+        {left+165.0f,78.0f},{left+267.0f,0.0f},{left+326.0f,0.0f},{left+224.0f,78.0f}};
+    const Gdiplus::PointF shadow2[4]={
+        {left+244.0f,78.0f},{left+350.0f,0.0f},{left+432.0f,0.0f},{left+326.0f,78.0f}};
+
+    ribbon(shadow1,Gdiplus::Color(25,105,116,126),Gdiplus::Color(5,38,44,50));
+    ribbon(greenDark,Gdiplus::Color(95,29,74,20),Gdiplus::Color(18,12,29,10));
+    ribbon(greenLight,Gdiplus::Color(155,83,176,42),Gdiplus::Color(28,29,68,19));
+    ribbon(shadow2,Gdiplus::Color(52,46,57,64),Gdiplus::Color(4,18,22,26));
+
+    graphics.ResetClip();
+    SetBkMode(dc,TRANSPARENT);
+    SetTextColor(dc,RGB(169,177,184));
+    HFONT oldFont=(HFONT)SelectObject(dc,gFontHeaderTagline?gFontHeaderTagline:gFont);
+    RECT textRect{(LONG)textLeft,0,width-28,78};
+    DrawTextW(dc,L"Your Apps. Your Colors.",-1,&textRect,
+              DT_RIGHT|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);
+    SelectObject(dc,oldFont);
+}
+
 
 void DrawSliderIcon(HDC dc,Gdiplus::Image* image,int x,int y){
     if(!image) return;
@@ -2396,6 +2445,7 @@ void Paint(HWND w){
     FillRound(dc,settings,C_PANEL,C_BORDER,10);
 
     DrawHeaderImage(dc);
+    DrawHeaderAccent(dc,rc.right);
     Fill(dc,0,78,rc.right,1,C_BORDER);
 
     // Panel header fill is clipped to the rounded panel and stops exactly
@@ -3340,6 +3390,9 @@ gFontPanelTitle=CreateUiFont(-18,FW_SEMIBOLD,uiFamily);
 gFontTitle=CreateUiFont(-24,FW_BOLD,uiFamily);
 gFontSmall=CreateUiFont(-13,FW_NORMAL,uiFamily);
 gFontHeaderButton=CreateUiFont(-14,FW_SEMIBOLD,uiFamily);
+gFontHeaderTagline=CreateFontW(-18,0,0,0,FW_LIGHT,TRUE,FALSE,FALSE,DEFAULT_CHARSET,
+    OUT_DEFAULT_PRECIS,CLIP_DEFAULT_PRECIS,CLEARTYPE_QUALITY,
+    DEFAULT_PITCH|FF_DONTCARE,uiFamily);
 gIconFont=CreateFontW(-18,0,0,0,FW_NORMAL,FALSE,FALSE,FALSE,DEFAULT_CHARSET,OUT_DEFAULT_PRECIS,CLIP_DEFAULT_PRECIS,CLEARTYPE_QUALITY,DEFAULT_PITCH,L"Segoe MDL2 Assets");gIcon=LoadIconW(h,MAKEINTRESOURCEW(IDI_APPICON));WNDCLASSEXW wc{sizeof(wc)};wc.style=CS_HREDRAW|CS_VREDRAW;wc.lpfnWndProc=Proc;wc.hInstance=h;wc.hIcon=gIcon;wc.hIconSm=gIcon;wc.hCursor=LoadCursor(nullptr,IDC_ARROW);wc.hbrBackground=gBackBrush;wc.lpszClassName=L"NvProfileSwitcherNative";RegisterClassExW(&wc);
 gWnd=CreateWindowExW(0,wc.lpszClassName,L"NvProfileSwitcher",WS_OVERLAPPED|WS_CAPTION|WS_SYSMENU|WS_MINIMIZEBOX,CW_USEDEFAULT,CW_USEDEFAULT,1360,930,nullptr,nullptr,h,nullptr);
 BOOL darkTitle=TRUE;DwmSetWindowAttribute(gWnd,20,&darkTitle,sizeof(darkTitle));
@@ -3355,7 +3408,7 @@ SetWindowPos(gWnd,nullptr,mainX,mainY,0,0,SWP_NOSIZE|SWP_NOZORDER|SWP_NOACTIVATE
 SetWindowLongPtrW(gWnd,GWLP_USERDATA,0);gTrayMenu=CreatePopupMenu();AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_OPEN,L"Open NvProfileSwitcher");AppendMenuW(gTrayMenu,MF_SEPARATOR,0,nullptr);AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_CHECK_UPDATE,L"Check for updates");AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_ABOUT,L"About NvProfileSwitcher");AppendMenuW(gTrayMenu,MF_SEPARATOR,0,nullptr);AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_EXIT,L"Exit");gNid.cbSize=sizeof(gNid);gNid.hWnd=gWnd;gNid.uID=1;gNid.uFlags=NIF_MESSAGE|NIF_ICON|NIF_TIP;gNid.uCallbackMessage=WM_TRAY;gNid.hIcon=gIcon;wcscpy_s(gNid.szTip,L"NvProfileSwitcher");gStatusOk=InitNv();if(gStatusOk){for(const auto&d:gDisplays)EnsureDesktopProfile(d.gdiName,d.monitorId);EnsureAllApplicationDisplayProfiles();Save();if(auto* p=SelectedProfile())RefreshDisplayCombo(*p);RestoreAllDesktopProfiles();LoadSelected();}gActive=L"Windows";bool min=(wcsstr(cmd,L"--minimized")!=nullptr);
 if(min) SetTrayIconVisible(true);
 ShowWindow(gWnd,min?SW_HIDE:SW_SHOW);
-UpdateWindow(gWnd);if(gSettings.checkUpdates){if(HANDLE h=CreateThread(nullptr,0,UpdateCheckThread,nullptr,0,nullptr))CloseHandle(h);}MSG msg;while(GetMessageW(&msg,nullptr,0,0)>0){TranslateMessage(&msg);DispatchMessageW(&msg);}DeleteObject(gFont);DeleteObject(gFontBold);DeleteObject(gFontPanelTitle);DeleteObject(gFontTitle);DeleteObject(gFontSmall);DeleteObject(gFontHeaderButton);DeleteObject(gIconFont);DeleteObject(gBackBrush);DeleteObject(gPanelBrush);DeleteObject(gPanel2Brush);DeleteObject(gFieldBrush);
+UpdateWindow(gWnd);if(gSettings.checkUpdates){if(HANDLE h=CreateThread(nullptr,0,UpdateCheckThread,nullptr,0,nullptr))CloseHandle(h);}MSG msg;while(GetMessageW(&msg,nullptr,0,0)>0){TranslateMessage(&msg);DispatchMessageW(&msg);}DeleteObject(gFont);DeleteObject(gFontBold);DeleteObject(gFontPanelTitle);DeleteObject(gFontTitle);DeleteObject(gFontSmall);DeleteObject(gFontHeaderButton);DeleteObject(gFontHeaderTagline);DeleteObject(gIconFont);DeleteObject(gBackBrush);DeleteObject(gPanelBrush);DeleteObject(gPanel2Brush);DeleteObject(gFieldBrush);
 if(gHeaderImage){delete gHeaderImage;gHeaderImage=nullptr;}
 for(auto** image:{&gSliderBrightness,&gSliderContrast,&gSliderGamma,&gSliderVibrance,&gSliderHue,&gNvidiaDriverIcon}){
     if(*image){delete *image;*image=nullptr;}
