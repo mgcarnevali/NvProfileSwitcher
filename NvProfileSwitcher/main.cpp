@@ -87,7 +87,7 @@ enum {IDC_LIST=1001,IDC_NAME,IDC_EXE,IDC_BROWSE,IDC_ENABLED,IDC_DISPLAY,IDC_LBL_
 enum {ID_TRAY_OPEN=2001,ID_TRAY_CHECK_UPDATE,ID_TRAY_ABOUT,ID_TRAY_EXIT};
 
 HINSTANCE gInst{}; HWND gWnd{}; HFONT gFont{},gFontBold{},gFontPanelTitle{},gFontTitle{},gFontSmall{},gFontHeaderButton{},gIconFont{}; HBRUSH gBackBrush{},gPanelBrush{},gPanel2Brush{},gFieldBrush{}; HICON gIcon{};
-ULONG_PTR gGdiPlusToken{}; Gdiplus::Image* gHeaderImage{};
+ULONG_PTR gGdiPlusToken{}; Gdiplus::Image* gHeaderImage{}; Gdiplus::Image* gHeaderAccentImage{};
 Gdiplus::Image *gSliderBrightness{},*gSliderContrast{},*gSliderGamma{},*gSliderVibrance{},*gSliderHue{},*gNvidiaDriverIcon{};
 Settings gSettings; int gSelected=-1; std::wstring gActive=L"Windows", gStatus=L"Not initialized", gDriverVersion=L"--"; bool gStatusOk=false;
 NOTIFYICONDATAW gNid{}; HMENU gTrayMenu{};
@@ -2151,6 +2151,10 @@ void LoadSliderIcons(){
     gNvidiaDriverIcon=LoadEmbeddedPng(IDR_NVIDIA_PNG);
 }
 
+void LoadHeaderAccentImage(){
+    gHeaderAccentImage=LoadEmbeddedPng(IDR_HEADER_ACCENT_PNG);
+}
+
 bool LoadHeaderImage(){
     HRSRC res=FindResourceW(gInst,MAKEINTRESOURCEW(IDR_HEADER_PNG),RT_RCDATA);
     if(!res) return false;
@@ -2197,6 +2201,21 @@ void DrawHeaderImage(HDC dc){
     if(!iw||!ih) return;
     const int targetW=(int)llround((double)iw*targetH/(double)ih);
     graphics.DrawImage(gHeaderImage,Gdiplus::Rect(27,9,targetW,targetH));
+}
+
+void DrawHeaderAccentImage(HDC dc,int clientWidth){
+    if(!gHeaderAccentImage||clientWidth<900) return;
+
+    Gdiplus::Graphics graphics(dc);
+    graphics.SetInterpolationMode(Gdiplus::InterpolationModeHighQualityBicubic);
+    graphics.SetPixelOffsetMode(Gdiplus::PixelOffsetModeHighQuality);
+    graphics.SetCompositingMode(Gdiplus::CompositingModeSourceOver);
+    graphics.SetCompositingQuality(Gdiplus::CompositingQualityHighQuality);
+
+    constexpr int accentW=900;
+    constexpr int accentH=78;
+    graphics.DrawImage(gHeaderAccentImage,
+        Gdiplus::Rect(clientWidth-accentW,0,accentW,accentH));
 }
 
 
@@ -2396,6 +2415,7 @@ void Paint(HWND w){
     FillRound(dc,settings,C_PANEL,C_BORDER,10);
 
     DrawHeaderImage(dc);
+    DrawHeaderAccentImage(dc,rc.right);
     Fill(dc,0,78,rc.right,1,C_BORDER);
 
     // Panel header fill is clipped to the rounded panel and stops exactly
@@ -3331,7 +3351,7 @@ if(gPreviewEvent)
 Gdiplus::GdiplusStartupInput gdiplusInput;
 if(Gdiplus::GdiplusStartup(&gGdiPlusToken,&gdiplusInput,nullptr)!=Gdiplus::Ok)
     gGdiPlusToken=0;
-if(gGdiPlusToken){LoadHeaderImage();LoadSliderIcons();}
+if(gGdiPlusToken){LoadHeaderImage();LoadHeaderAccentImage();LoadSliderIcons();}
 INITCOMMONCONTROLSEX ic{sizeof(ic),ICC_BAR_CLASSES|ICC_STANDARD_CLASSES};InitCommonControlsEx(&ic);Load();gSettings.desktop.name=L"Windows";gBackBrush=CreateSolidBrush(C_BACK);gPanelBrush=CreateSolidBrush(C_PANEL);gPanel2Brush=CreateSolidBrush(C_PANEL2);gFieldBrush=CreateSolidBrush(C_FIELD);
 const wchar_t* uiFamily=FontFamilyAvailable(L"Bahnschrift")?L"Bahnschrift":L"Segoe UI";
 gFont=CreateUiFont(-15,FW_NORMAL,uiFamily);
@@ -3357,6 +3377,7 @@ if(min) SetTrayIconVisible(true);
 ShowWindow(gWnd,min?SW_HIDE:SW_SHOW);
 UpdateWindow(gWnd);if(gSettings.checkUpdates){if(HANDLE h=CreateThread(nullptr,0,UpdateCheckThread,nullptr,0,nullptr))CloseHandle(h);}MSG msg;while(GetMessageW(&msg,nullptr,0,0)>0){TranslateMessage(&msg);DispatchMessageW(&msg);}DeleteObject(gFont);DeleteObject(gFontBold);DeleteObject(gFontPanelTitle);DeleteObject(gFontTitle);DeleteObject(gFontSmall);DeleteObject(gFontHeaderButton);DeleteObject(gIconFont);DeleteObject(gBackBrush);DeleteObject(gPanelBrush);DeleteObject(gPanel2Brush);DeleteObject(gFieldBrush);
 if(gHeaderImage){delete gHeaderImage;gHeaderImage=nullptr;}
+if(gHeaderAccentImage){delete gHeaderAccentImage;gHeaderAccentImage=nullptr;}
 for(auto** image:{&gSliderBrightness,&gSliderContrast,&gSliderGamma,&gSliderVibrance,&gSliderHue,&gNvidiaDriverIcon}){
     if(*image){delete *image;*image=nullptr;}
 }
