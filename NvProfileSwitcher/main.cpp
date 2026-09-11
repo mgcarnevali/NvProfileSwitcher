@@ -953,21 +953,52 @@ std::wstring HotkeyDisplayText(WORD hotkey){
     return text;
 }
 
-LRESULT CALLBACK HotkeyColorSubclassProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp,
+LRESULT CALLBACK HotkeyFieldSubclassProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp,
                                          UINT_PTR subclassId,DWORD_PTR refData){
     switch(msg){
-    case WM_ERASEBKGND:return 1;
+    case WM_ERASEBKGND:
+        return 1;
+    case WM_SETFOCUS:
+    case WM_KILLFOCUS:{
+        LRESULT result=DefSubclassProc(hwnd,msg,wp,lp);
+        InvalidateRect(hwnd,nullptr,TRUE);
+        return result;
+    }
     case WM_PAINT:{
-        PAINTSTRUCT ps{}; HDC dc=BeginPaint(hwnd,&ps); RECT r{}; GetClientRect(hwnd,&r);
-        FillRect(dc,&r,gFieldBrush);
+        PAINTSTRUCT ps{};
+        HDC dc=BeginPaint(hwnd,&ps);
+        RECT r{};
+        GetClientRect(hwnd,&r);
+        FillRect(dc,&r,gPanelBrush);
+        {
+            Gdiplus::Graphics graphics(dc);
+            graphics.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
+            graphics.SetPixelOffsetMode(Gdiplus::PixelOffsetModeHalf);
+            Gdiplus::RectF bounds(0.5f,0.5f,
+                (Gdiplus::REAL)(r.right-r.left)-1.0f,
+                (Gdiplus::REAL)(r.bottom-r.top)-1.0f);
+            Gdiplus::GraphicsPath path;
+            AddRoundedRectPath(path,bounds,6.0f);
+            Gdiplus::SolidBrush background(
+                Gdiplus::Color(255,GetRValue(C_FIELD),GetGValue(C_FIELD),GetBValue(C_FIELD)));
+            Gdiplus::Pen border(
+                Gdiplus::Color(255,GetRValue(C_BORDER),GetGValue(C_BORDER),GetBValue(C_BORDER)),1.0f);
+            graphics.FillPath(&background,&path);
+            graphics.DrawPath(&border,&path);
+        }
         const std::wstring text=HotkeyDisplayText((WORD)SendMessageW(hwnd,HKM_GETHOTKEY,0,0));
-        RECT tr=r; tr.left+=8; tr.right-=6;
-        SetBkMode(dc,TRANSPARENT); SetTextColor(dc,text==L"None"?C_MUTED:C_TEXT);
+        RECT tr=r; tr.left+=10; tr.right-=8;
+        SetBkMode(dc,TRANSPARENT);
+        SetTextColor(dc,text==L"None"?C_MUTED:C_TEXT);
         HFONT oldFont=(HFONT)SelectObject(dc,gFont);
         DrawTextW(dc,text.c_str(),-1,&tr,DT_LEFT|DT_VCENTER|DT_SINGLELINE|DT_END_ELLIPSIS|DT_NOPREFIX);
-        SelectObject(dc,oldFont); EndPaint(hwnd,&ps); return 0;
+        SelectObject(dc,oldFont);
+        EndPaint(hwnd,&ps);
+        return 0;
     }
-    case WM_NCDESTROY:RemoveWindowSubclass(hwnd,HotkeyColorSubclassProc,subclassId);break;
+    case WM_NCDESTROY:
+        RemoveWindowSubclass(hwnd,HotkeyFieldSubclassProc,subclassId);
+        break;
     }
     return DefSubclassProc(hwnd,msg,wp,lp);
 }
@@ -2735,16 +2766,16 @@ void BuildControls(){
     HWND hotkeysTitle=Add(L"STATIC",L"Hotkeys",0,appX,294,250,24,IDC_HOTKEYS_TITLE);
     SendMessageW(hotkeysTitle,WM_SETFONT,(WPARAM)gFontBold,TRUE);
     Add(L"STATIC",L"Show / hide window",0,appX,330,286,22,IDC_HOTKEY_SHOW_LABEL);
-    HWND showHotkey=Add(HOTKEY_CLASSW,L"",WS_BORDER|WS_TABSTOP,appX,356,210,34,IDC_HOTKEY_SHOW);
+    HWND showHotkey=Add(HOTKEY_CLASSW,L"",WS_TABSTOP,appX,356,210,34,IDC_HOTKEY_SHOW);
     SetWindowTheme(showHotkey,L"DarkMode_Explorer",nullptr);
-    SetWindowSubclass(showHotkey,HotkeyColorSubclassProc,1,0);
+    SetWindowSubclass(showHotkey,HotkeyFieldSubclassProc,1,0);
     SendMessageW(showHotkey,HKM_SETRULES,HKCOMB_NONE,MAKELPARAM(HOTKEYF_CONTROL|HOTKEYF_SHIFT,0));
     HWND clearShow=Add(L"BUTTON",L"Clear",BS_OWNERDRAW,appX+218,355,68,36,IDC_HOTKEY_SHOW_CLEAR);
     StyleMainButton(clearShow);
     Add(L"STATIC",L"Windows override",0,appX,414,286,22,IDC_HOTKEY_OVERRIDE_LABEL);
-    HWND overrideHotkey=Add(HOTKEY_CLASSW,L"",WS_BORDER|WS_TABSTOP,appX,440,210,34,IDC_HOTKEY_OVERRIDE);
+    HWND overrideHotkey=Add(HOTKEY_CLASSW,L"",WS_TABSTOP,appX,440,210,34,IDC_HOTKEY_OVERRIDE);
     SetWindowTheme(overrideHotkey,L"DarkMode_Explorer",nullptr);
-    SetWindowSubclass(overrideHotkey,HotkeyColorSubclassProc,1,0);
+    SetWindowSubclass(overrideHotkey,HotkeyFieldSubclassProc,1,0);
     SendMessageW(overrideHotkey,HKM_SETRULES,HKCOMB_NONE,MAKELPARAM(HOTKEYF_CONTROL|HOTKEYF_SHIFT,0));
     HWND clearOverride=Add(L"BUTTON",L"Clear",BS_OWNERDRAW,appX+218,439,68,36,IDC_HOTKEY_OVERRIDE_CLEAR);
     StyleMainButton(clearOverride);
