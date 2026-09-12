@@ -36,6 +36,7 @@
 #include <cmath>
 #include "resource.h"
 #include "switching_core.h"
+#include "hotkey_core.h"
 #include "version.h"
 
 #pragma comment(lib, "comctl32.lib")
@@ -812,8 +813,9 @@ std::wstring ForegroundProcessName(){
 }
 void CheckProcesses(){
     if(gOverrideMode==OverrideMode::Profile){
-        if(gOverrideProfileIndex<gSettings.profiles.size()){
-            const auto& profile=gSettings.profiles[gOverrideProfileIndex];
+        const auto profiles=SwitchingProfiles();
+        if(const auto target=nvps::SelectProfileOverrideTarget(profiles,gOverrideProfileIndex)){
+            const auto& profile=gSettings.profiles[*target->profileIndex];
             if(gActive!=profile.name){
                 ApplyApplicationProfile(profile);
                 gActive=profile.name;
@@ -1215,15 +1217,11 @@ UINT HotkeyModifiers(WORD hotkey){
 }
 
 bool IsCtrlAltHotkey(WORD hotkey){
-    const BYTE flags=HIBYTE(hotkey);
-    return (flags&(HOTKEYF_CONTROL|HOTKEYF_ALT))==(HOTKEYF_CONTROL|HOTKEYF_ALT) && !(flags&HOTKEYF_SHIFT);
+    return nvps::IsCtrlAltHotkey(hotkey);
 }
 
 bool NeedsHotkeyModifier(WORD hotkey){
-    const BYTE key=LOBYTE(hotkey);
-    const BYTE flags=HIBYTE(hotkey);
-    const bool functionKey=key>=VK_F1&&key<=VK_F24;
-    return !functionKey&&!(flags&(HOTKEYF_CONTROL|HOTKEYF_ALT));
+    return nvps::NeedsHotkeyModifier(hotkey);
 }
 
 bool RegisterStoredHotkey(int registrationId,WORD hotkey){
@@ -1238,14 +1236,14 @@ void SetHotkeyControl(int controlId,WORD hotkey){
 
 std::wstring HotkeyOwnerName(WORD hotkey,const WORD* excluded){
     if(!hotkey)return{};
-    if(&gSettings.showHideHotkey!=excluded&&gSettings.showHideHotkey==hotkey)
+    if(&gSettings.showHideHotkey!=excluded&&nvps::HotkeysConflict(gSettings.showHideHotkey,hotkey))
         return L"Show / hide window";
-    if(&gSettings.windowsOverrideHotkey!=excluded&&gSettings.windowsOverrideHotkey==hotkey)
+    if(&gSettings.windowsOverrideHotkey!=excluded&&nvps::HotkeysConflict(gSettings.windowsOverrideHotkey,hotkey))
         return L"Windows override";
-    if(&gSettings.resumeAutomaticHotkey!=excluded&&gSettings.resumeAutomaticHotkey==hotkey)
+    if(&gSettings.resumeAutomaticHotkey!=excluded&&nvps::HotkeysConflict(gSettings.resumeAutomaticHotkey,hotkey))
         return L"Resume automatic switching";
     for(const auto& profile:gSettings.profiles){
-        if(&profile.hotkey!=excluded&&profile.hotkey==hotkey)
+        if(&profile.hotkey!=excluded&&nvps::HotkeysConflict(profile.hotkey,hotkey))
             return profile.name;
     }
     return{};
@@ -3610,14 +3608,17 @@ void ResumeAutomaticSwitching(){
     CheckProcesses();
 }
 void ToggleProfileOverride(size_t profileIndex){
-    if(profileIndex>=gSettings.profiles.size()||!gSettings.profiles[profileIndex].enabled)return;
+    const auto profiles=SwitchingProfiles();
+    const std::optional<size_t> current=gOverrideMode==OverrideMode::Profile
+        ?std::optional<size_t>(gOverrideProfileIndex):std::nullopt;
+    const auto next=nvps::ToggleProfileOverride(profiles,current,profileIndex);
+    if(next==current&&profileIndex>=profiles.size())return;
+    if(next==current&&profileIndex<profiles.size()&&!profiles[profileIndex].enabled)return;
     DiscardPreview();
-    if(gOverrideMode==OverrideMode::Profile&&gOverrideProfileIndex==profileIndex){
-        gOverrideMode=OverrideMode::Automatic;
-    }else{
+    if(next){
         gOverrideMode=OverrideMode::Profile;
-        gOverrideProfileIndex=profileIndex;
-    }
+        gOverrideProfileIndex=*next;
+    }else gOverrideMode=OverrideMode::Automatic;
     gActive.clear();
     CheckProcesses();
 }
