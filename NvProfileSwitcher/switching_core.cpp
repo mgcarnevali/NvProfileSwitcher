@@ -46,4 +46,26 @@ SwitchTarget SelectSwitchTarget(
     return target;
 }
 
+std::optional<SwitchTarget> SelectProfileOverrideTarget(
+    const std::vector<ProfileDescriptor>& profiles,
+    std::size_t profileIndex){
+    if(profileIndex>=profiles.size()||!profiles[profileIndex].enabled)
+        return std::nullopt;
+    SwitchTarget target;
+    target.profileIndex=profileIndex;
+    target.activeName=profiles[profileIndex].name;
+    return target;
+}
+
+std::optional<std::size_t> ToggleProfileOverride(
+    const std::vector<ProfileDescriptor>& profiles,
+    std::optional<std::size_t> currentProfileIndex,
+    std::size_t pressedProfileIndex){
+    if(pressedProfileIndex>=profiles.size()||!profiles[pressedProfileIndex].enabled)
+        return currentProfileIndex;
+    if(currentProfileIndex&&*currentProfileIndex==pressedProfileIndex)
+        return std::nullopt;
+    return pressedProfileIndex;
+}
+
 } // namespace nvps

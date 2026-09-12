@@ -32,4 +32,13 @@ SwitchTarget SelectSwitchTarget(
     std::wstring_view foregroundExecutable,
     bool windowsOverride=false);
 
+std::optional<SwitchTarget> SelectProfileOverrideTarget(
+    const std::vector<ProfileDescriptor>& profiles,
+    std::size_t profileIndex);
+
+std::optional<std::size_t> ToggleProfileOverride(
+    const std::vector<ProfileDescriptor>& profiles,
+    std::optional<std::size_t> currentProfileIndex,
+    std::size_t pressedProfileIndex);
+
 } // namespace nvps
