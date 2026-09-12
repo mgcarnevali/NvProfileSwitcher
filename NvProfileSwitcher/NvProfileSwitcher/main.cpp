@@ -109,6 +109,7 @@ bool gUpdatingHotkeyControls=false;
 NOTIFYICONDATAW gNid{}; HMENU gTrayMenu{};
 HWND gFooterHover{};
 HWND gMainButtonHover{};
+HWND gFocusedHotkey{};
 HWND gProfileTooltip{};
 HWND gExeTooltip{};
 bool gExeTooltipVisible=false;
@@ -1154,6 +1155,7 @@ LRESULT CALLBACK HotkeyFieldSubclassProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp,
         // control's light non-client outline so only that frame is visible.
         return 0;
     case WM_SETFOCUS:{
+        gFocusedHotkey=hwnd;
         UnregisterConfiguredHotkeys();
         LRESULT result=DefSubclassProc(hwnd,msg,wp,lp);
         InvalidateRect(hwnd,nullptr,FALSE);
@@ -1162,6 +1164,7 @@ LRESULT CALLBACK HotkeyFieldSubclassProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp,
         return result;
     }
     case WM_KILLFOCUS:{
+        if(gFocusedHotkey==hwnd)gFocusedHotkey=nullptr;
         LRESULT result=DefSubclassProc(hwnd,msg,wp,lp);
         UnregisterConfiguredHotkeys();
         RegisterConfiguredHotkeys();
@@ -1176,7 +1179,7 @@ LRESULT CALLBACK HotkeyFieldSubclassProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp,
         FillRect(dc,&r,gFieldBrush);
         const WORD hotkey=(WORD)SendMessageW(hwnd,HKM_GETHOTKEY,0,0);
         const bool empty=!LOBYTE(hotkey);
-        const bool focused=GetFocus()==hwnd;
+        const bool focused=gFocusedHotkey==hwnd;
         const std::wstring text=empty&&focused?L"":HotkeyDisplayText(hotkey);
         RECT tr=r; tr.left+=8; tr.right-=6;
         SetBkMode(dc,TRANSPARENT);
@@ -1189,6 +1192,7 @@ LRESULT CALLBACK HotkeyFieldSubclassProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp,
         return 0;
     }
     case WM_NCDESTROY:
+        if(gFocusedHotkey==hwnd)gFocusedHotkey=nullptr;
         RemoveWindowSubclass(hwnd,HotkeyFieldSubclassProc,subclassId);
         break;
     }

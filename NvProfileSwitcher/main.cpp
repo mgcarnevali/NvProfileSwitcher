@@ -109,6 +109,7 @@ bool gUpdatingHotkeyControls=false;
 NOTIFYICONDATAW gNid{}; HMENU gTrayMenu{};
 HWND gFooterHover{};
 HWND gMainButtonHover{};
+HWND gFocusedHotkey{};
 HWND gProfileTooltip{};
 HWND gExeTooltip{};
 bool gExeTooltipVisible=false;
@@ -118,6 +119,14 @@ int gProfileTooltipItem=-1;
 int gProfileHoverItem=-1;
 int gProfilePressedItem=-1;
 std::wstring gProfileTooltipText;
+
+void InvalidateFooter(){
+    if(!gWnd)return;
+    RECT client{};
+    GetClientRect(gWnd,&client);
+    RECT footer{0,std::max(0,client.bottom-56),client.right,client.bottom};
+    InvalidateRect(gWnd,&footer,FALSE);
+}
 constexpr int TOOLTIP_GAP=3;
 
 // Live preview state. Slider changes are applied asynchronously so NVAPI calls
@@ -671,7 +680,7 @@ void RefreshDriverVersion(){
 
         if(gDriverVersion!=buf){
             gDriverVersion=buf;
-            InvalidateRect(gWnd,nullptr,FALSE);
+            InvalidateFooter();
         }
     }
 }
@@ -726,7 +735,7 @@ bool ApplyUnlocked(const ApplicationProfile&p,bool updateUi){
         if(!updateUi) return;
         gStatus=status;
         gStatusOk=ok;
-        InvalidateRect(gWnd,nullptr,FALSE);
+        InvalidateFooter();
     };
 
     if(!pSetDvc||!pGetDvc||!pSetHue||!pSetTargetGamma){
@@ -808,7 +817,7 @@ void CheckProcesses(){
             if(gActive!=profile.name){
                 ApplyApplicationProfile(profile);
                 gActive=profile.name;
-                InvalidateRect(gWnd,nullptr,FALSE);
+                InvalidateFooter();
             }
             return;
         }
@@ -826,7 +835,7 @@ void CheckProcesses(){
             RestoreAllDesktopProfiles();
         }
         gActive=target.activeName;
-        InvalidateRect(gWnd,nullptr,FALSE);
+        InvalidateFooter();
     }
 }
 
@@ -1145,13 +1154,21 @@ LRESULT CALLBACK HotkeyFieldSubclassProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp,
         // The app paints the rounded outer frame; suppress the native hotkey
         // control's light non-client outline so only that frame is visible.
         return 0;
-    case WM_SETFOCUS:
+    case WM_SETFOCUS:{
+        gFocusedHotkey=hwnd;
         UnregisterConfiguredHotkeys();
-        return DefSubclassProc(hwnd,msg,wp,lp);
+        LRESULT result=DefSubclassProc(hwnd,msg,wp,lp);
+        InvalidateRect(hwnd,nullptr,FALSE);
+        if(!LOBYTE((WORD)SendMessageW(hwnd,HKM_GETHOTKEY,0,0)))
+            SetCaretPos(8,2);
+        return result;
+    }
     case WM_KILLFOCUS:{
+        if(gFocusedHotkey==hwnd)gFocusedHotkey=nullptr;
         LRESULT result=DefSubclassProc(hwnd,msg,wp,lp);
         UnregisterConfiguredHotkeys();
         RegisterConfiguredHotkeys();
+        InvalidateRect(hwnd,nullptr,FALSE);
         return result;
     }
     case WM_PAINT:{
@@ -1160,7 +1177,10 @@ LRESULT CALLBACK HotkeyFieldSubclassProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp,
         RECT r{};
         GetClientRect(hwnd,&r);
         FillRect(dc,&r,gFieldBrush);
-        const std::wstring text=HotkeyDisplayText((WORD)SendMessageW(hwnd,HKM_GETHOTKEY,0,0));
+        const WORD hotkey=(WORD)SendMessageW(hwnd,HKM_GETHOTKEY,0,0);
+        const bool empty=!LOBYTE(hotkey);
+        const bool focused=gFocusedHotkey==hwnd;
+        const std::wstring text=empty&&focused?L"":HotkeyDisplayText(hotkey);
         RECT tr=r; tr.left+=8; tr.right-=6;
         SetBkMode(dc,TRANSPARENT);
         SetTextColor(dc,text==L"None"?C_MUTED:C_TEXT);
@@ -1168,9 +1188,11 @@ LRESULT CALLBACK HotkeyFieldSubclassProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp,
         DrawTextW(dc,text.c_str(),-1,&tr,DT_LEFT|DT_VCENTER|DT_SINGLELINE|DT_END_ELLIPSIS|DT_NOPREFIX);
         SelectObject(dc,oldFont);
         EndPaint(hwnd,&ps);
+        if(empty&&focused)SetCaretPos(8,2);
         return 0;
     }
     case WM_NCDESTROY:
+        if(gFocusedHotkey==hwnd)gFocusedHotkey=nullptr;
         RemoveWindowSubclass(hwnd,HotkeyFieldSubclassProc,subclassId);
         break;
     }
@@ -3580,14 +3602,12 @@ void ToggleWindowsOverride(){
         ?OverrideMode::Automatic:OverrideMode::Windows;
     gActive.clear();
     CheckProcesses();
-    InvalidateRect(gWnd,nullptr,FALSE);
 }
 void ResumeAutomaticSwitching(){
     DiscardPreview();
     gOverrideMode=OverrideMode::Automatic;
     gActive.clear();
     CheckProcesses();
-    InvalidateRect(gWnd,nullptr,FALSE);
 }
 void ToggleProfileOverride(size_t profileIndex){
     if(profileIndex>=gSettings.profiles.size()||!gSettings.profiles[profileIndex].enabled)return;
@@ -3600,9 +3620,8 @@ void ToggleProfileOverride(size_t profileIndex){
     }
     gActive.clear();
     CheckProcesses();
-    InvalidateRect(gWnd,nullptr,FALSE);
 }
-void RestoreDesktop(){RestoreAllDesktopProfiles();gActive=L"Windows";InvalidateRect(gWnd,nullptr,FALSE);}
+void RestoreDesktop(){RestoreAllDesktopProfiles();gActive=L"Windows";InvalidateFooter();}
 LRESULT CALLBACK Proc(HWND w,UINT m,WPARAM wp,LPARAM lp){switch(m){case WM_SHOW_EXISTING_INSTANCE:ShowMain();return 0;case WM_UPDATE_AVAILABLE:ShowUpdateAvailable((UpdateInfo*)lp);return 0;case WM_SHOW_APP_MESSAGE:{auto* data=(AppMessageData*)lp;if(data){std::wstring title=data->title,text=data->text;delete data;ShowAppMessage(title,text);}return 0;}case WM_CREATE:gWnd=w;BuildControls();RegisterConfiguredHotkeys();RefreshList();LoadSelected();SetTimer(w,1,250,nullptr);return 0;case WM_HOTKEY:if(wp==ID_HOTKEY_SHOW_HIDE){ToggleMainVisibility();return 0;}if(wp==ID_HOTKEY_WINDOWS_OVERRIDE){ToggleWindowsOverride();return 0;}if(wp==ID_HOTKEY_RESUME_AUTOMATIC){ResumeAutomaticSwitching();return 0;}if(wp>=ID_HOTKEY_PROFILE_BASE&&wp<ID_HOTKEY_PROFILE_BASE+(WPARAM)gSettings.profiles.size()){ToggleProfileOverride((size_t)(wp-ID_HOTKEY_PROFILE_BASE));return 0;}break;case WM_ACTIVATE:
     if(LOWORD(wp)!=WA_INACTIVE) RefreshDriverVersion();
     return 0;case WM_SIZE:
