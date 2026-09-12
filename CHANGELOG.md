@@ -23,6 +23,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - Hotkey validation now prevents duplicate assignments, unsupported combinations, and Ctrl + Alt combinations that can conflict with AltGr.
 - Function keys can be assigned without modifiers; other shortcuts require Ctrl or Alt.
 - Standardized Profile Settings spacing between Windows and application profiles.
+- Moved application version information from the footer to the header and aligned it with the main layout margins.
+- Normalized display adjustment icon dimensions, proportions, and alignment, and added a multicolor Digital Vibrance icon.
 - Expanded GitHub Actions to run the native MSVC build and automated tests on development branches and pull requests.
 - Improved pull request workflow names to show the source and destination branches.
 
@@ -33,6 +35,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - Reduced override-related UI flicker by repainting only the footer when the active profile changes.
 - Fixed MSVC compilation of footer bounds by using an explicit Windows `LONG` type.
 - Fixed the monitor selector popup using the Windows blue hover border instead of the application's dark border.
+- Fixed dark corner artifacts around the Add profile and Remove buttons.
+- Fixed mismatched corner geometry in the headers of the Profiles, Profile Settings, and Application Settings panels.
 
 ## 1.3.0 --- 2026-09-09
 
