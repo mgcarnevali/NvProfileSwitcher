@@ -3,12 +3,10 @@ name: Switching Core Tests
 on:
   push:
     branches:
-      - 'refactor/**'
-      - 'feature/**'
-      - 'style/**'
-      - 'ci/**'
-      - 'test/**'
+      - main
   pull_request:
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
@@ -22,8 +20,46 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Detect documentation-only changes
+        id: changes
+        shell: powershell
+        run: |
+          $runHeavy = $true
+          $eventName = '${{ github.event_name }}'
+
+          if ($eventName -eq 'pull_request') {
+            $baseRef = '${{ github.base_ref }}'
+            $files = @(git diff --name-only "origin/$baseRef...HEAD")
+          }
+          elseif ($eventName -eq 'push') {
+            $before = '${{ github.event.before }}'
+            if ($before -and $before -notmatch '^0+$') {
+              $files = @(git diff --name-only $before '${{ github.sha }}')
+            }
+            else {
+              $files = @()
+            }
+          }
+          else {
+            $files = @()
+          }
+
+          if ($files.Count -gt 0) {
+            $nonDocumentationFiles = @($files | Where-Object {
+              $_ -notmatch '\.md$' -and $_ -notmatch '(^|/)docs/'
+            })
+            $runHeavy = $nonDocumentationFiles.Count -gt 0
+          }
+
+          "run_heavy=$($runHeavy.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
+          Write-Host "Changed files: $($files -join ', ')"
+          Write-Host "Run switching core tests: $runHeavy"
 
       - name: Build and run switching core tests
+        if: steps.changes.outputs.run_heavy == 'true'
         shell: cmd
         working-directory: NvProfileSwitcher
         run: |
@@ -38,3 +74,8 @@ jobs:
           if errorlevel 1 exit /b %errorlevel%
           switching_core_tests.exe
           if errorlevel 1 exit /b %errorlevel%
+
+      - name: Documentation-only validation
+        if: steps.changes.outputs.run_heavy != 'true'
+        shell: powershell
+        run: Write-Host 'Documentation-only change detected; switching core tests skipped.'
