@@ -2870,6 +2870,21 @@ void Paint(HWND w){
     FillRound(dc,settings,C_PANEL,C_BORDER,10);
 
     DrawHeaderImage(dc);
+
+    std::wstring headerVersion;
+#if NVPS_DEV_BUILD
+    headerVersion=APP_VERSION;
+#else
+    headerVersion=L"v";
+    headerVersion+=APP_VERSION;
+#endif
+    RECT headerVersionRect{rc.right-240,48,rc.right-18,68};
+    SetBkMode(dc,TRANSPARENT);
+    SetTextColor(dc,C_MUTED);
+    SelectObject(dc,gFontSmall);
+    DrawTextW(dc,headerVersion.c_str(),-1,&headerVersionRect,
+        DT_RIGHT|DT_BOTTOM|DT_SINGLELINE|DT_NOPREFIX);
+
     Fill(dc,0,78,rc.right,1,C_BORDER);
 
     // Panel header fill is clipped to the rounded panel and stops exactly
@@ -2975,21 +2990,7 @@ void Paint(HWND w){
 
     SIZE driverVersionSize{}; SelectObject(dc,gFont);
     GetTextExtentPoint32W(dc,gDriverVersion.c_str(),(int)gDriverVersion.size(),&driverVersionSize);
-    int versionDividerX=driverVersionX+driverVersionSize.cx+18;
-    Fill(dc,versionDividerX,footerY,1,17,C_BORDER);
-
-    std::wstring footerVersion;
-#if NVPS_DEV_BUILD
-    footerVersion=APP_VERSION;
-#else
-    footerVersion=L"v";
-    footerVersion+=APP_VERSION;
-#endif
-    DrawLabel(dc,footerVersion.c_str(),versionDividerX+16,footerY,C_MUTED,gFont);
-
-    SIZE verSize{}; SelectObject(dc,gFont);
-    GetTextExtentPoint32W(dc,footerVersion.c_str(),(int)footerVersion.size(),&verSize);
-    int activeDividerX=versionDividerX+16+verSize.cx+18;
+    int activeDividerX=driverVersionX+driverVersionSize.cx+18;
     Fill(dc,activeDividerX,footerY,1,17,C_BORDER);
     constexpr wchar_t activeProfileLabel[]=L"Active profile:";
     DrawLabel(dc,activeProfileLabel,activeDividerX+16,footerY,C_MUTED,gFont);
