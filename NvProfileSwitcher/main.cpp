@@ -1458,10 +1458,52 @@ LRESULT CALLBACK FlatComboSubclassProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp,
     return DefSubclassProc(hwnd,msg,wp,lp);
 }
 
+void PaintFlatComboPopupBorder(HWND hwnd){
+    HDC dc=GetWindowDC(hwnd);
+    if(!dc) return;
+
+    RECT r{};
+    GetWindowRect(hwnd,&r);
+    OffsetRect(&r,-r.left,-r.top);
+    HBRUSH border=CreateSolidBrush(C_BORDER);
+    FrameRect(dc,&r,border);
+    DeleteObject(border);
+    ReleaseDC(hwnd,dc);
+}
+
+LRESULT CALLBACK FlatComboPopupSubclassProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp,
+                                            UINT_PTR subclassId,DWORD_PTR refData){
+    switch(msg){
+    case WM_NCPAINT:
+    case WM_NCACTIVATE:{
+        LRESULT result=DefSubclassProc(hwnd,msg,wp,lp);
+        PaintFlatComboPopupBorder(hwnd);
+        return result;
+    }
+    case WM_MOUSEMOVE:{
+        LRESULT result=DefSubclassProc(hwnd,msg,wp,lp);
+        // The native popup changes its frame color while the pointer is over it.
+        // Reapply the application border so hover and inactive states match.
+        PaintFlatComboPopupBorder(hwnd);
+        return result;
+    }
+    case WM_NCDESTROY:
+        RemoveWindowSubclass(hwnd,FlatComboPopupSubclassProc,subclassId);
+        break;
+    }
+    return DefSubclassProc(hwnd,msg,wp,lp);
+}
+
 void StyleFlatCombo(HWND hwnd){
     if(!hwnd) return;
     SetWindowTheme(hwnd,L"",L"");
     SetWindowSubclass(hwnd,FlatComboSubclassProc,1,0);
+
+    COMBOBOXINFO info{sizeof(info)};
+    if(GetComboBoxInfo(hwnd,&info) && info.hwndList){
+        SetWindowTheme(info.hwndList,L"",L"");
+        SetWindowSubclass(info.hwndList,FlatComboPopupSubclassProc,1,0);
+    }
     InvalidateRect(hwnd,nullptr,TRUE);
 }
 
