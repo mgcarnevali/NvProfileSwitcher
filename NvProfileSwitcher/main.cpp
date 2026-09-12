@@ -88,7 +88,7 @@ constexpr wchar_t APP_URL[]=L"https://github.com/mgcarnevali/NvProfileSwitcher";
 constexpr wchar_t SUPPORT_URL[]=L"https://ko-fi.com/mgcarnevali";
 constexpr wchar_t UPDATE_HOST[]=L"api.github.com";
 constexpr wchar_t UPDATE_PATH[]=L"/repos/mgcarnevali/NvProfileSwitcher/releases/latest";
-enum {IDC_LIST=1001,IDC_NAME,IDC_EXE,IDC_BROWSE,IDC_ENABLED,IDC_DISPLAY,IDC_LBL_DISPLAY,IDC_VIB,IDC_HUE,IDC_BRI,IDC_CON,IDC_GAM,IDC_SAVE,IDC_ADD=1015,IDC_REMOVE,IDC_STARTWIN=1018,IDC_STARTMIN,IDC_VALVIB,IDC_VALHUE,IDC_VALBRI,IDC_VALCON,IDC_VALGAM,IDC_LBL_NAME,IDC_LBL_EXE,IDC_LBL_ENABLED,IDC_LBL_VIB,IDC_LBL_HUE,IDC_LBL_BRI,IDC_LBL_CON,IDC_LBL_GAM,IDC_DEFAULTS,IDC_MINTRAY,IDC_CHECKUPDATES,IDC_FOOT_GITHUB,IDC_FOOT_SUPPORT,IDC_FOOT_ABOUT,IDC_HOTKEYS_TITLE,IDC_HOTKEY_SHOW_LABEL,IDC_HOTKEY_SHOW,IDC_HOTKEY_SHOW_CLEAR,IDC_HOTKEY_OVERRIDE_LABEL,IDC_HOTKEY_OVERRIDE,IDC_HOTKEY_OVERRIDE_CLEAR,IDC_PROFILE_HOTKEY_LABEL,IDC_PROFILE_HOTKEY,IDC_PROFILE_HOTKEY_CLEAR,IDC_HOTKEY_RESUME_LABEL,IDC_HOTKEY_RESUME,IDC_HOTKEY_RESUME_CLEAR};
+enum {IDC_LIST=1001,IDC_NAME,IDC_EXE,IDC_BROWSE,IDC_ENABLED,IDC_DISPLAY,IDC_LBL_DISPLAY,IDC_VIB,IDC_HUE,IDC_BRI,IDC_CON,IDC_GAM,IDC_SAVE,IDC_ADD=1015,IDC_REMOVE,IDC_STARTWIN=1018,IDC_STARTMIN,IDC_VALVIB,IDC_VALHUE,IDC_VALBRI,IDC_VALCON,IDC_VALGAM,IDC_LBL_NAME,IDC_LBL_EXE,IDC_LBL_ENABLED,IDC_LBL_VIB,IDC_LBL_HUE,IDC_LBL_BRI,IDC_LBL_CON,IDC_LBL_GAM,IDC_DEFAULTS,IDC_MINTRAY,IDC_CHECKUPDATES,IDC_FOOT_GITHUB,IDC_FOOT_SUPPORT,IDC_FOOT_ABOUT,IDC_HOTKEYS_TITLE,IDC_HOTKEY_SHOW_LABEL,IDC_HOTKEY_SHOW,IDC_HOTKEY_SHOW_CLEAR,IDC_HOTKEY_OVERRIDE_LABEL,IDC_HOTKEY_OVERRIDE,IDC_HOTKEY_OVERRIDE_CLEAR,IDC_PROFILE_HOTKEY_LABEL,IDC_PROFILE_HOTKEY,IDC_PROFILE_HOTKEY_CLEAR,IDC_HOTKEY_RESUME_LABEL,IDC_HOTKEY_RESUME,IDC_HOTKEY_RESUME_CLEAR,IDC_CHECKUPDATES_LABEL};
 enum {ID_TRAY_OPEN=2001,ID_TRAY_CHECK_UPDATE,ID_TRAY_ABOUT,ID_TRAY_EXIT};
 enum {ID_HOTKEY_SHOW_HIDE=3001,ID_HOTKEY_WINDOWS_OVERRIDE,ID_HOTKEY_RESUME_AUTOMATIC,ID_HOTKEY_TEST};
 constexpr int ID_HOTKEY_PROFILE_BASE=4000;
@@ -116,6 +116,10 @@ HWND gExeTooltip{};
 bool gExeTooltipVisible=false;
 HWND gResetTooltip{};
 bool gResetTooltipVisible=false;
+#if NVPS_DEV_BUILD
+HWND gUpdateCheckTooltip{};
+bool gUpdateCheckTooltipVisible=false;
+#endif
 int gProfileTooltipItem=-1;
 int gProfileHoverItem=-1;
 int gProfilePressedItem=-1;
@@ -1337,6 +1341,11 @@ LRESULT CALLBACK FlatCheckboxSubclassProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp
         DeleteObject(bg);
 
         const bool checked=SendMessageW(hwnd,BM_GETCHECK,0,0)==BST_CHECKED;
+#if NVPS_DEV_BUILD
+        const bool devUpdateCheck=GetDlgCtrlID(hwnd)==IDC_CHECKUPDATES;
+#else
+        const bool devUpdateCheck=false;
+#endif
 
         // Keep the proven 16x16 geometry, but render it with antialiasing and
         // restrained depth so it matches the rest of the mockup-style UI.
@@ -1354,23 +1363,21 @@ LRESULT CALLBACK FlatCheckboxSubclassProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp
             Gdiplus::GraphicsPath boxPath;
             AddRoundedRectPath(boxPath,box,3.2f);
 
-            const Gdiplus::Color top=checked?Gdiplus::Color(255,82,196,76)
-                                              :Gdiplus::Color(255,37,44,51);
-            const Gdiplus::Color bottom=checked?Gdiplus::Color(255,55,164,60)
-                                                 :Gdiplus::Color(255,23,29,34);
+            const Gdiplus::Color top=devUpdateCheck?Gdiplus::Color(255,31,36,41)
+                :(checked?Gdiplus::Color(255,82,196,76):Gdiplus::Color(255,37,44,51));
+            const Gdiplus::Color bottom=devUpdateCheck?Gdiplus::Color(255,20,24,28)
+                :(checked?Gdiplus::Color(255,55,164,60):Gdiplus::Color(255,23,29,34));
             Gdiplus::LinearGradientBrush fill(
                 Gdiplus::PointF(box.X,box.Y),
                 Gdiplus::PointF(box.X,box.GetBottom()),top,bottom);
             g.FillPath(&fill,&boxPath);
 
-            Gdiplus::Pen border(
-                checked?Gdiplus::Color(255,43,145,49):Gdiplus::Color(255,59,69,78),
-                1.0f);
+            Gdiplus::Pen border(devUpdateCheck?Gdiplus::Color(255,48,55,62)
+                :(checked?Gdiplus::Color(255,43,145,49):Gdiplus::Color(255,59,69,78)),1.0f);
             g.DrawPath(&border,&boxPath);
 
-            Gdiplus::Pen highlight(
-                checked?Gdiplus::Color(145,132,231,124):Gdiplus::Color(90,79,89,98),
-                0.8f);
+            Gdiplus::Pen highlight(devUpdateCheck?Gdiplus::Color(55,70,77,84)
+                :(checked?Gdiplus::Color(145,132,231,124):Gdiplus::Color(90,79,89,98)),0.8f);
             highlight.SetStartCap(Gdiplus::LineCapRound);
             highlight.SetEndCap(Gdiplus::LineCapRound);
             g.DrawLine(&highlight,6.0f,4.6f,16.0f,4.6f);
@@ -1387,8 +1394,8 @@ LRESULT CALLBACK FlatCheckboxSubclassProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp
             }
         }else{
             RECT box{3,3,19,19};
-            FillRound(dc,box,checked?RGB(63,177,67):RGB(25,31,36),
-                checked?RGB(43,145,49):RGB(59,69,78),4);
+            FillRound(dc,box,devUpdateCheck?RGB(24,29,34):(checked?RGB(63,177,67):RGB(25,31,36)),
+                devUpdateCheck?RGB(48,55,62):(checked?RGB(43,145,49):RGB(59,69,78)),4);
         }
 
         EndPaint(hwnd,&ps);
@@ -1638,6 +1645,54 @@ LRESULT CALLBACK ProfileTooltipSubclassProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM 
     }
     return DefSubclassProc(hwnd,msg,wp,lp);
 }
+
+#if NVPS_DEV_BUILD
+void HideUpdateCheckTooltip(){
+    if(gUpdateCheckTooltip && gUpdateCheckTooltipVisible){
+        ShowWindow(gUpdateCheckTooltip,SW_HIDE);
+        gUpdateCheckTooltipVisible=false;
+    }
+    if(gWnd) KillTimer(gWnd,3);
+}
+
+void ShowUpdateCheckTooltip(){
+    if(!gUpdateCheckTooltip) return;
+    HWND checkbox=H(IDC_CHECKUPDATES);
+    if(!checkbox) return;
+
+    static const wchar_t* text=L"Update checks are disabled in development builds.";
+    RECT checkboxRect{};
+    GetWindowRect(checkbox,&checkboxRect);
+
+    HDC dc=GetDC(gUpdateCheckTooltip);
+    if(!dc) return;
+    HFONT old=(HFONT)SelectObject(dc,gFont);
+    SIZE textSize{};
+    GetTextExtentPoint32W(dc,text,(int)wcslen(text),&textSize);
+    SelectObject(dc,old);
+    ReleaseDC(gUpdateCheckTooltip,dc);
+
+    const int tipW=textSize.cx+16;
+    const int tipH=textSize.cy+10;
+    int x=checkboxRect.left;
+    int y=checkboxRect.bottom+TOOLTIP_GAP;
+
+    HMONITOR mon=MonitorFromWindow(checkbox,MONITOR_DEFAULTTONEAREST);
+    MONITORINFO mi{sizeof(mi)};
+    if(GetMonitorInfoW(mon,&mi)){
+        if(x+tipW>mi.rcWork.right) x=std::max((int)mi.rcWork.left,(int)mi.rcWork.right-tipW);
+        if(x<mi.rcWork.left) x=mi.rcWork.left;
+        y=std::clamp(y,(int)mi.rcWork.top,(int)mi.rcWork.bottom-tipH);
+    }
+
+    SetWindowPos(gUpdateCheckTooltip,HWND_TOPMOST,x,y,tipW,tipH,
+        SWP_NOACTIVATE|SWP_SHOWWINDOW);
+    RedrawWindow(gUpdateCheckTooltip,nullptr,nullptr,
+        RDW_INVALIDATE|RDW_ERASE|RDW_FRAME|RDW_UPDATENOW);
+    gUpdateCheckTooltipVisible=true;
+    SetTimer(gWnd,3,3000,nullptr);
+}
+#endif
 
 
 bool ExecutablePathIsTruncated(){
@@ -3130,27 +3185,15 @@ void BuildControls(){
     Add(L"STATIC",L"Start minimized",SS_CENTERIMAGE,appX+27,178,220,22,0);
     { HWND cb=Add(L"BUTTON",L"",BS_AUTOCHECKBOX,appX,206,22,22,IDC_MINTRAY); StyleFlatCheckbox(cb); }
     Add(L"STATIC",L"Minimize to tray",SS_CENTERIMAGE,appX+27,206,220,22,0);
-    HWND checkUpdatesCheckbox=Add(L"BUTTON",L"",BS_AUTOCHECKBOX,appX,234,22,22,IDC_CHECKUPDATES);
-    StyleFlatCheckbox(checkUpdatesCheckbox);
-    Add(L"STATIC",L"Check for updates",SS_CENTERIMAGE,appX+27,234,220,22,0);
+    { HWND cb=Add(L"BUTTON",L"",BS_AUTOCHECKBOX,appX,234,22,22,IDC_CHECKUPDATES); StyleFlatCheckbox(cb); }
+    Add(L"STATIC",L"Check for updates",SS_CENTERIMAGE,appX+27,234,220,22,IDC_CHECKUPDATES_LABEL);
 #if NVPS_DEV_BUILD
-    EnableWindow(checkUpdatesCheckbox,FALSE);
-    HWND checkUpdatesTooltip=CreateWindowExW(WS_EX_TOPMOST,TOOLTIPS_CLASSW,nullptr,
-        WS_POPUP|TTS_ALWAYSTIP|TTS_NOPREFIX,
-        CW_USEDEFAULT,CW_USEDEFAULT,CW_USEDEFAULT,CW_USEDEFAULT,
-        gWnd,nullptr,gInst,nullptr);
-    if(checkUpdatesTooltip){
-        SetWindowTheme(checkUpdatesTooltip,L"",L"");
-        SendMessageW(checkUpdatesTooltip,WM_SETFONT,(WPARAM)gFont,FALSE);
-        SendMessageW(checkUpdatesTooltip,TTM_SETTIPBKCOLOR,(WPARAM)C_PANEL2,0);
-        SendMessageW(checkUpdatesTooltip,TTM_SETTIPTEXTCOLOR,(WPARAM)C_TEXT,0);
-        TOOLINFOW ti{sizeof(ti)};
-        ti.uFlags=TTF_SUBCLASS;
-        ti.hwnd=gWnd;
-        ti.uId=IDC_CHECKUPDATES;
-        ti.rect={appX,234,appX+22,256};
-        ti.lpszText=(LPWSTR)L"Update checks are disabled in development builds.";
-        SendMessageW(checkUpdatesTooltip,TTM_ADDTOOLW,0,(LPARAM)&ti);
+    gUpdateCheckTooltip=CreateWindowExW(WS_EX_TOOLWINDOW|WS_EX_TOPMOST,L"STATIC",
+        L"Update checks are disabled in development builds.",WS_POPUP,
+        0,0,0,0,gWnd,nullptr,gInst,nullptr);
+    if(gUpdateCheckTooltip){
+        SendMessageW(gUpdateCheckTooltip,WM_SETFONT,(WPARAM)gFont,FALSE);
+        SetWindowSubclass(gUpdateCheckTooltip,ProfileTooltipSubclassProc,4,0);
     }
 #endif
 
@@ -3746,7 +3789,13 @@ case WM_SETCURSOR:{
     break;
 }
 case WM_CTLCOLORLISTBOX:{HDC dc=(HDC)wp;SetTextColor(dc,C_TEXT);SetBkColor(dc,C_PANEL);return (LRESULT)gPanelBrush;}
-case WM_CTLCOLORSTATIC:{HDC dc=(HDC)wp;SetTextColor(dc,C_TEXT);SetBkColor(dc,C_PANEL);SetBkMode(dc,TRANSPARENT);return (LRESULT)gPanelBrush;}case WM_CTLCOLOREDIT:{HDC dc=(HDC)wp;SetTextColor(dc,C_TEXT);SetBkColor(dc,C_FIELD);return (LRESULT)gFieldBrush;}case WM_CTLCOLORBTN:{HDC dc=(HDC)wp;SetTextColor(dc,C_TEXT);SetBkColor(dc,C_PANEL);return (LRESULT)gPanelBrush;}case WM_DRAWITEM:{
+case WM_CTLCOLORSTATIC:{HDC dc=(HDC)wp;
+#if NVPS_DEV_BUILD
+    SetTextColor(dc,GetDlgCtrlID((HWND)lp)==IDC_CHECKUPDATES_LABEL?C_MUTED:C_TEXT);
+#else
+    SetTextColor(dc,C_TEXT);
+#endif
+    SetBkColor(dc,C_PANEL);SetBkMode(dc,TRANSPARENT);return (LRESULT)gPanelBrush;}case WM_CTLCOLOREDIT:{HDC dc=(HDC)wp;SetTextColor(dc,C_TEXT);SetBkColor(dc,C_FIELD);return (LRESULT)gFieldBrush;}case WM_CTLCOLORBTN:{HDC dc=(HDC)wp;SetTextColor(dc,C_TEXT);SetBkColor(dc,C_PANEL);return (LRESULT)gPanelBrush;}case WM_DRAWITEM:{
     auto*d=(DRAWITEMSTRUCT*)lp;
 
     if(d->CtlID==IDC_DISPLAY){
@@ -3881,13 +3930,26 @@ case WM_TIMER:
         RefreshDisplayTopology();
         return 0;
     }
+#if NVPS_DEV_BUILD
+    if(wp==3){
+        HideUpdateCheckTooltip();
+        return 0;
+    }
+#endif
     return 0;
 case WM_COMMAND:{int id=LOWORD(wp);if(id==IDC_HOTKEY_SHOW&&HIWORD(wp)==EN_CHANGE){UpdateConfiguredHotkey(IDC_HOTKEY_SHOW,gSettings.showHideHotkey);return 0;}if(id==IDC_HOTKEY_OVERRIDE&&HIWORD(wp)==EN_CHANGE){UpdateConfiguredHotkey(IDC_HOTKEY_OVERRIDE,gSettings.windowsOverrideHotkey);return 0;}if(id==IDC_HOTKEY_RESUME&&HIWORD(wp)==EN_CHANGE){UpdateConfiguredHotkey(IDC_HOTKEY_RESUME,gSettings.resumeAutomaticHotkey);return 0;}if(id==IDC_PROFILE_HOTKEY&&HIWORD(wp)==EN_CHANGE&&!IsDesktopSelected()){if(auto*p=SelectedProfile()){UpdateConfiguredHotkey(IDC_PROFILE_HOTKEY,p->hotkey);InvalidateRect(H(IDC_LIST),nullptr,TRUE);}return 0;}if(id==IDC_LIST&&HIWORD(wp)==LBN_SELCHANGE){HideExecutableTooltip();DiscardPreview();LoadSelected();return 0;}if(id==IDC_DISPLAY&&HIWORD(wp)==CBN_SELCHANGE){DiscardPreview();int ds=(int)SendMessageW(H(IDC_DISPLAY),CB_GETCURSEL,0,0);if(ds>=0&&ds<(int)gDisplays.size()){if(IsDesktopSelected()){auto*p=EnsureDesktopProfile(gDisplays[ds].gdiName,gDisplays[ds].monitorId);LoadValuesToSliders(ValuesFromFlatProfile(*p));}else{auto*p=SelectedProfile();if(p){LoadValuesToSliders(*EnsureApplicationValuesForDisplay(*p,gDisplays[ds].gdiName,gDisplays[ds].monitorId));}}}return 0;}switch(id){case IDC_HOTKEY_SHOW_CLEAR:ClearConfiguredHotkey(IDC_HOTKEY_SHOW,gSettings.showHideHotkey);break;case IDC_HOTKEY_OVERRIDE_CLEAR:ClearConfiguredHotkey(IDC_HOTKEY_OVERRIDE,gSettings.windowsOverrideHotkey);break;case IDC_HOTKEY_RESUME_CLEAR:ClearConfiguredHotkey(IDC_HOTKEY_RESUME,gSettings.resumeAutomaticHotkey);break;case IDC_PROFILE_HOTKEY_CLEAR:if(!IsDesktopSelected()){if(auto*p=SelectedProfile()){ClearConfiguredHotkey(IDC_PROFILE_HOTKEY,p->hotkey);InvalidateRect(H(IDC_LIST),nullptr,TRUE);}}break;case IDC_BROWSE:{OPENFILENAMEW o{sizeof(o)};wchar_t f[MAX_PATH]{};o.hwndOwner=w;o.lpstrFilter=L"Executables (*.exe)\0*.exe\0All files\0*.*\0";o.lpstrFile=f;o.nMaxFile=MAX_PATH;o.Flags=OFN_FILEMUSTEXIST;if(GetOpenFileNameW(&o)){Txt(IDC_EXE,f);InvalidateRect(H(IDC_EXE),nullptr,TRUE);auto* p=SelectedProfile();if(p&&!IsDesktopSelected()){p->exePath=f;InvalidateRect(H(IDC_LIST),nullptr,TRUE);}}break;}case IDC_DEFAULTS:ResetSlidersToDefaults();break;case IDC_SAVE:SaveSelected();break;case IDC_ADD:{ApplicationProfile np{};if(!gDisplays.empty()){for(const auto&d:gDisplays)np.displayProfiles.push_back(ApplicationDefaultsForDisplay(d.gdiName,d.monitorId));}gSettings.profiles.push_back(np);gSelected=(int)gSettings.profiles.size();Save();RefreshList();LoadSelected();break;}case IDC_REMOVE:if(gSelected>0&&gSelected<=(int)gSettings.profiles.size()){size_t removed=(size_t)(gSelected-1);UnregisterConfiguredHotkeys();if(gOverrideMode==OverrideMode::Profile){if(gOverrideProfileIndex==removed)gOverrideMode=OverrideMode::Automatic;else if(gOverrideProfileIndex>removed)--gOverrideProfileIndex;}gSettings.profiles.erase(gSettings.profiles.begin()+removed);RegisterConfiguredHotkeys();gSelected=std::max<int>(0,gSelected-1);Save();RefreshList();LoadSelected();gActive.clear();CheckProcesses();}break;case IDC_STARTWIN:gSettings.startWindows=SendMessageW(H(IDC_STARTWIN),BM_GETCHECK,0,0)==BST_CHECKED;SetStartup(gSettings.startWindows);Save();break;case IDC_STARTMIN:gSettings.startMinimized=SendMessageW(H(IDC_STARTMIN),BM_GETCHECK,0,0)==BST_CHECKED;Save();break;case IDC_MINTRAY:
     gSettings.minimizeToTray=SendMessageW(H(IDC_MINTRAY),BM_GETCHECK,0,0)==BST_CHECKED;
     if(!gSettings.minimizeToTray)
         SetTrayIconVisible(false);
     Save();
-    break;case IDC_CHECKUPDATES:gSettings.checkUpdates=SendMessageW(H(IDC_CHECKUPDATES),BM_GETCHECK,0,0)==BST_CHECKED;Save();break;case IDC_FOOT_GITHUB:ShellExecuteW(w,L"open",APP_URL,nullptr,nullptr,SW_SHOWNORMAL);break;
+    break;case IDC_CHECKUPDATES:
+#if NVPS_DEV_BUILD
+    SendMessageW(H(IDC_CHECKUPDATES),BM_SETCHECK,BST_UNCHECKED,0);
+    ShowUpdateCheckTooltip();
+#else
+    gSettings.checkUpdates=SendMessageW(H(IDC_CHECKUPDATES),BM_GETCHECK,0,0)==BST_CHECKED;Save();
+#endif
+    break;case IDC_FOOT_GITHUB:ShellExecuteW(w,L"open",APP_URL,nullptr,nullptr,SW_SHOWNORMAL);break;
 case IDC_FOOT_SUPPORT:ShellExecuteW(w,L"open",SUPPORT_URL,nullptr,nullptr,SW_SHOWNORMAL);break;
 case IDC_FOOT_ABOUT:ShowAbout();break;
 case ID_TRAY_OPEN:ShowMain();break;case ID_TRAY_CHECK_UPDATE:{if(HANDLE h=CreateThread(nullptr,0,UpdateCheckThread,(LPVOID)1,0,nullptr))CloseHandle(h);break;}case ID_TRAY_ABOUT:ShowAbout();break;case ID_TRAY_EXIT:DestroyWindow(w);break;}return 0;}case WM_CLOSE:
