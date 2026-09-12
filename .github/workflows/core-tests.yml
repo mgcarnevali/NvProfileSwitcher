@@ -6,6 +6,8 @@ on:
       - 'refactor/**'
       - 'feature/**'
       - 'style/**'
+      - 'ci/**'
+      - 'test/**'
   pull_request:
   workflow_dispatch:
 
