@@ -3132,10 +3132,26 @@ void BuildControls(){
     Add(L"STATIC",L"Minimize to tray",SS_CENTERIMAGE,appX+27,206,220,22,0);
     HWND checkUpdatesCheckbox=Add(L"BUTTON",L"",BS_AUTOCHECKBOX,appX,234,22,22,IDC_CHECKUPDATES);
     StyleFlatCheckbox(checkUpdatesCheckbox);
-    HWND checkUpdatesLabel=Add(L"STATIC",L"Check for updates",SS_CENTERIMAGE,appX+27,234,220,22,0);
+    Add(L"STATIC",L"Check for updates",SS_CENTERIMAGE,appX+27,234,220,22,0);
 #if NVPS_DEV_BUILD
     EnableWindow(checkUpdatesCheckbox,FALSE);
-    EnableWindow(checkUpdatesLabel,FALSE);
+    HWND checkUpdatesTooltip=CreateWindowExW(WS_EX_TOPMOST,TOOLTIPS_CLASSW,nullptr,
+        WS_POPUP|TTS_ALWAYSTIP|TTS_NOPREFIX,
+        CW_USEDEFAULT,CW_USEDEFAULT,CW_USEDEFAULT,CW_USEDEFAULT,
+        gWnd,nullptr,gInst,nullptr);
+    if(checkUpdatesTooltip){
+        SetWindowTheme(checkUpdatesTooltip,L"",L"");
+        SendMessageW(checkUpdatesTooltip,WM_SETFONT,(WPARAM)gFont,FALSE);
+        SendMessageW(checkUpdatesTooltip,TTM_SETTIPBKCOLOR,(WPARAM)C_PANEL2,0);
+        SendMessageW(checkUpdatesTooltip,TTM_SETTIPTEXTCOLOR,(WPARAM)C_TEXT,0);
+        TOOLINFOW ti{sizeof(ti)};
+        ti.uFlags=TTF_SUBCLASS;
+        ti.hwnd=gWnd;
+        ti.uId=IDC_CHECKUPDATES;
+        ti.rect={appX,234,appX+22,256};
+        ti.lpszText=(LPWSTR)L"Update checks are disabled in development builds.";
+        SendMessageW(checkUpdatesTooltip,TTM_ADDTOOLW,0,(LPARAM)&ti);
+    }
 #endif
 
     HWND hotkeysTitle=Add(L"STATIC",L"Hotkeys",0,appX,294,250,24,IDC_HOTKEYS_TITLE);
