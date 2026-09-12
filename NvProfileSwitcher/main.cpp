@@ -2878,7 +2878,7 @@ void Paint(HWND w){
     headerVersion=L"v";
     headerVersion+=APP_VERSION;
 #endif
-    RECT headerVersionRect{rc.right-240,48,rc.right-29,68};
+    RECT headerVersionRect{rc.right-240,48,rc.right-28,68};
     SetBkMode(dc,TRANSPARENT);
     SetTextColor(dc,C_MUTED);
     SelectObject(dc,gFontSmall);
@@ -2892,7 +2892,7 @@ void Paint(HWND w){
     const int separatorY=136;
     auto PaintPanelHeader=[&](const RECT& panel){
         int saved=SaveDC(dc);
-        HRGN clip=CreateRoundRectRgn(panel.left+1,panel.top+1,panel.right,panel.bottom,18,18);
+        HRGN clip=CreateRoundRectRgn(panel.left+1,panel.top+1,panel.right,panel.bottom,10,10);
         SelectClipRgn(dc,clip);
         Fill(dc,panel.left+1,panel.top+1,
              panel.right-panel.left-2,separatorY-panel.top-1,C_PANEL2);
