@@ -18,8 +18,14 @@ on:
   push:
     branches:
       - main
+      - 'feature/**'
+      - 'style/**'
+      - 'refactor/**'
+      - 'ci/**'
     tags:
       - 'v*.*.*'
+
+  pull_request:
 
 permissions:
   contents: write
