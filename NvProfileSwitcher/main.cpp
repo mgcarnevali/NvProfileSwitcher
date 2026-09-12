@@ -124,7 +124,7 @@ void InvalidateFooter(){
     if(!gWnd)return;
     RECT client{};
     GetClientRect(gWnd,&client);
-    RECT footer{0,std::max(0,client.bottom-56),client.right,client.bottom};
+    RECT footer{0,std::max<LONG>(0,client.bottom-56),client.right,client.bottom};
     InvalidateRect(gWnd,&footer,FALSE);
 }
 constexpr int TOOLTIP_GAP=3;
