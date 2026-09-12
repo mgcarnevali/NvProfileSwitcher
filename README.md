@@ -29,6 +29,13 @@ It allows you to create individual profiles for applications and games, with ind
 - Start minimized option
 - Minimize to system tray option
 - Automatic update checking
+- Configurable application show/hide hotkey
+- Windows profile override hotkey
+- Per-application profile hotkeys
+- Manual profile override mode
+- Dedicated hotkey to resume automatic switching
+- Shortcut conflict and AltGr-safe validation
+- Dark application dialogs
 - Portable version
 - Windows installer
 - Native Win32 application with no additional runtime required
@@ -98,9 +105,25 @@ The **Reset** button restores the controls to neutral NVIDIA/default values and 
 7. Click **Save profile** to save the changes.
 8. Enable the profile.
 
+Optionally, assign a profile hotkey to activate it manually. Pressing the same hotkey again ends the override and resumes automatic foreground-application detection.
+
 NvProfileSwitcher will automatically apply the profile when the configured executable becomes the foreground application.
 
 When the application is no longer active, the Windows profile is restored automatically.
+
+## Hotkeys
+
+NvProfileSwitcher supports three application-wide hotkey actions:
+
+- **Show / hide window** toggles the main application window.
+- **Windows override** pins the Windows display profile until the override is cancelled.
+- **Resume automatic switching** ends any manual override and immediately reevaluates the foreground application.
+
+Each enabled application profile can also have its own hotkey. Activating it applies that profile to all configured displays and starts a manual override. Pressing another profile hotkey switches the override; pressing the active profile hotkey again returns to automatic switching.
+
+Function keys can be assigned without modifiers. Other shortcuts require Ctrl or Alt. Ctrl + Alt combinations are blocked because Windows can interpret the AltGr key as Ctrl + Alt.
+
+The same shortcut cannot be assigned to more than one global action or application profile. **Clear** removes an assignment.
 
 ## Multi-monitor support
 
@@ -190,7 +213,7 @@ Example build process:
 
 ```cmd
 rc /nologo app.rc
-cl /nologo /std:c++20 /O2 /EHsc /MT /DUNICODE /D_UNICODE /DNOMINMAX main.cpp app.res /Fe:NvProfileSwitcher.exe /link /SUBSYSTEM:WINDOWS /MACHINE:X64
+cl /nologo /std:c++20 /O2 /EHsc /MT /DUNICODE /D_UNICODE /DNOMINMAX main.cpp switching_core.cpp hotkey_core.cpp app.res /Fe:NvProfileSwitcher.exe /link /SUBSYSTEM:WINDOWS /MACHINE:X64
 ```
 
 The `/MT` option statically links the Microsoft C/C++ runtime.
@@ -208,7 +231,7 @@ vMAJOR.MINOR.PATCH
 For example:
 
 ```text
-v1.3.0
+v2.0.0
 ```
 
 Development builds use the short Git commit hash:
@@ -226,9 +249,7 @@ NvProfileSwitcher/
 │   │   ├── NvProfileSwitcher.ico
 │   │   ├── header.png
 │   │   ├── installer-large.bmp
-│   │   ├── installer-large.png
-│   │   ├── installer-small.bmp
-│   │   └── installer-small.png
+│   │   └── installer-small.bmp
 │   └── icons/
 │       ├── brightness.png
 │       ├── contrast.png
@@ -241,8 +262,15 @@ NvProfileSwitcher/
 │       └── vibrance.png
 ├── app.manifest
 ├── app.rc
+├── hotkey_core.cpp
+├── hotkey_core.h
 ├── main.cpp
 ├── resource.h
+├── switching_core.cpp
+├── switching_core.h
+├── tests/
+│   ├── hotkey_core_tests.cpp
+│   └── switching_core_tests.cpp
 ├── version.h
 └── installer/
     └── NvProfileSwitcher.iss

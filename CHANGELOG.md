@@ -4,6 +4,35 @@ All notable changes to NvProfileSwitcher will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project follows [Semantic Versioning](https://semver.org/).
 
+## 2.0.0 --- 2026-09-12
+
+### Added
+
+- Added configurable global hotkeys for showing or hiding the application and activating the Windows profile override.
+- Added persistent hotkeys for individual application profiles.
+- Added manual profile override mode, allowing a profile to remain active independently of foreground executable detection.
+- Added a dedicated hotkey to resume automatic profile switching immediately.
+- Added dark application dialogs with standardized content-based sizing, margins, spacing, and buttons.
+- Added assigned hotkey information to the profile list and active override information to the footer.
+- Added automated hotkey policy and profile override tests.
+
+### Changed
+
+- Pressing the active profile's hotkey again now ends its override and resumes automatic switching.
+- Disabled profiles can no longer activate their assigned hotkeys, and disabling or removing the overridden profile ends the override.
+- Hotkey validation now prevents duplicate assignments, unsupported combinations, and Ctrl + Alt combinations that can conflict with AltGr.
+- Function keys can be assigned without modifiers; other shortcuts require Ctrl or Alt.
+- Standardized Profile Settings spacing between Windows and application profiles.
+- Expanded GitHub Actions to run the native MSVC build and automated tests on development branches and pull requests.
+- Improved pull request workflow names to show the source and destination branches.
+
+### Fixed
+
+- Fixed empty hotkey placeholders remaining visible while capturing a shortcut.
+- Fixed caret alignment in empty hotkey fields.
+- Reduced override-related UI flicker by repainting only the footer when the active profile changes.
+- Fixed MSVC compilation of footer bounds by using an explicit Windows `LONG` type.
+
 ## 1.3.0 --- 2026-09-09
 
 ### Added
