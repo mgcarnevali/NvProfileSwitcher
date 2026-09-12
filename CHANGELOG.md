@@ -32,6 +32,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - Fixed caret alignment in empty hotkey fields.
 - Reduced override-related UI flicker by repainting only the footer when the active profile changes.
 - Fixed MSVC compilation of footer bounds by using an explicit Windows `LONG` type.
+- Fixed the monitor selector popup using the Windows blue hover border instead of the application's dark border.
 
 ## 1.3.0 --- 2026-09-09
 

@@ -1458,10 +1458,52 @@ LRESULT CALLBACK FlatComboSubclassProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp,
     return DefSubclassProc(hwnd,msg,wp,lp);
 }
 
+void PaintFlatComboPopupBorder(HWND hwnd){
+    HDC dc=GetWindowDC(hwnd);
+    if(!dc) return;
+
+    RECT r{};
+    GetWindowRect(hwnd,&r);
+    OffsetRect(&r,-r.left,-r.top);
+    HBRUSH border=CreateSolidBrush(C_BORDER);
+    FrameRect(dc,&r,border);
+    DeleteObject(border);
+    ReleaseDC(hwnd,dc);
+}
+
+LRESULT CALLBACK FlatComboPopupSubclassProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp,
+                                            UINT_PTR subclassId,DWORD_PTR refData){
+    switch(msg){
+    case WM_NCPAINT:
+    case WM_NCACTIVATE:{
+        LRESULT result=DefSubclassProc(hwnd,msg,wp,lp);
+        PaintFlatComboPopupBorder(hwnd);
+        return result;
+    }
+    case WM_MOUSEMOVE:{
+        LRESULT result=DefSubclassProc(hwnd,msg,wp,lp);
+        // The native popup changes its frame color while the pointer is over it.
+        // Reapply the application border so hover and inactive states match.
+        PaintFlatComboPopupBorder(hwnd);
+        return result;
+    }
+    case WM_NCDESTROY:
+        RemoveWindowSubclass(hwnd,FlatComboPopupSubclassProc,subclassId);
+        break;
+    }
+    return DefSubclassProc(hwnd,msg,wp,lp);
+}
+
 void StyleFlatCombo(HWND hwnd){
     if(!hwnd) return;
     SetWindowTheme(hwnd,L"",L"");
     SetWindowSubclass(hwnd,FlatComboSubclassProc,1,0);
+
+    COMBOBOXINFO info{sizeof(info)};
+    if(GetComboBoxInfo(hwnd,&info) && info.hwndList){
+        SetWindowTheme(info.hwndList,L"",L"");
+        SetWindowSubclass(info.hwndList,FlatComboPopupSubclassProc,1,0);
+    }
     InvalidateRect(hwnd,nullptr,TRUE);
 }
 
@@ -2376,6 +2418,9 @@ void DrawProfileHeaderButton(const DRAWITEMSTRUCT* d){
     const COLORREF textColor=disabled?C_MUTED:RGB(230,233,236);
     const COLORREF iconColor=disabled?C_MUTED:(id==IDC_REMOVE?C_DANGER:RGB(218,222,226));
 
+    HBRUSH headerBackground=CreateSolidBrush(C_PANEL2);
+    FillRect(d->hDC,&r,headerBackground);
+    DeleteObject(headerBackground);
     DrawMainButtonSurface(d->hDC,r,false,hover,down,disabled);
 
     wchar_t caption[64]{};
@@ -2620,12 +2665,23 @@ void DrawHeaderImage(HDC dc){
 
 void DrawSliderIcon(HDC dc,Gdiplus::Image* image,int x,int y){
     if(!image) return;
+    const UINT sourceW=image->GetWidth();
+    const UINT sourceH=image->GetHeight();
+    if(!sourceW||!sourceH) return;
+
+    constexpr int iconBox=22;
+    const double scale=std::min((double)iconBox/sourceW,(double)iconBox/sourceH);
+    const int targetW=(int)llround(sourceW*scale);
+    const int targetH=(int)llround(sourceH*scale);
+    const int targetX=x+(iconBox-targetW)/2;
+    const int targetY=y+(iconBox-targetH)/2;
+
     Gdiplus::Graphics graphics(dc);
     graphics.SetInterpolationMode(Gdiplus::InterpolationModeHighQualityBicubic);
     graphics.SetPixelOffsetMode(Gdiplus::PixelOffsetModeHighQuality);
     graphics.SetCompositingMode(Gdiplus::CompositingModeSourceOver);
     graphics.SetCompositingQuality(Gdiplus::CompositingQualityHighQuality);
-    graphics.DrawImage(image,Gdiplus::Rect(x,y,22,22));
+    graphics.DrawImage(image,Gdiplus::Rect(targetX,targetY,targetW,targetH));
 }
 
 
@@ -3040,7 +3096,7 @@ void BuildControls(){
     const int trackW=valueX-trackX-16;
 
     auto slider=[&](const wchar_t*t,int lid,int id,int vid,int y,int mn,int mx){
-        Add(L"STATIC",t,0,labelX,y-2,labelW,22,lid);
+        Add(L"STATIC",t,SS_CENTERIMAGE,labelX,y-2,labelW,22,lid);
         HWND tr=Add(TRACKBAR_CLASSW,L"",TBS_HORZ|TBS_NOTICKS,trackX,y-4,trackW,28,id);
         SendMessageW(tr,TBM_SETRANGE,TRUE,MAKELONG(mn,mx));
         Add(L"STATIC",L"",SS_OWNERDRAW,valueX,y-5,valueW,28,vid);
