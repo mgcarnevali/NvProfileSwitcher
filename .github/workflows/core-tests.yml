@@ -1,14 +1,9 @@
 name: Switching Core Tests
 
 on:
-  push:
-    branches:
-      - 'refactor/**'
-      - 'feature/**'
-      - 'style/**'
-      - 'ci/**'
-      - 'test/**'
   pull_request:
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:

@@ -18,17 +18,12 @@ on:
         type: string
 
   push:
-    branches:
-      - main
-      - 'feature/**'
-      - 'style/**'
-      - 'refactor/**'
-      - 'ci/**'
-      - 'test/**'
     tags:
       - 'v*.*.*'
 
   pull_request:
+    branches:
+      - main
 
 permissions:
   contents: write
