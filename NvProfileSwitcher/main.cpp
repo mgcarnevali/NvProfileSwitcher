@@ -1084,7 +1084,7 @@ HWND CreateAppMessageWindow(AppMessageData* data,HWND owner){
     ReleaseDC(nullptr,measureDc);
     const int windowHeight=std::max(40,static_cast<int>(measure.bottom))+139;
 
-    HWND dialog=CreateWindowExW(WS_EX_DLGMODALFRAME|WS_EX_TOPMOST,
+    HWND dialog=CreateWindowExW(WS_EX_DLGMODALFRAME,
         L"NvProfileSwitcherMessage",data->title.c_str(),WS_CAPTION|WS_SYSMENU,
         0,0,488,windowHeight,owner,nullptr,gInst,data);
     if(!dialog)return nullptr;
@@ -1102,7 +1102,7 @@ HWND CreateAppMessageWindow(AppMessageData* data,HWND owner){
     const int ww=wr.right-wr.left,wh=wr.bottom-wr.top;
     const int x=target.left+((target.right-target.left)-ww)/2;
     const int y=target.top+((target.bottom-target.top)-wh)/2;
-    SetWindowPos(dialog,HWND_TOPMOST,x,y,0,0,SWP_NOSIZE|SWP_SHOWWINDOW);
+    SetWindowPos(dialog,HWND_TOP,x,y,0,0,SWP_NOSIZE|SWP_SHOWWINDOW);
     UpdateWindow(dialog);
     SetForegroundWindow(dialog);
     return dialog;
@@ -3680,7 +3680,7 @@ void ShowUpdateAvailable(UpdateInfo* info){
     const bool disableOwner=owner&&IsWindowEnabled(owner);
     if(disableOwner)EnableWindow(owner,FALSE);
 
-    HWND a=CreateWindowExW(WS_EX_DLGMODALFRAME|WS_EX_TOPMOST,L"NvProfileSwitcherUpdate",
+    HWND a=CreateWindowExW(WS_EX_DLGMODALFRAME,L"NvProfileSwitcherUpdate",
         L"NvProfileSwitcher Update",WS_CAPTION|WS_SYSMENU,
         0,0,488,214,owner,nullptr,gInst,info);
     if(!a){
@@ -3703,7 +3703,7 @@ void ShowUpdateAvailable(UpdateInfo* info){
     int y=target.top+((target.bottom-target.top)-wh)/2;
 
     ShowWindow(a,SW_SHOW);
-    SetWindowPos(a,HWND_TOPMOST,x,y,0,0,SWP_NOSIZE|SWP_SHOWWINDOW);
+    SetWindowPos(a,HWND_TOP,x,y,0,0,SWP_NOSIZE|SWP_SHOWWINDOW);
     UpdateWindow(a);
     SetForegroundWindow(a);
 
@@ -3888,7 +3888,7 @@ void ShowAbout(){
     const bool disableOwner=owner&&IsWindowEnabled(owner);
     if(disableOwner)EnableWindow(owner,FALSE);
 
-    HWND a=CreateWindowExW(WS_EX_DLGMODALFRAME|WS_EX_TOPMOST,L"NvProfileSwitcherAbout",L"About NvProfileSwitcher",
+    HWND a=CreateWindowExW(WS_EX_DLGMODALFRAME,L"NvProfileSwitcherAbout",L"About NvProfileSwitcher",
         WS_CAPTION|WS_SYSMENU,0,0,488,242,owner,nullptr,gInst,nullptr);
     if(!a){
         if(disableOwner)EnableWindow(owner,TRUE);
@@ -3906,7 +3906,7 @@ void ShowAbout(){
     int y=work.top+((work.bottom-work.top)-wh)/2;
 
     ShowWindow(a,SW_SHOW);
-    SetWindowPos(a,HWND_TOPMOST,x,y,0,0,SWP_NOSIZE|SWP_SHOWWINDOW);
+    SetWindowPos(a,HWND_TOP,x,y,0,0,SWP_NOSIZE|SWP_SHOWWINDOW);
     UpdateWindow(a);
     SetForegroundWindow(a);
 
@@ -4166,14 +4166,14 @@ bool SelectRunningApplication(HWND owner,std::wstring& selectedPath){
     HWND previousFocus=GetFocus();
     const bool disableOwner=owner&&IsWindowEnabled(owner);
     if(disableOwner)EnableWindow(owner,FALSE);
-    HWND dialog=CreateWindowExW(WS_EX_DLGMODALFRAME|WS_EX_TOPMOST,L"NvProfileSwitcherRunningApps",
+    HWND dialog=CreateWindowExW(WS_EX_DLGMODALFRAME,L"NvProfileSwitcherRunningApps",
         L"Running applications",WS_CAPTION|WS_SYSMENU,0,0,720,390,owner,nullptr,gInst,&data);
     if(!dialog){if(disableOwner)EnableWindow(owner,TRUE);return false;}
     BOOL darkTitle=TRUE;DwmSetWindowAttribute(dialog,20,&darkTitle,sizeof(darkTitle));
     RECT wr{},target{};GetWindowRect(dialog,&wr);
     if(owner&&IsWindowVisible(owner))GetWindowRect(owner,&target);else SystemParametersInfoW(SPI_GETWORKAREA,0,&target,0);
     const int ww=wr.right-wr.left,wh=wr.bottom-wr.top;
-    SetWindowPos(dialog,HWND_TOPMOST,target.left+(target.right-target.left-ww)/2,
+    SetWindowPos(dialog,HWND_TOP,target.left+(target.right-target.left-ww)/2,
         target.top+(target.bottom-target.top-wh)/2,0,0,SWP_NOSIZE|SWP_SHOWWINDOW);
     SetForegroundWindow(dialog);
 
