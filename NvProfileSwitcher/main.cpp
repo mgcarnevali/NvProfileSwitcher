@@ -3929,7 +3929,7 @@ struct RunningAppEntry{
     std::wstring name;
     std::wstring executable;
     std::wstring path;
-    int image=-1;
+    HICON icon{};
 };
 
 struct RunningAppsDialogData{
@@ -3992,22 +3992,18 @@ std::vector<RunningAppEntry> EnumerateRunningApps(){
 void PopulateRunningAppsList(RunningAppsDialogData* data){
     if(!data||!data->list)return;
     ListView_DeleteAllItems(data->list);
+    for(auto& app:data->apps)if(app.icon)DestroyIcon(app.icon);
     if(data->images)ImageList_RemoveAll(data->images);
     data->apps=EnumerateRunningApps();
     if(data->emptyMessage)ShowWindow(data->emptyMessage,data->apps.empty()?SW_SHOW:SW_HIDE);
 
     for(size_t i=0;i<data->apps.size();++i){
         SHFILEINFOW info{};
-        int image=-1;
-        if(SHGetFileInfoW(data->apps[i].path.c_str(),0,&info,sizeof(info),SHGFI_ICON|SHGFI_SMALLICON)){
-            image=ImageList_AddIcon(data->images,info.hIcon);
-            DestroyIcon(info.hIcon);
-        }
-        data->apps[i].image=image;
+        if(SHGetFileInfoW(data->apps[i].path.c_str(),0,&info,sizeof(info),SHGFI_ICON|SHGFI_SMALLICON))
+            data->apps[i].icon=info.hIcon;
         LVITEMW item{};
-        item.mask=LVIF_TEXT|LVIF_PARAM|LVIF_IMAGE;
+        item.mask=LVIF_TEXT|LVIF_PARAM;
         item.iItem=(int)i;
-        item.iImage=image;
         item.lParam=(LPARAM)i;
         item.pszText=(LPWSTR)data->apps[i].name.c_str();
         const int row=ListView_InsertItem(data->list,&item);
@@ -4098,8 +4094,9 @@ LRESULT CALLBACK RunningAppsDialogProc(HWND w,UINT m,WPARAM wp,LPARAM lp){
                 FillRect(draw->hDC,&r,selectedBrush);
                 DeleteObject(selectedBrush);
             }else FillRect(draw->hDC,&r,gFieldBrush);
-            if(app.image>=0&&data->images)
-                ImageList_Draw(data->images,app.image,draw->hDC,r.left+6,r.top+(r.bottom-r.top-16)/2,ILD_TRANSPARENT);
+            if(app.icon)
+                DrawIconEx(draw->hDC,r.left+6,r.top+(r.bottom-r.top-16)/2,
+                    app.icon,16,16,0,nullptr,DI_NORMAL);
             SetBkMode(draw->hDC,TRANSPARENT);SetTextColor(draw->hDC,C_TEXT);
             HFONT old=(HFONT)SelectObject(draw->hDC,gFont);
             RECT appRect{r.left+30,r.top,r.left+225,r.bottom};
@@ -4148,6 +4145,7 @@ LRESULT CALLBACK RunningAppsDialogProc(HWND w,UINT m,WPARAM wp,LPARAM lp){
     }
     case WM_CLOSE:DestroyWindow(w);return 0;
     case WM_DESTROY:
+        if(data)for(auto& app:data->apps)if(app.icon)DestroyIcon(app.icon);
         if(data&&data->images){ImageList_Destroy(data->images);data->images=nullptr;}
         return 0;
     }
