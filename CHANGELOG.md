@@ -4,6 +4,39 @@ All notable changes to NvProfileSwitcher will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project follows [Semantic Versioning](https://semver.org/).
 
+## 2.0.3 --- 2026-09-13
+
+### Fixed
+
+- Fixed caret alignment when focusing hotkey fields containing assigned shortcuts.
+- Kept the hotkey caret aligned after mouse interaction and after returning from modal dialogs.
+
+## 2.0.2 --- 2026-09-13
+
+### Changed
+
+- Unified margins, spacing, and button dimensions across application dialogs.
+- Updated the update notification to adjust its height automatically based on its content.
+- Made the update notification modal for behavior consistent with other dialogs.
+- Improved focus restoration after closing the update notification.
+
+### Fixed
+
+- Fixed inconsistent spacing between the update dialog buttons and the bottom edge.
+
+## 2.0.1 --- 2026-09-13
+
+### Changed
+
+- Standardized tooltip alignment and spacing across the application.
+- Improved long executable path tooltips with multi-line support.
+- Improved tooltips for truncated profile names.
+- Refined the development-build update tooltip positioning.
+
+### Fixed
+
+- Fixed MSVC type mismatches in tooltip positioning calculations.
+
 ## 2.0.0 --- 2026-09-13
 
 ### Added

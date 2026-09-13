@@ -4,7 +4,7 @@
 
 NvProfileSwitcher is a lightweight native Windows application that automatically applies NVIDIA display color settings based on the application currently in use.
 
-It allows you to create individual profiles for applications and games, with independent settings for each physical monitor.
+It allows you to create individual profiles for applications and games, with independent settings for each physical monitor and optional manual hotkey overrides.
 
 ## Features
 
@@ -18,7 +18,7 @@ It allows you to create individual profiles for applications and games, with ind
 - Gamma control
 - Live preview of display color adjustments while editing profiles
 - Reset control to restore NVIDIA-neutral values while editing
-- Windows/Desktop profiles
+- Windows profiles
 - Automatic restoration of Windows settings when leaving a configured application
 - Stable physical monitor identification
 - Profiles are preserved across NVIDIA driver updates and display topology changes
@@ -28,14 +28,14 @@ It allows you to create individual profiles for applications and games, with ind
 - Start with Windows option
 - Start minimized option
 - Minimize to system tray option
-- Automatic update checking
+- Optional automatic update checking in official release builds
 - Configurable application show/hide hotkey
 - Windows profile override hotkey
 - Per-application profile hotkeys
 - Manual profile override mode
 - Dedicated hotkey to resume automatic switching
 - Shortcut conflict and AltGr-safe validation
-- Dark application dialogs
+- Consistent content-aware modal dialogs
 - Portable version
 - Windows installer
 - Native Win32 application with no additional runtime required
@@ -239,6 +239,8 @@ Development builds use the short Git commit hash:
 ```text
 dev-abcdef1
 ```
+
+Automatic update checks are disabled in development builds. Manual update checks remain available in official release builds even when automatic checks are disabled.
 
 ## Project structure
 
