@@ -1070,7 +1070,7 @@ HWND CreateAppMessageWindow(AppMessageData* data,HWND owner){
         DT_CALCRECT|DT_WORDBREAK|DT_NOPREFIX);
     SelectObject(measureDc,oldFont);
     ReleaseDC(nullptr,measureDc);
-    const int windowHeight=std::max(228,static_cast<int>(measure.bottom)+139);
+    const int windowHeight=std::max(40,static_cast<int>(measure.bottom))+139;
 
     HWND dialog=CreateWindowExW(WS_EX_DLGMODALFRAME|WS_EX_TOPMOST,
         L"NvProfileSwitcherMessage",data->title.c_str(),WS_CAPTION|WS_SYSMENU,
