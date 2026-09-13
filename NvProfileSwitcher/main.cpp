@@ -3581,7 +3581,7 @@ LRESULT CALLBACK AboutProc(HWND w,UINT m,WPARAM wp,LPARAM lp){
         SetPropW(w,L"AboutTitleFont",title);
 
         const wchar_t* appName=L"NvProfileSwitcher";
-        const wchar_t* description=L"Automatic per-app NVIDIA display color profiles for Windows";
+        const wchar_t* description=L"Automatic per-application NVIDIA display color profiles for Windows";
         const wchar_t* copyrightText=L"Copyright \x00A9 2026 Maximiliano Carnevali";
         std::wstring versionText=L"Version ";
         versionText+=APP_VERSION;
