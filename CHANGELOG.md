@@ -4,7 +4,7 @@ All notable changes to NvProfileSwitcher will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project follows [Semantic Versioning](https://semver.org/).
 
-## 2.0.0 --- 2026-09-12
+## 2.0.0 --- 2026-09-13
 
 ### Added
 
