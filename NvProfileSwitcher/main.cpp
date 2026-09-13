@@ -82,7 +82,6 @@ constexpr UINT WM_TRAY=WM_APP+1;
 constexpr UINT WM_UPDATE_AVAILABLE=WM_APP+2;
 constexpr UINT WM_SHOW_EXISTING_INSTANCE=WM_APP+3;
 constexpr UINT WM_SHOW_APP_MESSAGE=WM_APP+4;
-constexpr UINT WM_RESTORE_HOTKEY_CARET=WM_APP+5;
 constexpr wchar_t INSTANCE_MUTEX_NAME[]=L"Local\\NvProfileSwitcher_SingleInstance";
 constexpr wchar_t APP_VERSION[]=NVPS_VERSION_WSTR;
 constexpr wchar_t APP_URL[]=L"https://github.com/mgcarnevali/NvProfileSwitcher";
@@ -1107,15 +1106,6 @@ HWND CreateAppMessageWindow(AppMessageData* data,HWND owner){
     return dialog;
 }
 
-void RestoreModalOwner(HWND owner,HWND previousFocus,bool enableOwner){
-    if(!enableOwner)return;
-    EnableWindow(owner,TRUE);
-    SetForegroundWindow(owner);
-    HWND target=previousFocus&&IsWindow(previousFocus)?previousFocus:owner;
-    SetFocus(target);
-    PostMessageW(target,WM_RESTORE_HOTKEY_CARET,0,0);
-}
-
 void ShowAppMessage(const std::wstring& title,const std::wstring& text){
     AppMessageData data{title,text,false};
     HWND owner=gWnd;
@@ -1140,7 +1130,12 @@ void ShowAppMessage(const std::wstring& title,const std::wstring& text){
             DispatchMessageW(&msg);
         }
     }
-    RestoreModalOwner(owner,previousFocus,disableOwner);
+    if(disableOwner){
+        EnableWindow(owner,TRUE);
+        if(previousFocus&&IsWindow(previousFocus))SetFocus(previousFocus);
+        else SetFocus(owner);
+        SetForegroundWindow(owner);
+    }
 }
 
 void QueueAppMessage(const std::wstring& title,const std::wstring& text){
@@ -1168,9 +1163,10 @@ void UnregisterConfiguredHotkeys();
 
 LRESULT CALLBACK HotkeyFieldSubclassProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp,
                                          UINT_PTR subclassId,DWORD_PTR refData){
+    constexpr UINT WM_POSITION_HOTKEY_CARET=WM_APP+5;
     switch(msg){
-    case WM_RESTORE_HOTKEY_CARET:
-        if(GetFocus()==hwnd&&!LOBYTE((WORD)SendMessageW(hwnd,HKM_GETHOTKEY,0,0))){
+    case WM_POSITION_HOTKEY_CARET:
+        if(GetFocus()==hwnd){
             SetCaretPos(8,2);
             InvalidateRect(hwnd,nullptr,FALSE);
         }
@@ -1186,8 +1182,12 @@ LRESULT CALLBACK HotkeyFieldSubclassProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp,
         UnregisterConfiguredHotkeys();
         LRESULT result=DefSubclassProc(hwnd,msg,wp,lp);
         InvalidateRect(hwnd,nullptr,FALSE);
-        if(!LOBYTE((WORD)SendMessageW(hwnd,HKM_GETHOTKEY,0,0)))
-            SetCaretPos(8,2);
+        PostMessageW(hwnd,WM_POSITION_HOTKEY_CARET,0,0);
+        return result;
+    }
+    case WM_LBUTTONUP:{
+        LRESULT result=DefSubclassProc(hwnd,msg,wp,lp);
+        PostMessageW(hwnd,WM_POSITION_HOTKEY_CARET,0,0);
         return result;
     }
     case WM_KILLFOCUS:{
@@ -1215,7 +1215,7 @@ LRESULT CALLBACK HotkeyFieldSubclassProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp,
         DrawTextW(dc,text.c_str(),-1,&tr,DT_LEFT|DT_VCENTER|DT_SINGLELINE|DT_END_ELLIPSIS|DT_NOPREFIX);
         SelectObject(dc,oldFont);
         EndPaint(hwnd,&ps);
-        if(empty&&focused)SetCaretPos(8,2);
+        if(focused)SetCaretPos(8,2);
         return 0;
     }
     case WM_NCDESTROY:
@@ -3700,7 +3700,12 @@ void ShowUpdateAvailable(UpdateInfo* info){
             DispatchMessageW(&msg);
         }
     }
-    RestoreModalOwner(owner,previousFocus,disableOwner);
+    if(disableOwner){
+        EnableWindow(owner,TRUE);
+        if(previousFocus&&IsWindow(previousFocus))SetFocus(previousFocus);
+        else SetFocus(owner);
+        SetForegroundWindow(owner);
+    }
 }
 
 LRESULT CALLBACK AboutProc(HWND w,UINT m,WPARAM wp,LPARAM lp){
@@ -3893,7 +3898,12 @@ void ShowAbout(){
             DispatchMessageW(&msg);
         }
     }
-    RestoreModalOwner(owner,previousFocus,disableOwner);
+    if(disableOwner){
+        EnableWindow(owner,TRUE);
+        if(previousFocus&&IsWindow(previousFocus))SetFocus(previousFocus);
+        else SetFocus(owner);
+        SetForegroundWindow(owner);
+    }
 }
 
 bool gTrayIconVisible=false;
