@@ -3580,30 +3580,89 @@ LRESULT CALLBACK AboutProc(HWND w,UINT m,WPARAM wp,LPARAM lp){
         HFONT title=CreateFontW(-21,0,0,0,FW_SEMIBOLD,0,0,0,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,DEFAULT_PITCH,L"Segoe UI");
         SetPropW(w,L"AboutTitleFont",title);
 
-        HWND icon=CreateWindowExW(0,L"STATIC",nullptr,WS_CHILD|WS_VISIBLE|SS_ICON,22,22,40,40,w,nullptr,gInst,nullptr);
+        const wchar_t* appName=L"NvProfileSwitcher";
+        const wchar_t* description=L"Automatic per-app NVIDIA display color profiles for Windows";
+        const wchar_t* copyrightText=L"Copyright \x00A9 2026 Maximiliano Carnevali";
+        std::wstring versionText=L"Version ";
+        versionText+=APP_VERSION;
+
+        constexpr int margin=22;
+        constexpr int iconSize=40;
+        constexpr int iconGap=14;
+        constexpr int lineGap=12;
+        constexpr int sectionGap=16;
+        constexpr int buttonGap=12;
+        constexpr int buttonWidth=100;
+        constexpr int buttonHeight=36;
+
+        RECT initialClient{};
+        GetClientRect(w,&initialClient);
+        const int clientWidth=initialClient.right-initialClient.left;
+        const int contentWidth=clientWidth-(margin*2);
+
+        HDC measureDc=GetDC(w);
+        auto measureHeight=[&](const std::wstring& text,HFONT font,int width){
+            RECT measured{0,0,width,0};
+            HFONT old=(HFONT)SelectObject(measureDc,font);
+            DrawTextW(measureDc,text.c_str(),-1,&measured,
+                DT_CALCRECT|DT_WORDBREAK|DT_NOPREFIX);
+            SelectObject(measureDc,old);
+            return std::max(1,static_cast<int>(measured.bottom-measured.top));
+        };
+
+        const int nameHeight=measureHeight(appName,title,contentWidth-iconSize-iconGap);
+        const int versionHeight=measureHeight(versionText,gFont,contentWidth-iconSize-iconGap);
+        const int headerHeight=std::max(iconSize,nameHeight+2+versionHeight);
+        const int descriptionHeight=measureHeight(description,gFont,contentWidth);
+        const int copyrightHeight=measureHeight(copyrightText,gFont,contentWidth);
+        ReleaseDC(w,measureDc);
+
+        const int descriptionY=margin+headerHeight+sectionGap;
+        const int copyrightY=descriptionY+descriptionHeight+lineGap;
+        const int buttonY=copyrightY+copyrightHeight+sectionGap;
+        const int desiredClientHeight=buttonY+buttonHeight+margin;
+
+        RECT desiredWindow{0,0,clientWidth,desiredClientHeight};
+        const DWORD style=(DWORD)GetWindowLongPtrW(w,GWL_STYLE);
+        const DWORD exStyle=(DWORD)GetWindowLongPtrW(w,GWL_EXSTYLE);
+        AdjustWindowRectEx(&desiredWindow,style,FALSE,exStyle);
+        SetWindowPos(w,nullptr,0,0,
+            desiredWindow.right-desiredWindow.left,
+            desiredWindow.bottom-desiredWindow.top,
+            SWP_NOMOVE|SWP_NOZORDER|SWP_NOACTIVATE);
+
+        HWND icon=CreateWindowExW(0,L"STATIC",nullptr,WS_CHILD|WS_VISIBLE|SS_ICON,
+            margin,margin,iconSize,iconSize,w,nullptr,gInst,nullptr);
         SendMessageW(icon,STM_SETICON,(WPARAM)gIcon,0);
 
-        HWND name=CreateWindowExW(0,L"STATIC",L"NvProfileSwitcher",WS_CHILD|WS_VISIBLE,76,19,260,30,w,nullptr,gInst,nullptr);
+        const int headerTextX=margin+iconSize+iconGap;
+        const int headerTextWidth=contentWidth-iconSize-iconGap;
+        HWND name=CreateWindowExW(0,L"STATIC",appName,WS_CHILD|WS_VISIBLE,
+            headerTextX,margin,headerTextWidth,nameHeight,w,nullptr,gInst,nullptr);
         SendMessageW(name,WM_SETFONT,(WPARAM)title,TRUE);
 
-        std::wstring ver=L"Version ";
-        ver+=APP_VERSION;
-        HWND version=CreateWindowExW(0,L"STATIC",ver.c_str(),WS_CHILD|WS_VISIBLE,76,48,260,22,w,nullptr,gInst,nullptr);
+        HWND version=CreateWindowExW(0,L"STATIC",versionText.c_str(),WS_CHILD|WS_VISIBLE,
+            headerTextX,margin+nameHeight+2,headerTextWidth,versionHeight,w,nullptr,gInst,nullptr);
         SendMessageW(version,WM_SETFONT,(WPARAM)gFont,TRUE);
 
-        HWND desc=CreateWindowExW(0,L"STATIC",L"Automatic per-app NVIDIA display color profiles for Windows",
-            WS_CHILD|WS_VISIBLE,22,84,430,22,w,nullptr,gInst,nullptr);
+        HWND desc=CreateWindowExW(0,L"STATIC",description,WS_CHILD|WS_VISIBLE,
+            margin,descriptionY,contentWidth,descriptionHeight,w,nullptr,gInst,nullptr);
         SendMessageW(desc,WM_SETFONT,(WPARAM)gFont,TRUE);
 
-        HWND copy=CreateWindowExW(0,L"STATIC",L"Copyright \x00A9 2026 Maximiliano Carnevali",
-            WS_CHILD|WS_VISIBLE,22,118,350,22,w,nullptr,gInst,nullptr);
+        HWND copy=CreateWindowExW(0,L"STATIC",copyrightText,WS_CHILD|WS_VISIBLE,
+            margin,copyrightY,contentWidth,copyrightHeight,w,nullptr,gInst,nullptr);
         SendMessageW(copy,WM_SETFONT,(WPARAM)gFont,TRUE);
 
-        HWND github=CreateWindowExW(0,L"BUTTON",L"GitHub",WS_CHILD|WS_VISIBLE|BS_OWNERDRAW,126,158,100,36,w,(HMENU)3001,gInst,nullptr);
+        const int buttonsWidth=buttonWidth*3+buttonGap*2;
+        const int buttonsX=clientWidth-margin-buttonsWidth;
+        HWND github=CreateWindowExW(0,L"BUTTON",L"GitHub",WS_CHILD|WS_VISIBLE|BS_OWNERDRAW,
+            buttonsX,buttonY,buttonWidth,buttonHeight,w,(HMENU)3001,gInst,nullptr);
         SendMessageW(github,WM_SETFONT,(WPARAM)gFontBold,TRUE);
-        HWND support=CreateWindowExW(0,L"BUTTON",L"Support",WS_CHILD|WS_VISIBLE|BS_OWNERDRAW,238,158,100,36,w,(HMENU)3002,gInst,nullptr);
+        HWND support=CreateWindowExW(0,L"BUTTON",L"Support",WS_CHILD|WS_VISIBLE|BS_OWNERDRAW,
+            buttonsX+buttonWidth+buttonGap,buttonY,buttonWidth,buttonHeight,w,(HMENU)3002,gInst,nullptr);
         SendMessageW(support,WM_SETFONT,(WPARAM)gFontBold,TRUE);
-        HWND close=CreateWindowExW(0,L"BUTTON",L"Close",WS_CHILD|WS_VISIBLE|BS_OWNERDRAW,350,158,100,36,w,(HMENU)IDCANCEL,gInst,nullptr);
+        HWND close=CreateWindowExW(0,L"BUTTON",L"Close",WS_CHILD|WS_VISIBLE|BS_OWNERDRAW,
+            buttonsX+(buttonWidth+buttonGap)*2,buttonY,buttonWidth,buttonHeight,w,(HMENU)IDCANCEL,gInst,nullptr);
         SendMessageW(close,WM_SETFONT,(WPARAM)gFontBold,TRUE);
         return 0;
     }
