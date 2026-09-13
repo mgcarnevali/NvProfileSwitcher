@@ -88,7 +88,7 @@ constexpr wchar_t APP_URL[]=L"https://github.com/mgcarnevali/NvProfileSwitcher";
 constexpr wchar_t SUPPORT_URL[]=L"https://ko-fi.com/mgcarnevali";
 constexpr wchar_t UPDATE_HOST[]=L"api.github.com";
 constexpr wchar_t UPDATE_PATH[]=L"/repos/mgcarnevali/NvProfileSwitcher/releases/latest";
-enum {IDC_LIST=1001,IDC_NAME,IDC_EXE,IDC_BROWSE,IDC_ENABLED,IDC_DISPLAY,IDC_LBL_DISPLAY,IDC_VIB,IDC_HUE,IDC_BRI,IDC_CON,IDC_GAM,IDC_SAVE,IDC_ADD=1015,IDC_REMOVE,IDC_STARTWIN=1018,IDC_STARTMIN,IDC_VALVIB,IDC_VALHUE,IDC_VALBRI,IDC_VALCON,IDC_VALGAM,IDC_LBL_NAME,IDC_LBL_EXE,IDC_LBL_ENABLED,IDC_LBL_VIB,IDC_LBL_HUE,IDC_LBL_BRI,IDC_LBL_CON,IDC_LBL_GAM,IDC_DEFAULTS,IDC_MINTRAY,IDC_CHECKUPDATES,IDC_FOOT_GITHUB,IDC_FOOT_SUPPORT,IDC_FOOT_ABOUT,IDC_HOTKEYS_TITLE,IDC_HOTKEY_SHOW_LABEL,IDC_HOTKEY_SHOW,IDC_HOTKEY_SHOW_CLEAR,IDC_HOTKEY_OVERRIDE_LABEL,IDC_HOTKEY_OVERRIDE,IDC_HOTKEY_OVERRIDE_CLEAR,IDC_PROFILE_HOTKEY_LABEL,IDC_PROFILE_HOTKEY,IDC_PROFILE_HOTKEY_CLEAR,IDC_HOTKEY_RESUME_LABEL,IDC_HOTKEY_RESUME,IDC_HOTKEY_RESUME_CLEAR};
+enum {IDC_LIST=1001,IDC_NAME,IDC_EXE,IDC_BROWSE,IDC_ENABLED,IDC_DISPLAY,IDC_LBL_DISPLAY,IDC_VIB,IDC_HUE,IDC_BRI,IDC_CON,IDC_GAM,IDC_SAVE,IDC_ADD=1015,IDC_REMOVE,IDC_STARTWIN=1018,IDC_STARTMIN,IDC_VALVIB,IDC_VALHUE,IDC_VALBRI,IDC_VALCON,IDC_VALGAM,IDC_LBL_NAME,IDC_LBL_EXE,IDC_LBL_ENABLED,IDC_LBL_VIB,IDC_LBL_HUE,IDC_LBL_BRI,IDC_LBL_CON,IDC_LBL_GAM,IDC_DEFAULTS,IDC_MINTRAY,IDC_CHECKUPDATES,IDC_FOOT_GITHUB,IDC_FOOT_SUPPORT,IDC_FOOT_ABOUT,IDC_HOTKEYS_TITLE,IDC_HOTKEY_SHOW_LABEL,IDC_HOTKEY_SHOW,IDC_HOTKEY_SHOW_CLEAR,IDC_HOTKEY_OVERRIDE_LABEL,IDC_HOTKEY_OVERRIDE,IDC_HOTKEY_OVERRIDE_CLEAR,IDC_PROFILE_HOTKEY_LABEL,IDC_PROFILE_HOTKEY,IDC_PROFILE_HOTKEY_CLEAR,IDC_HOTKEY_RESUME_LABEL,IDC_HOTKEY_RESUME,IDC_HOTKEY_RESUME_CLEAR,IDC_CHECKUPDATES_LABEL};
 enum {ID_TRAY_OPEN=2001,ID_TRAY_CHECK_UPDATE,ID_TRAY_ABOUT,ID_TRAY_EXIT};
 enum {ID_HOTKEY_SHOW_HIDE=3001,ID_HOTKEY_WINDOWS_OVERRIDE,ID_HOTKEY_RESUME_AUTOMATIC,ID_HOTKEY_TEST};
 constexpr int ID_HOTKEY_PROFILE_BASE=4000;
@@ -116,6 +116,10 @@ HWND gExeTooltip{};
 bool gExeTooltipVisible=false;
 HWND gResetTooltip{};
 bool gResetTooltipVisible=false;
+#if NVPS_DEV_BUILD
+HWND gUpdateCheckTooltip{};
+bool gUpdateCheckTooltipVisible=false;
+#endif
 int gProfileTooltipItem=-1;
 int gProfileHoverItem=-1;
 int gProfilePressedItem=-1;
@@ -1337,6 +1341,11 @@ LRESULT CALLBACK FlatCheckboxSubclassProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp
         DeleteObject(bg);
 
         const bool checked=SendMessageW(hwnd,BM_GETCHECK,0,0)==BST_CHECKED;
+#if NVPS_DEV_BUILD
+        const bool devUpdateCheck=GetDlgCtrlID(hwnd)==IDC_CHECKUPDATES;
+#else
+        const bool devUpdateCheck=false;
+#endif
 
         // Keep the proven 16x16 geometry, but render it with antialiasing and
         // restrained depth so it matches the rest of the mockup-style UI.
@@ -1354,23 +1363,21 @@ LRESULT CALLBACK FlatCheckboxSubclassProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp
             Gdiplus::GraphicsPath boxPath;
             AddRoundedRectPath(boxPath,box,3.2f);
 
-            const Gdiplus::Color top=checked?Gdiplus::Color(255,82,196,76)
-                                              :Gdiplus::Color(255,37,44,51);
-            const Gdiplus::Color bottom=checked?Gdiplus::Color(255,55,164,60)
-                                                 :Gdiplus::Color(255,23,29,34);
+            const Gdiplus::Color top=devUpdateCheck?Gdiplus::Color(255,31,36,41)
+                :(checked?Gdiplus::Color(255,82,196,76):Gdiplus::Color(255,37,44,51));
+            const Gdiplus::Color bottom=devUpdateCheck?Gdiplus::Color(255,20,24,28)
+                :(checked?Gdiplus::Color(255,55,164,60):Gdiplus::Color(255,23,29,34));
             Gdiplus::LinearGradientBrush fill(
                 Gdiplus::PointF(box.X,box.Y),
                 Gdiplus::PointF(box.X,box.GetBottom()),top,bottom);
             g.FillPath(&fill,&boxPath);
 
-            Gdiplus::Pen border(
-                checked?Gdiplus::Color(255,43,145,49):Gdiplus::Color(255,59,69,78),
-                1.0f);
+            Gdiplus::Pen border(devUpdateCheck?Gdiplus::Color(255,48,55,62)
+                :(checked?Gdiplus::Color(255,43,145,49):Gdiplus::Color(255,59,69,78)),1.0f);
             g.DrawPath(&border,&boxPath);
 
-            Gdiplus::Pen highlight(
-                checked?Gdiplus::Color(145,132,231,124):Gdiplus::Color(90,79,89,98),
-                0.8f);
+            Gdiplus::Pen highlight(devUpdateCheck?Gdiplus::Color(55,70,77,84)
+                :(checked?Gdiplus::Color(145,132,231,124):Gdiplus::Color(90,79,89,98)),0.8f);
             highlight.SetStartCap(Gdiplus::LineCapRound);
             highlight.SetEndCap(Gdiplus::LineCapRound);
             g.DrawLine(&highlight,6.0f,4.6f,16.0f,4.6f);
@@ -1387,8 +1394,8 @@ LRESULT CALLBACK FlatCheckboxSubclassProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp
             }
         }else{
             RECT box{3,3,19,19};
-            FillRound(dc,box,checked?RGB(63,177,67):RGB(25,31,36),
-                checked?RGB(43,145,49):RGB(59,69,78),4);
+            FillRound(dc,box,devUpdateCheck?RGB(24,29,34):(checked?RGB(63,177,67):RGB(25,31,36)),
+                devUpdateCheck?RGB(48,55,62):(checked?RGB(43,145,49):RGB(59,69,78)),4);
         }
 
         EndPaint(hwnd,&ps);
@@ -1639,6 +1646,54 @@ LRESULT CALLBACK ProfileTooltipSubclassProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM 
     return DefSubclassProc(hwnd,msg,wp,lp);
 }
 
+#if NVPS_DEV_BUILD
+void HideUpdateCheckTooltip(){
+    if(gUpdateCheckTooltip && gUpdateCheckTooltipVisible){
+        ShowWindow(gUpdateCheckTooltip,SW_HIDE);
+        gUpdateCheckTooltipVisible=false;
+    }
+    if(gWnd) KillTimer(gWnd,3);
+}
+
+void ShowUpdateCheckTooltip(){
+    if(!gUpdateCheckTooltip) return;
+    HWND checkbox=H(IDC_CHECKUPDATES);
+    if(!checkbox) return;
+
+    static const wchar_t* text=L"Update checks are disabled in development builds.";
+    RECT checkboxRect{};
+    GetWindowRect(checkbox,&checkboxRect);
+
+    HDC dc=GetDC(gUpdateCheckTooltip);
+    if(!dc) return;
+    HFONT old=(HFONT)SelectObject(dc,gFont);
+    SIZE textSize{};
+    GetTextExtentPoint32W(dc,text,(int)wcslen(text),&textSize);
+    SelectObject(dc,old);
+    ReleaseDC(gUpdateCheckTooltip,dc);
+
+    const int tipW=textSize.cx+16;
+    const int tipH=textSize.cy+10;
+    int x=checkboxRect.left;
+    int y=checkboxRect.bottom+TOOLTIP_GAP;
+
+    HMONITOR mon=MonitorFromWindow(checkbox,MONITOR_DEFAULTTONEAREST);
+    MONITORINFO mi{sizeof(mi)};
+    if(GetMonitorInfoW(mon,&mi)){
+        if(x+tipW>mi.rcWork.right) x=std::max((int)mi.rcWork.left,(int)mi.rcWork.right-tipW);
+        if(x<mi.rcWork.left) x=mi.rcWork.left;
+        y=std::clamp(y,(int)mi.rcWork.top,(int)mi.rcWork.bottom-tipH);
+    }
+
+    SetWindowPos(gUpdateCheckTooltip,HWND_TOPMOST,x,y,tipW,tipH,
+        SWP_NOACTIVATE|SWP_SHOWWINDOW);
+    RedrawWindow(gUpdateCheckTooltip,nullptr,nullptr,
+        RDW_INVALIDATE|RDW_ERASE|RDW_FRAME|RDW_UPDATENOW);
+    gUpdateCheckTooltipVisible=true;
+    SetTimer(gWnd,3,3000,nullptr);
+}
+#endif
+
 
 bool ExecutablePathIsTruncated(){
     HWND edit=H(IDC_EXE);
@@ -1798,7 +1853,7 @@ void UpdateResetTooltip(){
     RECT rr{};
     GetWindowRect(reset,&rr);
 
-    static const wchar_t* text=L"Reset to NVIDIA defaults";
+    static const wchar_t* text=L"Reset to NVIDIA defaults.";
     HDC dc=GetDC(gResetTooltip);
     if(!dc) return;
     HFONT old=(HFONT)SelectObject(dc,gFont);
@@ -3112,7 +3167,7 @@ void BuildControls(){
     HWND reset=Add(L"BUTTON",L"Reset",BS_OWNERDRAW,rightX,764,132,38,IDC_DEFAULTS);
     StyleMainButton(reset);
     gResetTooltip=CreateWindowExW(WS_EX_TOOLWINDOW|WS_EX_TOPMOST,L"STATIC",
-        L"Reset to NVIDIA defaults",WS_POPUP,0,0,0,0,gWnd,nullptr,gInst,nullptr);
+        L"Reset to NVIDIA defaults.",WS_POPUP,0,0,0,0,gWnd,nullptr,gInst,nullptr);
     if(gResetTooltip){
         SendMessageW(gResetTooltip,WM_SETFONT,(WPARAM)gFont,FALSE);
         SetWindowSubclass(gResetTooltip,ProfileTooltipSubclassProc,2,0);
@@ -3131,7 +3186,16 @@ void BuildControls(){
     { HWND cb=Add(L"BUTTON",L"",BS_AUTOCHECKBOX,appX,206,22,22,IDC_MINTRAY); StyleFlatCheckbox(cb); }
     Add(L"STATIC",L"Minimize to tray",SS_CENTERIMAGE,appX+27,206,220,22,0);
     { HWND cb=Add(L"BUTTON",L"",BS_AUTOCHECKBOX,appX,234,22,22,IDC_CHECKUPDATES); StyleFlatCheckbox(cb); }
-    Add(L"STATIC",L"Check for updates",SS_CENTERIMAGE,appX+27,234,220,22,0);
+    Add(L"STATIC",L"Check for updates",SS_CENTERIMAGE,appX+27,234,220,22,IDC_CHECKUPDATES_LABEL);
+#if NVPS_DEV_BUILD
+    gUpdateCheckTooltip=CreateWindowExW(WS_EX_TOOLWINDOW|WS_EX_TOPMOST,L"STATIC",
+        L"Update checks are disabled in development builds.",WS_POPUP,
+        0,0,0,0,gWnd,nullptr,gInst,nullptr);
+    if(gUpdateCheckTooltip){
+        SendMessageW(gUpdateCheckTooltip,WM_SETFONT,(WPARAM)gFont,FALSE);
+        SetWindowSubclass(gUpdateCheckTooltip,ProfileTooltipSubclassProc,4,0);
+    }
+#endif
 
     HWND hotkeysTitle=Add(L"STATIC",L"Hotkeys",0,appX,294,250,24,IDC_HOTKEYS_TITLE);
     SendMessageW(hotkeysTitle,WM_SETFONT,(WPARAM)gFontBold,TRUE);
@@ -3163,7 +3227,11 @@ void BuildControls(){
     SendMessageW(H(IDC_STARTWIN),BM_SETCHECK,gSettings.startWindows?BST_CHECKED:BST_UNCHECKED,0);
     SendMessageW(H(IDC_STARTMIN),BM_SETCHECK,gSettings.startMinimized?BST_CHECKED:BST_UNCHECKED,0);
     SendMessageW(H(IDC_MINTRAY),BM_SETCHECK,gSettings.minimizeToTray?BST_CHECKED:BST_UNCHECKED,0);
+#if NVPS_DEV_BUILD
+    SendMessageW(H(IDC_CHECKUPDATES),BM_SETCHECK,BST_UNCHECKED,0);
+#else
     SendMessageW(H(IDC_CHECKUPDATES),BM_SETCHECK,gSettings.checkUpdates?BST_CHECKED:BST_UNCHECKED,0);
+#endif
 
     HWND footGitHub=Add(L"BUTTON",L"GitHub",BS_OWNERDRAW,r.right-284,r.bottom-43,66,24,IDC_FOOT_GITHUB);
     HWND footSupport=Add(L"BUTTON",L"Support me",BS_OWNERDRAW,r.right-212,r.bottom-43,98,24,IDC_FOOT_SUPPORT);
@@ -3356,6 +3424,11 @@ bool GetLatestRelease(UpdateInfo& info){
 
 DWORD WINAPI UpdateCheckThread(LPVOID param){
     bool manual=param!=nullptr;
+#if NVPS_DEV_BUILD
+    if(manual)
+        QueueAppMessage(L"Check for updates",L"Update checks are disabled in development builds.");
+    return 0;
+#else
     UpdateInfo info;
     if(GetLatestRelease(info)){
         if(IsVersionNewer(info.version,APP_VERSION)){
@@ -3371,6 +3444,7 @@ DWORD WINAPI UpdateCheckThread(LPVOID param){
         QueueAppMessage(L"Check for updates",L"Could not check for updates.\n\nPlease try again later.");
     }
     return 0;
+#endif
 }
 
 LRESULT CALLBACK UpdateProc(HWND w,UINT m,WPARAM wp,LPARAM lp){
@@ -3506,30 +3580,89 @@ LRESULT CALLBACK AboutProc(HWND w,UINT m,WPARAM wp,LPARAM lp){
         HFONT title=CreateFontW(-21,0,0,0,FW_SEMIBOLD,0,0,0,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,DEFAULT_PITCH,L"Segoe UI");
         SetPropW(w,L"AboutTitleFont",title);
 
-        HWND icon=CreateWindowExW(0,L"STATIC",nullptr,WS_CHILD|WS_VISIBLE|SS_ICON,22,22,40,40,w,nullptr,gInst,nullptr);
+        const wchar_t* appName=L"NvProfileSwitcher";
+        const wchar_t* description=L"Automatic per-app NVIDIA display color profiles for Windows";
+        const wchar_t* copyrightText=L"Copyright \x00A9 2026 Maximiliano Carnevali";
+        std::wstring versionText=L"Version ";
+        versionText+=APP_VERSION;
+
+        constexpr int margin=22;
+        constexpr int iconSize=40;
+        constexpr int iconGap=14;
+        constexpr int lineGap=12;
+        constexpr int sectionGap=16;
+        constexpr int buttonGap=12;
+        constexpr int buttonWidth=100;
+        constexpr int buttonHeight=36;
+
+        RECT initialClient{};
+        GetClientRect(w,&initialClient);
+        const int clientWidth=initialClient.right-initialClient.left;
+        const int contentWidth=clientWidth-(margin*2);
+
+        HDC measureDc=GetDC(w);
+        auto measureHeight=[&](const std::wstring& text,HFONT font,int width){
+            RECT measured{0,0,width,0};
+            HFONT old=(HFONT)SelectObject(measureDc,font);
+            DrawTextW(measureDc,text.c_str(),-1,&measured,
+                DT_CALCRECT|DT_WORDBREAK|DT_NOPREFIX);
+            SelectObject(measureDc,old);
+            return std::max(1,static_cast<int>(measured.bottom-measured.top));
+        };
+
+        const int nameHeight=measureHeight(appName,title,contentWidth-iconSize-iconGap);
+        const int versionHeight=measureHeight(versionText,gFont,contentWidth-iconSize-iconGap);
+        const int headerHeight=std::max(iconSize,nameHeight+2+versionHeight);
+        const int descriptionHeight=measureHeight(description,gFont,contentWidth);
+        const int copyrightHeight=measureHeight(copyrightText,gFont,contentWidth);
+        ReleaseDC(w,measureDc);
+
+        const int descriptionY=margin+headerHeight+sectionGap;
+        const int copyrightY=descriptionY+descriptionHeight+lineGap;
+        const int buttonY=copyrightY+copyrightHeight+sectionGap;
+        const int desiredClientHeight=buttonY+buttonHeight+margin;
+
+        RECT desiredWindow{0,0,clientWidth,desiredClientHeight};
+        const DWORD style=(DWORD)GetWindowLongPtrW(w,GWL_STYLE);
+        const DWORD exStyle=(DWORD)GetWindowLongPtrW(w,GWL_EXSTYLE);
+        AdjustWindowRectEx(&desiredWindow,style,FALSE,exStyle);
+        SetWindowPos(w,nullptr,0,0,
+            desiredWindow.right-desiredWindow.left,
+            desiredWindow.bottom-desiredWindow.top,
+            SWP_NOMOVE|SWP_NOZORDER|SWP_NOACTIVATE);
+
+        HWND icon=CreateWindowExW(0,L"STATIC",nullptr,WS_CHILD|WS_VISIBLE|SS_ICON,
+            margin,margin,iconSize,iconSize,w,nullptr,gInst,nullptr);
         SendMessageW(icon,STM_SETICON,(WPARAM)gIcon,0);
 
-        HWND name=CreateWindowExW(0,L"STATIC",L"NvProfileSwitcher",WS_CHILD|WS_VISIBLE,76,19,260,30,w,nullptr,gInst,nullptr);
+        const int headerTextX=margin+iconSize+iconGap;
+        const int headerTextWidth=contentWidth-iconSize-iconGap;
+        HWND name=CreateWindowExW(0,L"STATIC",appName,WS_CHILD|WS_VISIBLE,
+            headerTextX,margin,headerTextWidth,nameHeight,w,nullptr,gInst,nullptr);
         SendMessageW(name,WM_SETFONT,(WPARAM)title,TRUE);
 
-        std::wstring ver=L"Version ";
-        ver+=APP_VERSION;
-        HWND version=CreateWindowExW(0,L"STATIC",ver.c_str(),WS_CHILD|WS_VISIBLE,76,48,260,22,w,nullptr,gInst,nullptr);
+        HWND version=CreateWindowExW(0,L"STATIC",versionText.c_str(),WS_CHILD|WS_VISIBLE,
+            headerTextX,margin+nameHeight+2,headerTextWidth,versionHeight,w,nullptr,gInst,nullptr);
         SendMessageW(version,WM_SETFONT,(WPARAM)gFont,TRUE);
 
-        HWND desc=CreateWindowExW(0,L"STATIC",L"Automatic per-app NVIDIA display color profiles for Windows",
-            WS_CHILD|WS_VISIBLE,22,84,430,22,w,nullptr,gInst,nullptr);
+        HWND desc=CreateWindowExW(0,L"STATIC",description,WS_CHILD|WS_VISIBLE,
+            margin,descriptionY,contentWidth,descriptionHeight,w,nullptr,gInst,nullptr);
         SendMessageW(desc,WM_SETFONT,(WPARAM)gFont,TRUE);
 
-        HWND copy=CreateWindowExW(0,L"STATIC",L"Copyright \x00A9 2026 Maximiliano Carnevali",
-            WS_CHILD|WS_VISIBLE,22,118,350,22,w,nullptr,gInst,nullptr);
+        HWND copy=CreateWindowExW(0,L"STATIC",copyrightText,WS_CHILD|WS_VISIBLE,
+            margin,copyrightY,contentWidth,copyrightHeight,w,nullptr,gInst,nullptr);
         SendMessageW(copy,WM_SETFONT,(WPARAM)gFont,TRUE);
 
-        HWND github=CreateWindowExW(0,L"BUTTON",L"GitHub",WS_CHILD|WS_VISIBLE|BS_OWNERDRAW,126,158,100,36,w,(HMENU)3001,gInst,nullptr);
+        const int buttonsWidth=buttonWidth*3+buttonGap*2;
+        const int buttonsX=clientWidth-margin-buttonsWidth;
+        HWND github=CreateWindowExW(0,L"BUTTON",L"GitHub",WS_CHILD|WS_VISIBLE|BS_OWNERDRAW,
+            buttonsX,buttonY,buttonWidth,buttonHeight,w,(HMENU)3001,gInst,nullptr);
         SendMessageW(github,WM_SETFONT,(WPARAM)gFontBold,TRUE);
-        HWND support=CreateWindowExW(0,L"BUTTON",L"Support",WS_CHILD|WS_VISIBLE|BS_OWNERDRAW,238,158,100,36,w,(HMENU)3002,gInst,nullptr);
+        HWND support=CreateWindowExW(0,L"BUTTON",L"Support",WS_CHILD|WS_VISIBLE|BS_OWNERDRAW,
+            buttonsX+buttonWidth+buttonGap,buttonY,buttonWidth,buttonHeight,w,(HMENU)3002,gInst,nullptr);
         SendMessageW(support,WM_SETFONT,(WPARAM)gFontBold,TRUE);
-        HWND close=CreateWindowExW(0,L"BUTTON",L"Close",WS_CHILD|WS_VISIBLE|BS_OWNERDRAW,350,158,100,36,w,(HMENU)IDCANCEL,gInst,nullptr);
+        HWND close=CreateWindowExW(0,L"BUTTON",L"Close",WS_CHILD|WS_VISIBLE|BS_OWNERDRAW,
+            buttonsX+(buttonWidth+buttonGap)*2,buttonY,buttonWidth,buttonHeight,w,(HMENU)IDCANCEL,gInst,nullptr);
         SendMessageW(close,WM_SETFONT,(WPARAM)gFontBold,TRUE);
         return 0;
     }
@@ -3715,7 +3848,13 @@ case WM_SETCURSOR:{
     break;
 }
 case WM_CTLCOLORLISTBOX:{HDC dc=(HDC)wp;SetTextColor(dc,C_TEXT);SetBkColor(dc,C_PANEL);return (LRESULT)gPanelBrush;}
-case WM_CTLCOLORSTATIC:{HDC dc=(HDC)wp;SetTextColor(dc,C_TEXT);SetBkColor(dc,C_PANEL);SetBkMode(dc,TRANSPARENT);return (LRESULT)gPanelBrush;}case WM_CTLCOLOREDIT:{HDC dc=(HDC)wp;SetTextColor(dc,C_TEXT);SetBkColor(dc,C_FIELD);return (LRESULT)gFieldBrush;}case WM_CTLCOLORBTN:{HDC dc=(HDC)wp;SetTextColor(dc,C_TEXT);SetBkColor(dc,C_PANEL);return (LRESULT)gPanelBrush;}case WM_DRAWITEM:{
+case WM_CTLCOLORSTATIC:{HDC dc=(HDC)wp;
+#if NVPS_DEV_BUILD
+    SetTextColor(dc,GetDlgCtrlID((HWND)lp)==IDC_CHECKUPDATES_LABEL?C_MUTED:C_TEXT);
+#else
+    SetTextColor(dc,C_TEXT);
+#endif
+    SetBkColor(dc,C_PANEL);SetBkMode(dc,TRANSPARENT);return (LRESULT)gPanelBrush;}case WM_CTLCOLOREDIT:{HDC dc=(HDC)wp;SetTextColor(dc,C_TEXT);SetBkColor(dc,C_FIELD);return (LRESULT)gFieldBrush;}case WM_CTLCOLORBTN:{HDC dc=(HDC)wp;SetTextColor(dc,C_TEXT);SetBkColor(dc,C_PANEL);return (LRESULT)gPanelBrush;}case WM_DRAWITEM:{
     auto*d=(DRAWITEMSTRUCT*)lp;
 
     if(d->CtlID==IDC_DISPLAY){
@@ -3850,13 +3989,26 @@ case WM_TIMER:
         RefreshDisplayTopology();
         return 0;
     }
+#if NVPS_DEV_BUILD
+    if(wp==3){
+        HideUpdateCheckTooltip();
+        return 0;
+    }
+#endif
     return 0;
 case WM_COMMAND:{int id=LOWORD(wp);if(id==IDC_HOTKEY_SHOW&&HIWORD(wp)==EN_CHANGE){UpdateConfiguredHotkey(IDC_HOTKEY_SHOW,gSettings.showHideHotkey);return 0;}if(id==IDC_HOTKEY_OVERRIDE&&HIWORD(wp)==EN_CHANGE){UpdateConfiguredHotkey(IDC_HOTKEY_OVERRIDE,gSettings.windowsOverrideHotkey);return 0;}if(id==IDC_HOTKEY_RESUME&&HIWORD(wp)==EN_CHANGE){UpdateConfiguredHotkey(IDC_HOTKEY_RESUME,gSettings.resumeAutomaticHotkey);return 0;}if(id==IDC_PROFILE_HOTKEY&&HIWORD(wp)==EN_CHANGE&&!IsDesktopSelected()){if(auto*p=SelectedProfile()){UpdateConfiguredHotkey(IDC_PROFILE_HOTKEY,p->hotkey);InvalidateRect(H(IDC_LIST),nullptr,TRUE);}return 0;}if(id==IDC_LIST&&HIWORD(wp)==LBN_SELCHANGE){HideExecutableTooltip();DiscardPreview();LoadSelected();return 0;}if(id==IDC_DISPLAY&&HIWORD(wp)==CBN_SELCHANGE){DiscardPreview();int ds=(int)SendMessageW(H(IDC_DISPLAY),CB_GETCURSEL,0,0);if(ds>=0&&ds<(int)gDisplays.size()){if(IsDesktopSelected()){auto*p=EnsureDesktopProfile(gDisplays[ds].gdiName,gDisplays[ds].monitorId);LoadValuesToSliders(ValuesFromFlatProfile(*p));}else{auto*p=SelectedProfile();if(p){LoadValuesToSliders(*EnsureApplicationValuesForDisplay(*p,gDisplays[ds].gdiName,gDisplays[ds].monitorId));}}}return 0;}switch(id){case IDC_HOTKEY_SHOW_CLEAR:ClearConfiguredHotkey(IDC_HOTKEY_SHOW,gSettings.showHideHotkey);break;case IDC_HOTKEY_OVERRIDE_CLEAR:ClearConfiguredHotkey(IDC_HOTKEY_OVERRIDE,gSettings.windowsOverrideHotkey);break;case IDC_HOTKEY_RESUME_CLEAR:ClearConfiguredHotkey(IDC_HOTKEY_RESUME,gSettings.resumeAutomaticHotkey);break;case IDC_PROFILE_HOTKEY_CLEAR:if(!IsDesktopSelected()){if(auto*p=SelectedProfile()){ClearConfiguredHotkey(IDC_PROFILE_HOTKEY,p->hotkey);InvalidateRect(H(IDC_LIST),nullptr,TRUE);}}break;case IDC_BROWSE:{OPENFILENAMEW o{sizeof(o)};wchar_t f[MAX_PATH]{};o.hwndOwner=w;o.lpstrFilter=L"Executables (*.exe)\0*.exe\0All files\0*.*\0";o.lpstrFile=f;o.nMaxFile=MAX_PATH;o.Flags=OFN_FILEMUSTEXIST;if(GetOpenFileNameW(&o)){Txt(IDC_EXE,f);InvalidateRect(H(IDC_EXE),nullptr,TRUE);auto* p=SelectedProfile();if(p&&!IsDesktopSelected()){p->exePath=f;InvalidateRect(H(IDC_LIST),nullptr,TRUE);}}break;}case IDC_DEFAULTS:ResetSlidersToDefaults();break;case IDC_SAVE:SaveSelected();break;case IDC_ADD:{ApplicationProfile np{};if(!gDisplays.empty()){for(const auto&d:gDisplays)np.displayProfiles.push_back(ApplicationDefaultsForDisplay(d.gdiName,d.monitorId));}gSettings.profiles.push_back(np);gSelected=(int)gSettings.profiles.size();Save();RefreshList();LoadSelected();break;}case IDC_REMOVE:if(gSelected>0&&gSelected<=(int)gSettings.profiles.size()){size_t removed=(size_t)(gSelected-1);UnregisterConfiguredHotkeys();if(gOverrideMode==OverrideMode::Profile){if(gOverrideProfileIndex==removed)gOverrideMode=OverrideMode::Automatic;else if(gOverrideProfileIndex>removed)--gOverrideProfileIndex;}gSettings.profiles.erase(gSettings.profiles.begin()+removed);RegisterConfiguredHotkeys();gSelected=std::max<int>(0,gSelected-1);Save();RefreshList();LoadSelected();gActive.clear();CheckProcesses();}break;case IDC_STARTWIN:gSettings.startWindows=SendMessageW(H(IDC_STARTWIN),BM_GETCHECK,0,0)==BST_CHECKED;SetStartup(gSettings.startWindows);Save();break;case IDC_STARTMIN:gSettings.startMinimized=SendMessageW(H(IDC_STARTMIN),BM_GETCHECK,0,0)==BST_CHECKED;Save();break;case IDC_MINTRAY:
     gSettings.minimizeToTray=SendMessageW(H(IDC_MINTRAY),BM_GETCHECK,0,0)==BST_CHECKED;
     if(!gSettings.minimizeToTray)
         SetTrayIconVisible(false);
     Save();
-    break;case IDC_CHECKUPDATES:gSettings.checkUpdates=SendMessageW(H(IDC_CHECKUPDATES),BM_GETCHECK,0,0)==BST_CHECKED;Save();break;case IDC_FOOT_GITHUB:ShellExecuteW(w,L"open",APP_URL,nullptr,nullptr,SW_SHOWNORMAL);break;
+    break;case IDC_CHECKUPDATES:
+#if NVPS_DEV_BUILD
+    SendMessageW(H(IDC_CHECKUPDATES),BM_SETCHECK,BST_UNCHECKED,0);
+    ShowUpdateCheckTooltip();
+#else
+    gSettings.checkUpdates=SendMessageW(H(IDC_CHECKUPDATES),BM_GETCHECK,0,0)==BST_CHECKED;Save();
+#endif
+    break;case IDC_FOOT_GITHUB:ShellExecuteW(w,L"open",APP_URL,nullptr,nullptr,SW_SHOWNORMAL);break;
 case IDC_FOOT_SUPPORT:ShellExecuteW(w,L"open",SUPPORT_URL,nullptr,nullptr,SW_SHOWNORMAL);break;
 case IDC_FOOT_ABOUT:ShowAbout();break;
 case ID_TRAY_OPEN:ShowMain();break;case ID_TRAY_CHECK_UPDATE:{if(HANDLE h=CreateThread(nullptr,0,UpdateCheckThread,(LPVOID)1,0,nullptr))CloseHandle(h);break;}case ID_TRAY_ABOUT:ShowAbout();break;case ID_TRAY_EXIT:DestroyWindow(w);break;}return 0;}case WM_CLOSE:
@@ -3930,7 +4082,11 @@ SetWindowPos(gWnd,nullptr,mainX,mainY,0,0,SWP_NOSIZE|SWP_NOZORDER|SWP_NOACTIVATE
 SetWindowLongPtrW(gWnd,GWLP_USERDATA,0);gTrayMenu=CreatePopupMenu();AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_OPEN,L"Open NvProfileSwitcher");AppendMenuW(gTrayMenu,MF_SEPARATOR,0,nullptr);AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_CHECK_UPDATE,L"Check for updates");AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_ABOUT,L"About NvProfileSwitcher");AppendMenuW(gTrayMenu,MF_SEPARATOR,0,nullptr);AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_EXIT,L"Exit");gNid.cbSize=sizeof(gNid);gNid.hWnd=gWnd;gNid.uID=1;gNid.uFlags=NIF_MESSAGE|NIF_ICON|NIF_TIP;gNid.uCallbackMessage=WM_TRAY;gNid.hIcon=gIcon;wcscpy_s(gNid.szTip,L"NvProfileSwitcher");gStatusOk=InitNv();if(gStatusOk){for(const auto&d:gDisplays)EnsureDesktopProfile(d.gdiName,d.monitorId);EnsureAllApplicationDisplayProfiles();Save();if(auto* p=SelectedProfile())RefreshDisplayCombo(*p);RestoreAllDesktopProfiles();LoadSelected();}gActive=L"Windows";bool min=(wcsstr(cmd,L"--minimized")!=nullptr);
 if(min) SetTrayIconVisible(true);
 ShowWindow(gWnd,min?SW_HIDE:SW_SHOW);
-UpdateWindow(gWnd);if(gSettings.checkUpdates){if(HANDLE h=CreateThread(nullptr,0,UpdateCheckThread,nullptr,0,nullptr))CloseHandle(h);}MSG msg;while(GetMessageW(&msg,nullptr,0,0)>0){TranslateMessage(&msg);DispatchMessageW(&msg);}DeleteObject(gFont);DeleteObject(gFontBold);DeleteObject(gFontPanelTitle);DeleteObject(gFontTitle);DeleteObject(gFontSmall);DeleteObject(gFontHeaderButton);DeleteObject(gIconFont);DeleteObject(gBackBrush);DeleteObject(gPanelBrush);DeleteObject(gPanel2Brush);DeleteObject(gFieldBrush);
+UpdateWindow(gWnd);
+#if !NVPS_DEV_BUILD
+if(gSettings.checkUpdates){if(HANDLE h=CreateThread(nullptr,0,UpdateCheckThread,nullptr,0,nullptr))CloseHandle(h);}
+#endif
+MSG msg;while(GetMessageW(&msg,nullptr,0,0)>0){TranslateMessage(&msg);DispatchMessageW(&msg);}DeleteObject(gFont);DeleteObject(gFontBold);DeleteObject(gFontPanelTitle);DeleteObject(gFontTitle);DeleteObject(gFontSmall);DeleteObject(gFontHeaderButton);DeleteObject(gIconFont);DeleteObject(gBackBrush);DeleteObject(gPanelBrush);DeleteObject(gPanel2Brush);DeleteObject(gFieldBrush);
 if(gHeaderImage){delete gHeaderImage;gHeaderImage=nullptr;}
 for(auto** image:{&gSliderBrightness,&gSliderContrast,&gSliderGamma,&gSliderVibrance,&gSliderHue,&gNvidiaDriverIcon}){
     if(*image){delete *image;*image=nullptr;}
