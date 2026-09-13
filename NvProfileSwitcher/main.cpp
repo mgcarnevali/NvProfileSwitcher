@@ -88,6 +88,12 @@ constexpr wchar_t APP_URL[]=L"https://github.com/mgcarnevali/NvProfileSwitcher";
 constexpr wchar_t SUPPORT_URL[]=L"https://ko-fi.com/mgcarnevali";
 constexpr wchar_t UPDATE_HOST[]=L"api.github.com";
 constexpr wchar_t UPDATE_PATH[]=L"/repos/mgcarnevali/NvProfileSwitcher/releases/latest";
+constexpr int DIALOG_MARGIN=22;
+constexpr int DIALOG_LINE_GAP=12;
+constexpr int DIALOG_SECTION_GAP=16;
+constexpr int DIALOG_BUTTON_GAP=12;
+constexpr int DIALOG_BUTTON_WIDTH=100;
+constexpr int DIALOG_BUTTON_HEIGHT=36;
 enum {IDC_LIST=1001,IDC_NAME,IDC_EXE,IDC_BROWSE,IDC_ENABLED,IDC_DISPLAY,IDC_LBL_DISPLAY,IDC_VIB,IDC_HUE,IDC_BRI,IDC_CON,IDC_GAM,IDC_SAVE,IDC_ADD=1015,IDC_REMOVE,IDC_STARTWIN=1018,IDC_STARTMIN,IDC_VALVIB,IDC_VALHUE,IDC_VALBRI,IDC_VALCON,IDC_VALGAM,IDC_LBL_NAME,IDC_LBL_EXE,IDC_LBL_ENABLED,IDC_LBL_VIB,IDC_LBL_HUE,IDC_LBL_BRI,IDC_LBL_CON,IDC_LBL_GAM,IDC_DEFAULTS,IDC_MINTRAY,IDC_CHECKUPDATES,IDC_FOOT_GITHUB,IDC_FOOT_SUPPORT,IDC_FOOT_ABOUT,IDC_HOTKEYS_TITLE,IDC_HOTKEY_SHOW_LABEL,IDC_HOTKEY_SHOW,IDC_HOTKEY_SHOW_CLEAR,IDC_HOTKEY_OVERRIDE_LABEL,IDC_HOTKEY_OVERRIDE,IDC_HOTKEY_OVERRIDE_CLEAR,IDC_PROFILE_HOTKEY_LABEL,IDC_PROFILE_HOTKEY,IDC_PROFILE_HOTKEY_CLEAR,IDC_HOTKEY_RESUME_LABEL,IDC_HOTKEY_RESUME,IDC_HOTKEY_RESUME_CLEAR,IDC_CHECKUPDATES_LABEL};
 enum {ID_TRAY_OPEN=2001,ID_TRAY_CHECK_UPDATE,ID_TRAY_ABOUT,ID_TRAY_EXIT};
 enum {ID_HOTKEY_SHOW_HIDE=3001,ID_HOTKEY_WINDOWS_OVERRIDE,ID_HOTKEY_RESUME_AUTOMATIC,ID_HOTKEY_TEST};
@@ -991,19 +997,23 @@ LRESULT CALLBACK AppMessageProc(HWND w,UINT m,WPARAM wp,LPARAM lp){
         SetWindowLongPtrW(w,GWLP_USERDATA,(LONG_PTR)data);
 
         HWND icon=CreateWindowExW(0,L"STATIC",nullptr,WS_CHILD|WS_VISIBLE|SS_ICON,
-            22,24,40,40,w,nullptr,gInst,nullptr);
+            DIALOG_MARGIN,DIALOG_MARGIN,40,40,w,nullptr,gInst,nullptr);
         SendMessageW(icon,STM_SETICON,(WPARAM)gIcon,0);
 
         RECT client{};
         GetClientRect(w,&client);
-        const int buttonY=client.bottom-58;
+        const int buttonY=client.bottom-DIALOG_MARGIN-DIALOG_BUTTON_HEIGHT;
+        const int messageX=DIALOG_MARGIN+54;
         HWND message=CreateWindowExW(0,L"STATIC",data?data->text.c_str():L"",
-            WS_CHILD|WS_VISIBLE|SS_LEFT,76,22,374,buttonY-42,w,nullptr,gInst,nullptr);
+            WS_CHILD|WS_VISIBLE|SS_LEFT,messageX,DIALOG_MARGIN,
+            client.right-messageX-DIALOG_MARGIN,
+            buttonY-DIALOG_MARGIN-20,w,nullptr,gInst,nullptr);
         SendMessageW(message,WM_SETFONT,(WPARAM)gFont,TRUE);
 
         HWND ok=CreateWindowExW(0,L"BUTTON",L"OK",
             WS_CHILD|WS_VISIBLE|WS_TABSTOP|BS_OWNERDRAW,
-            350,buttonY,100,36,w,(HMENU)IDOK,gInst,nullptr);
+            client.right-DIALOG_MARGIN-DIALOG_BUTTON_WIDTH,buttonY,
+            DIALOG_BUTTON_WIDTH,DIALOG_BUTTON_HEIGHT,w,(HMENU)IDOK,gInst,nullptr);
         SendMessageW(ok,WM_SETFONT,(WPARAM)gFontBold,TRUE);
         SetFocus(ok);
         return 0;
@@ -3505,29 +3515,69 @@ LRESULT CALLBACK UpdateProc(HWND w,UINT m,WPARAM wp,LPARAM lp){
         heading+=info->version;
         heading+=L" is available";
 
-        HWND hTitle=CreateWindowExW(0,L"STATIC",heading.c_str(),WS_CHILD|WS_VISIBLE,
-            22,20,420,28,w,nullptr,gInst,nullptr);
-        SendMessageW(hTitle,WM_SETFONT,(WPARAM)title,TRUE);
+        RECT initialClient{};
+        GetClientRect(w,&initialClient);
+        const int clientWidth=initialClient.right-initialClient.left;
+        const int contentWidth=clientWidth-(DIALOG_MARGIN*2);
+        HDC measureDc=GetDC(w);
+        auto measureHeight=[&](const std::wstring& text,HFONT font){
+            RECT measured{0,0,contentWidth,0};
+            HFONT old=(HFONT)SelectObject(measureDc,font);
+            DrawTextW(measureDc,text.c_str(),-1,&measured,
+                DT_CALCRECT|DT_WORDBREAK|DT_NOPREFIX);
+            SelectObject(measureDc,old);
+            return std::max(1,static_cast<int>(measured.bottom-measured.top));
+        };
 
         std::wstring current=L"You are currently running version ";
         current+=APP_VERSION;
         current+=L".";
+        const std::wstring body=L"A newer version is available on GitHub.";
+        const int titleHeight=measureHeight(heading,title);
+        const int currentHeight=measureHeight(current,gFont);
+        const int bodyHeight=measureHeight(body,gFont);
+        ReleaseDC(w,measureDc);
+
+        const int titleY=DIALOG_MARGIN;
+        const int currentY=titleY+titleHeight+DIALOG_LINE_GAP;
+        const int bodyY=currentY+currentHeight+6;
+        const int buttonY=bodyY+bodyHeight+DIALOG_SECTION_GAP;
+        const int desiredClientHeight=buttonY+DIALOG_BUTTON_HEIGHT+DIALOG_MARGIN;
+
+        RECT desiredWindow{0,0,clientWidth,desiredClientHeight};
+        const DWORD style=(DWORD)GetWindowLongPtrW(w,GWL_STYLE);
+        const DWORD exStyle=(DWORD)GetWindowLongPtrW(w,GWL_EXSTYLE);
+        AdjustWindowRectEx(&desiredWindow,style,FALSE,exStyle);
+        SetWindowPos(w,nullptr,0,0,
+            desiredWindow.right-desiredWindow.left,
+            desiredWindow.bottom-desiredWindow.top,
+            SWP_NOMOVE|SWP_NOZORDER|SWP_NOACTIVATE);
+
+        HWND hTitle=CreateWindowExW(0,L"STATIC",heading.c_str(),WS_CHILD|WS_VISIBLE,
+            DIALOG_MARGIN,titleY,contentWidth,titleHeight,w,nullptr,gInst,nullptr);
+        SendMessageW(hTitle,WM_SETFONT,(WPARAM)title,TRUE);
+
         HWND hCurrent=CreateWindowExW(0,L"STATIC",current.c_str(),WS_CHILD|WS_VISIBLE,
-            22,60,420,22,w,nullptr,gInst,nullptr);
+            DIALOG_MARGIN,currentY,contentWidth,currentHeight,w,nullptr,gInst,nullptr);
         SendMessageW(hCurrent,WM_SETFONT,(WPARAM)gFont,TRUE);
 
-        HWND hText=CreateWindowExW(0,L"STATIC",
-            L"A newer version is available on GitHub.",
-            WS_CHILD|WS_VISIBLE,22,88,420,22,w,nullptr,gInst,nullptr);
+        HWND hText=CreateWindowExW(0,L"STATIC",body.c_str(),
+            WS_CHILD|WS_VISIBLE,DIALOG_MARGIN,bodyY,contentWidth,bodyHeight,
+            w,nullptr,gInst,nullptr);
         SendMessageW(hText,WM_SETFONT,(WPARAM)gFont,TRUE);
 
+        const int buttonsWidth=DIALOG_BUTTON_WIDTH*2+DIALOG_BUTTON_GAP;
+        const int buttonsX=clientWidth-DIALOG_MARGIN-buttonsWidth;
         HWND download=CreateWindowExW(0,L"BUTTON",L"Download",WS_CHILD|WS_VISIBLE|BS_OWNERDRAW,
-            238,130,100,36,w,(HMENU)3101,gInst,nullptr);
+            buttonsX,buttonY,DIALOG_BUTTON_WIDTH,DIALOG_BUTTON_HEIGHT,
+            w,(HMENU)3101,gInst,nullptr);
         SendMessageW(download,WM_SETFONT,(WPARAM)gFontBold,TRUE);
 
         HWND later=CreateWindowExW(0,L"BUTTON",L"Later",WS_CHILD|WS_VISIBLE|BS_OWNERDRAW,
-            350,130,100,36,w,(HMENU)IDCANCEL,gInst,nullptr);
+            buttonsX+DIALOG_BUTTON_WIDTH+DIALOG_BUTTON_GAP,buttonY,
+            DIALOG_BUTTON_WIDTH,DIALOG_BUTTON_HEIGHT,w,(HMENU)IDCANCEL,gInst,nullptr);
         SendMessageW(later,WM_SETFONT,(WPARAM)gFontBold,TRUE);
+        SetFocus(later);
         return 0;
     }
     case WM_CTLCOLORSTATIC:{
@@ -3595,25 +3645,56 @@ void ShowUpdateAvailable(UpdateInfo* info){
         registered=true;
     }
 
+    HWND owner=gWnd;
+    HWND previousFocus=GetFocus();
+    const bool disableOwner=owner&&IsWindowEnabled(owner);
+    if(disableOwner)EnableWindow(owner,FALSE);
+
     HWND a=CreateWindowExW(WS_EX_DLGMODALFRAME|WS_EX_TOPMOST,L"NvProfileSwitcherUpdate",
         L"NvProfileSwitcher Update",WS_CAPTION|WS_SYSMENU,
-        0,0,488,214,nullptr,nullptr,gInst,info);
-    if(!a){delete info;return;}
+        0,0,488,214,owner,nullptr,gInst,info);
+    if(!a){
+        delete info;
+        if(disableOwner)EnableWindow(owner,TRUE);
+        return;
+    }
 
     BOOL darkTitle=TRUE;
     DwmSetWindowAttribute(a,20,&darkTitle,sizeof(darkTitle));
 
-    RECT wr{},work{};
+    RECT wr{},target{};
     GetWindowRect(a,&wr);
-    SystemParametersInfoW(SPI_GETWORKAREA,0,&work,0);
+    if(!owner||!IsWindowVisible(owner))
+        SystemParametersInfoW(SPI_GETWORKAREA,0,&target,0);
+    else
+        GetWindowRect(owner,&target);
     int ww=wr.right-wr.left, wh=wr.bottom-wr.top;
-    int x=work.left+((work.right-work.left)-ww)/2;
-    int y=work.top+((work.bottom-work.top)-wh)/2;
+    int x=target.left+((target.right-target.left)-ww)/2;
+    int y=target.top+((target.bottom-target.top)-wh)/2;
 
     ShowWindow(a,SW_SHOW);
     SetWindowPos(a,HWND_TOPMOST,x,y,0,0,SWP_NOSIZE|SWP_SHOWWINDOW);
     UpdateWindow(a);
     SetForegroundWindow(a);
+
+    MSG msg{};
+    while(IsWindow(a)&&GetMessageW(&msg,nullptr,0,0)>0){
+        if(msg.message==WM_KEYDOWN&&msg.wParam==VK_ESCAPE
+            &&(msg.hwnd==a||IsChild(a,msg.hwnd))){
+            DestroyWindow(a);
+            continue;
+        }
+        if(!IsDialogMessageW(a,&msg)){
+            TranslateMessage(&msg);
+            DispatchMessageW(&msg);
+        }
+    }
+    if(disableOwner){
+        EnableWindow(owner,TRUE);
+        if(previousFocus&&IsWindow(previousFocus))SetFocus(previousFocus);
+        else SetFocus(owner);
+        SetForegroundWindow(owner);
+    }
 }
 
 LRESULT CALLBACK AboutProc(HWND w,UINT m,WPARAM wp,LPARAM lp){
@@ -3628,19 +3709,13 @@ LRESULT CALLBACK AboutProc(HWND w,UINT m,WPARAM wp,LPARAM lp){
         std::wstring versionText=L"Version ";
         versionText+=APP_VERSION;
 
-        constexpr int margin=22;
         constexpr int iconSize=40;
         constexpr int iconGap=14;
-        constexpr int lineGap=12;
-        constexpr int sectionGap=16;
-        constexpr int buttonGap=12;
-        constexpr int buttonWidth=100;
-        constexpr int buttonHeight=36;
 
         RECT initialClient{};
         GetClientRect(w,&initialClient);
         const int clientWidth=initialClient.right-initialClient.left;
-        const int contentWidth=clientWidth-(margin*2);
+        const int contentWidth=clientWidth-(DIALOG_MARGIN*2);
 
         HDC measureDc=GetDC(w);
         auto measureHeight=[&](const std::wstring& text,HFONT font,int width){
@@ -3659,10 +3734,10 @@ LRESULT CALLBACK AboutProc(HWND w,UINT m,WPARAM wp,LPARAM lp){
         const int copyrightHeight=measureHeight(copyrightText,gFont,contentWidth);
         ReleaseDC(w,measureDc);
 
-        const int descriptionY=margin+headerHeight+sectionGap;
-        const int copyrightY=descriptionY+descriptionHeight+lineGap;
-        const int buttonY=copyrightY+copyrightHeight+sectionGap;
-        const int desiredClientHeight=buttonY+buttonHeight+margin;
+        const int descriptionY=DIALOG_MARGIN+headerHeight+DIALOG_SECTION_GAP;
+        const int copyrightY=descriptionY+descriptionHeight+DIALOG_LINE_GAP;
+        const int buttonY=copyrightY+copyrightHeight+DIALOG_SECTION_GAP;
+        const int desiredClientHeight=buttonY+DIALOG_BUTTON_HEIGHT+DIALOG_MARGIN;
 
         RECT desiredWindow{0,0,clientWidth,desiredClientHeight};
         const DWORD style=(DWORD)GetWindowLongPtrW(w,GWL_STYLE);
@@ -3674,37 +3749,39 @@ LRESULT CALLBACK AboutProc(HWND w,UINT m,WPARAM wp,LPARAM lp){
             SWP_NOMOVE|SWP_NOZORDER|SWP_NOACTIVATE);
 
         HWND icon=CreateWindowExW(0,L"STATIC",nullptr,WS_CHILD|WS_VISIBLE|SS_ICON,
-            margin,margin,iconSize,iconSize,w,nullptr,gInst,nullptr);
+            DIALOG_MARGIN,DIALOG_MARGIN,iconSize,iconSize,w,nullptr,gInst,nullptr);
         SendMessageW(icon,STM_SETICON,(WPARAM)gIcon,0);
 
-        const int headerTextX=margin+iconSize+iconGap;
+        const int headerTextX=DIALOG_MARGIN+iconSize+iconGap;
         const int headerTextWidth=contentWidth-iconSize-iconGap;
         HWND name=CreateWindowExW(0,L"STATIC",appName,WS_CHILD|WS_VISIBLE,
-            headerTextX,margin,headerTextWidth,nameHeight,w,nullptr,gInst,nullptr);
+            headerTextX,DIALOG_MARGIN,headerTextWidth,nameHeight,w,nullptr,gInst,nullptr);
         SendMessageW(name,WM_SETFONT,(WPARAM)title,TRUE);
 
         HWND version=CreateWindowExW(0,L"STATIC",versionText.c_str(),WS_CHILD|WS_VISIBLE,
-            headerTextX,margin+nameHeight+2,headerTextWidth,versionHeight,w,nullptr,gInst,nullptr);
+            headerTextX,DIALOG_MARGIN+nameHeight+2,headerTextWidth,versionHeight,w,nullptr,gInst,nullptr);
         SendMessageW(version,WM_SETFONT,(WPARAM)gFont,TRUE);
 
         HWND desc=CreateWindowExW(0,L"STATIC",description,WS_CHILD|WS_VISIBLE,
-            margin,descriptionY,contentWidth,descriptionHeight,w,nullptr,gInst,nullptr);
+            DIALOG_MARGIN,descriptionY,contentWidth,descriptionHeight,w,nullptr,gInst,nullptr);
         SendMessageW(desc,WM_SETFONT,(WPARAM)gFont,TRUE);
 
         HWND copy=CreateWindowExW(0,L"STATIC",copyrightText,WS_CHILD|WS_VISIBLE,
-            margin,copyrightY,contentWidth,copyrightHeight,w,nullptr,gInst,nullptr);
+            DIALOG_MARGIN,copyrightY,contentWidth,copyrightHeight,w,nullptr,gInst,nullptr);
         SendMessageW(copy,WM_SETFONT,(WPARAM)gFont,TRUE);
 
-        const int buttonsWidth=buttonWidth*3+buttonGap*2;
-        const int buttonsX=clientWidth-margin-buttonsWidth;
+        const int buttonsWidth=DIALOG_BUTTON_WIDTH*3+DIALOG_BUTTON_GAP*2;
+        const int buttonsX=clientWidth-DIALOG_MARGIN-buttonsWidth;
         HWND github=CreateWindowExW(0,L"BUTTON",L"GitHub",WS_CHILD|WS_VISIBLE|BS_OWNERDRAW,
-            buttonsX,buttonY,buttonWidth,buttonHeight,w,(HMENU)3001,gInst,nullptr);
+            buttonsX,buttonY,DIALOG_BUTTON_WIDTH,DIALOG_BUTTON_HEIGHT,w,(HMENU)3001,gInst,nullptr);
         SendMessageW(github,WM_SETFONT,(WPARAM)gFontBold,TRUE);
         HWND support=CreateWindowExW(0,L"BUTTON",L"Support",WS_CHILD|WS_VISIBLE|BS_OWNERDRAW,
-            buttonsX+buttonWidth+buttonGap,buttonY,buttonWidth,buttonHeight,w,(HMENU)3002,gInst,nullptr);
+            buttonsX+DIALOG_BUTTON_WIDTH+DIALOG_BUTTON_GAP,buttonY,
+            DIALOG_BUTTON_WIDTH,DIALOG_BUTTON_HEIGHT,w,(HMENU)3002,gInst,nullptr);
         SendMessageW(support,WM_SETFONT,(WPARAM)gFontBold,TRUE);
         HWND close=CreateWindowExW(0,L"BUTTON",L"Close",WS_CHILD|WS_VISIBLE|BS_OWNERDRAW,
-            buttonsX+(buttonWidth+buttonGap)*2,buttonY,buttonWidth,buttonHeight,w,(HMENU)IDCANCEL,gInst,nullptr);
+            buttonsX+(DIALOG_BUTTON_WIDTH+DIALOG_BUTTON_GAP)*2,buttonY,
+            DIALOG_BUTTON_WIDTH,DIALOG_BUTTON_HEIGHT,w,(HMENU)IDCANCEL,gInst,nullptr);
         SendMessageW(close,WM_SETFONT,(WPARAM)gFontBold,TRUE);
         return 0;
     }
