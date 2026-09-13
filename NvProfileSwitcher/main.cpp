@@ -3734,9 +3734,17 @@ void ShowAbout(){
         return;
     }
 
+    HWND owner=gWnd;
+    HWND previousFocus=GetFocus();
+    const bool disableOwner=owner&&IsWindowEnabled(owner);
+    if(disableOwner)EnableWindow(owner,FALSE);
+
     HWND a=CreateWindowExW(WS_EX_DLGMODALFRAME|WS_EX_TOPMOST,L"NvProfileSwitcherAbout",L"About NvProfileSwitcher",
-        WS_CAPTION|WS_SYSMENU,0,0,488,242,nullptr,nullptr,gInst,nullptr);
-    if(!a)return;
+        WS_CAPTION|WS_SYSMENU,0,0,488,242,owner,nullptr,gInst,nullptr);
+    if(!a){
+        if(disableOwner)EnableWindow(owner,TRUE);
+        return;
+    }
 
     BOOL darkTitle=TRUE;
     DwmSetWindowAttribute(a,20,&darkTitle,sizeof(darkTitle));
@@ -3752,6 +3760,20 @@ void ShowAbout(){
     SetWindowPos(a,HWND_TOPMOST,x,y,0,0,SWP_NOSIZE|SWP_SHOWWINDOW);
     UpdateWindow(a);
     SetForegroundWindow(a);
+
+    MSG msg{};
+    while(IsWindow(a)&&GetMessageW(&msg,nullptr,0,0)>0){
+        if(!IsDialogMessageW(a,&msg)){
+            TranslateMessage(&msg);
+            DispatchMessageW(&msg);
+        }
+    }
+    if(disableOwner){
+        EnableWindow(owner,TRUE);
+        if(previousFocus&&IsWindow(previousFocus))SetFocus(previousFocus);
+        else SetFocus(owner);
+        SetForegroundWindow(owner);
+    }
 }
 
 bool gTrayIconVisible=false;
