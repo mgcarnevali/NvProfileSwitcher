@@ -4,6 +4,18 @@ All notable changes to NvProfileSwitcher will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project follows [Semantic Versioning](https://semver.org/).
 
+## 2.1.0 --- 2026-09-13
+
+### Added
+
+- Added manual reordering of application profiles using Move Up and Move Down controls.
+- Added persistent custom application profile ordering across application restarts.
+
+### Changed
+
+- New application profiles are added to the end of the existing custom profile order.
+- Profile order is preserved when the profile list is refreshed or profiles are edited.
+
 ## 2.0.3 --- 2026-09-13
 
 ### Fixed

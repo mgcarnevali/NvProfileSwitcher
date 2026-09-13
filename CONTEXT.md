@@ -152,6 +152,11 @@ The top-level profile collections are:
 Application profiles store their per-display values under
 `Display Profiles`.
 
+The order of application profiles is user-configurable through the Move Up
+and Move Down controls. The custom order is persisted and restored across
+application restarts. New application profiles are appended to the end of
+the existing order. Refreshing or editing profiles must not reset that order.
+
 The current configuration format uses stable `MonitorId` values. There
 is no legacy DISPLAY-number migration or backward-compatibility path for
 older development formats.
@@ -173,4 +178,6 @@ Changes should preserve these rules:
     updates, display-number changes, disconnects, and reconnects.
 -   Newly connected displays are added without deleting disconnected
     display data.
+-   User-defined application profile order is preserved across refreshes,
+    edits, and application restarts.
 -   Automatic switching is based on the actual foreground executable.

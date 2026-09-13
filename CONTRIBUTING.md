@@ -28,16 +28,22 @@ No .NET SDK or runtime is required.
 
 ## Building
 
-The easiest way to build NvProfileSwitcher is through the GitHub Actions
-workflow included in the repository.
+NvProfileSwitcher includes GitHub Actions workflows for validation, manual
+development builds, and official releases.
 
-Development builds from `main` are automatically versioned as:
+Pushes to feature branches do not run builds automatically. Pull requests
+targeting `main` run the native build and Core Tests. Merging or pushing to
+`main` does not trigger another automatic build.
+
+Development workflows can be started manually with `workflow_dispatch` and
+use the short commit hash for development versioning:
 
 `dev-<commit>`
 
-Release builds are generated from version tags such as:
+Official release builds, the Windows installer, and release artifacts are
+generated from semantic version tags such as:
 
-`v1.0.0`
+`v2.1.0`
 
 ## Pull requests
 

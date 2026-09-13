@@ -10,6 +10,7 @@ It allows you to create individual profiles for applications and games, with ind
 
 - Automatic profile switching based on the foreground application
 - Per-application display color profiles
+- Manual application profile reordering with persistent custom order
 - Independent settings for each monitor
 - NVIDIA Digital Vibrance control
 - NVIDIA Hue control
@@ -76,13 +77,15 @@ Each monitor profile supports:
 | Contrast | Gamma-ramp contrast adjustment |
 | Gamma | Gamma-ramp gamma adjustment |
 
-New monitor and application profiles start with neutral NVIDIA/default values:
+A physical monitor that has never been seen before starts with NVIDIA-neutral/default values for its Windows profile:
 
 - Digital Vibrance: **50%**
 - Hue: **0°**
 - Brightness: **100%**
 - Contrast: **100%**
 - Gamma: **1.00**
+
+New application profiles inherit the saved Windows profile values for each detected physical monitor. When a newly detected monitor is added to an existing application profile, its initial values are also copied from that monitor's Windows profile. NVIDIA-neutral/default values are used only as a fallback if no Windows profile is available.
 
 Once a profile is saved, its settings are preserved and restored whenever the same physical monitor is detected again.
 
@@ -167,6 +170,8 @@ The configuration contains:
 - Per-monitor settings
 - Stable physical monitor identifiers
 
+Application profiles can be reordered with the **Move Up** and **Move Down** controls. The custom order is saved and restored across application restarts. New application profiles are added to the end of the existing order.
+
 Disconnected monitors remain stored in the configuration so their settings can be restored when they are connected again.
 
 ## Portable version
@@ -218,7 +223,7 @@ cl /nologo /std:c++20 /O2 /EHsc /MT /DUNICODE /D_UNICODE /DNOMINMAX main.cpp swi
 
 The `/MT` option statically links the Microsoft C/C++ runtime.
 
-Release and development builds are also generated automatically using GitHub Actions.
+GitHub Actions validates pull requests and generates official release builds from version tags. Development workflows can also be run manually when needed.
 
 ### Build versions
 
@@ -287,7 +292,7 @@ Each release provides:
 - Portable ZIP
 - Windows installer
 
-Development builds generated from `main` are available as GitHub Actions artifacts.
+Pull requests to `main` run the native build and Core Tests. Official release artifacts are generated from version tags, and development workflows can be started manually when needed.
 
 ## Contributing
 
