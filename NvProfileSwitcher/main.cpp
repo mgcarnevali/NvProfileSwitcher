@@ -1537,6 +1537,22 @@ bool ProfileTitleIsTruncated(int item){
     return titleSize.cx>(textRight-textLeft);
 }
 
+POINT TooltipPositionForRect(const RECT& visibleRect,int tipW,int tipH){
+    int x=static_cast<int>(visibleRect.left);
+    int y=static_cast<int>(visibleRect.bottom)+TOOLTIP_GAP;
+    HMONITOR monitor=MonitorFromRect(&visibleRect,MONITOR_DEFAULTTONEAREST);
+    MONITORINFO info{sizeof(info)};
+    if(GetMonitorInfoW(monitor,&info)){
+        const int workLeft=static_cast<int>(info.rcWork.left);
+        const int workTop=static_cast<int>(info.rcWork.top);
+        const int workRight=static_cast<int>(info.rcWork.right);
+        const int workBottom=static_cast<int>(info.rcWork.bottom);
+        x=std::clamp(x,workLeft,std::max(workLeft,workRight-tipW));
+        y=std::clamp(y,workTop,std::max(workTop,workBottom-tipH));
+    }
+    return POINT{static_cast<LONG>(x),static_cast<LONG>(y)};
+}
+
 void HideProfileTooltip(){
     if(gProfileTooltip){
         TOOLINFOW ti{sizeof(ti)};
@@ -1563,18 +1579,11 @@ void UpdateProfileTooltip(POINT clientPt){
 
     gProfileTooltipText=item==0?L"Windows":gSettings.profiles[item-1].name;
 
-    RECT itemRect{};
-    SendMessageW(list,LB_GETITEMRECT,item,(LPARAM)&itemRect);
-    POINT screenPt{itemRect.left+66,itemRect.bottom+TOOLTIP_GAP};
-    ClientToScreen(list,&screenPt);
-
     TOOLINFOW ti{sizeof(ti)};
     ti.hwnd=list;
     ti.uId=1;
     ti.lpszText=(LPWSTR)gProfileTooltipText.c_str();
     SendMessageW(gProfileTooltip,TTM_UPDATETIPTEXTW,0,(LPARAM)&ti);
-    SendMessageW(gProfileTooltip,TTM_TRACKPOSITION,0,MAKELPARAM(screenPt.x,screenPt.y));
-    SendMessageW(gProfileTooltip,TTM_TRACKACTIVATE,TRUE,(LPARAM)&ti);
 
     // The tooltip is custom-painted, so explicitly size the popup to the
     // complete profile name instead of relying on the native tooltip layout.
@@ -1589,7 +1598,18 @@ void UpdateProfileTooltip(POINT clientPt){
 
         const int tipW=std::min(500,(int)textSize.cx+16);
         const int tipH=textSize.cy+10;
-        SetWindowPos(gProfileTooltip,HWND_TOPMOST,screenPt.x,screenPt.y,
+        RECT visibleRect{};
+        SendMessageW(list,LB_GETITEMRECT,item,(LPARAM)&visibleRect);
+        visibleRect.left+=5;
+        visibleRect.right-=5;
+        visibleRect.top+=5;
+        visibleRect.bottom-=5;
+        MapWindowPoints(list,nullptr,(POINT*)&visibleRect,2);
+        POINT position=TooltipPositionForRect(visibleRect,tipW,tipH);
+        SendMessageW(gProfileTooltip,TTM_TRACKPOSITION,0,
+            MAKELPARAM(position.x,position.y));
+        SendMessageW(gProfileTooltip,TTM_TRACKACTIVATE,TRUE,(LPARAM)&ti);
+        SetWindowPos(gProfileTooltip,HWND_TOPMOST,position.x,position.y,
             tipW,tipH,SWP_NOACTIVATE|SWP_SHOWWINDOW);
     }
 
@@ -1634,7 +1654,7 @@ LRESULT CALLBACK ProfileTooltipSubclassProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM 
         SetBkMode(dc,TRANSPARENT);
         SetTextColor(dc,C_TEXT);
         SelectObject(dc,gFont);
-        DrawTextW(dc,text,-1,&tr,DT_LEFT|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);
+        DrawTextW(dc,text,-1,&tr,DT_LEFT|DT_NOPREFIX);
 
         EndPaint(hwnd,&ps);
         return 0;
@@ -1674,18 +1694,11 @@ void ShowUpdateCheckTooltip(){
 
     const int tipW=textSize.cx+16;
     const int tipH=textSize.cy+10;
-    int x=checkboxRect.left;
-    int y=checkboxRect.bottom+TOOLTIP_GAP;
+    RECT visibleRect=checkboxRect;
+    InflateRect(&visibleRect,-3,-3);
+    POINT position=TooltipPositionForRect(visibleRect,tipW,tipH);
 
-    HMONITOR mon=MonitorFromWindow(checkbox,MONITOR_DEFAULTTONEAREST);
-    MONITORINFO mi{sizeof(mi)};
-    if(GetMonitorInfoW(mon,&mi)){
-        if(x+tipW>mi.rcWork.right) x=std::max((int)mi.rcWork.left,(int)mi.rcWork.right-tipW);
-        if(x<mi.rcWork.left) x=mi.rcWork.left;
-        y=std::clamp(y,(int)mi.rcWork.top,(int)mi.rcWork.bottom-tipH);
-    }
-
-    SetWindowPos(gUpdateCheckTooltip,HWND_TOPMOST,x,y,tipW,tipH,
+    SetWindowPos(gUpdateCheckTooltip,HWND_TOPMOST,position.x,position.y,tipW,tipH,
         SWP_NOACTIVATE|SWP_SHOWWINDOW);
     RedrawWindow(gUpdateCheckTooltip,nullptr,nullptr,
         RDW_INVALIDATE|RDW_ERASE|RDW_FRAME|RDW_UPDATENOW);
@@ -1740,32 +1753,70 @@ void UpdateExecutableTooltip(){
     RECT er{};
     GetWindowRect(edit,&er);
 
+    HMONITOR mon=MonitorFromWindow(edit,MONITOR_DEFAULTTONEAREST);
+    MONITORINFO mi{sizeof(mi)};
+    const bool haveMonitorInfo=GetMonitorInfoW(mon,&mi)!=FALSE;
+
+    const int workWidth=haveMonitorInfo?(int)(mi.rcWork.right-mi.rcWork.left):700;
+    const int maxTipW=std::min(700,std::max(120,workWidth-16));
+    const int maxTextW=maxTipW-16;
+
     HDC dc=GetDC(gExeTooltip);
     if(!dc) return;
     HFONT old=(HFONT)SelectObject(dc,gFont);
-    SIZE sz{};
-    GetTextExtentPoint32W(dc,path.c_str(),(int)path.size(),&sz);
+    auto textWidth=[&](const std::wstring& text)->int{
+        SIZE size{};
+        GetTextExtentPoint32W(dc,text.c_str(),(int)text.size(),&size);
+        return static_cast<int>(size.cx);
+    };
+
+    std::wstring wrapped;
+    std::wstring line;
+    size_t partStart=0;
+    for(size_t i=0;i<=path.size();++i){
+        if(i<path.size()&&path[i]!=L'\\'&&path[i]!=L'/') continue;
+        const size_t partEnd=i<path.size()?i+1:i;
+        std::wstring part=path.substr(partStart,partEnd-partStart);
+        std::wstring candidate=line+part;
+        if(!line.empty()&&textWidth(candidate)>maxTextW){
+            if(!wrapped.empty()) wrapped+=L'\n';
+            wrapped+=line;
+            line=part;
+        }else{
+            line=candidate;
+        }
+        partStart=partEnd;
+    }
+    if(!line.empty()){
+        if(!wrapped.empty()) wrapped+=L'\n';
+        wrapped+=line;
+    }
+
+    int lineCount=1;
+    int widestLine=0;
+    size_t lineStart=0;
+    for(size_t i=0;i<=wrapped.size();++i){
+        if(i<wrapped.size()&&wrapped[i]!=L'\n') continue;
+        widestLine=std::max(widestLine,textWidth(wrapped.substr(lineStart,i-lineStart)));
+        if(i<wrapped.size()) ++lineCount;
+        lineStart=i+1;
+    }
+    SIZE lineSize{};
+    GetTextExtentPoint32W(dc,L"Ag",2,&lineSize);
     SelectObject(dc,old);
     ReleaseDC(gExeTooltip,dc);
 
-    const int tipW=std::min(700,(int)sz.cx+16);
-    const int tipH=sz.cy+10;
-    int x=er.left;
-    // The EDIT's rendered lower edge extends beyond the rectangle used to
-    // position this popup. Add 7 px so its visible gap matches the other
-    // tooltips.
-    int y=er.bottom+TOOLTIP_GAP+7;
+    const int tipW=std::min(maxTipW,widestLine+16);
+    const int tipH=lineSize.cy*lineCount+10;
+    RECT visibleRect=er;
+    RECT labelRect{};
+    HWND label=H(IDC_LBL_EXE);
+    if(label&&GetWindowRect(label,&labelRect)) visibleRect.left=labelRect.left;
+    visibleRect.bottom+=7;
+    POINT position=TooltipPositionForRect(visibleRect,tipW,tipH);
 
-    HMONITOR mon=MonitorFromWindow(edit,MONITOR_DEFAULTTONEAREST);
-    MONITORINFO mi{sizeof(mi)};
-    if(GetMonitorInfoW(mon,&mi)){
-        if(x+tipW>mi.rcWork.right) x=std::max((int)mi.rcWork.left,(int)mi.rcWork.right-tipW);
-        if(x<mi.rcWork.left) x=mi.rcWork.left;
-        y=std::clamp(y,(int)mi.rcWork.top,(int)mi.rcWork.bottom-tipH);
-    }
-
-    SetWindowTextW(gExeTooltip,path.c_str());
-    SetWindowPos(gExeTooltip,HWND_TOPMOST,x,y,tipW,tipH,
+    SetWindowTextW(gExeTooltip,wrapped.c_str());
+    SetWindowPos(gExeTooltip,HWND_TOPMOST,position.x,position.y,tipW,tipH,
         SWP_NOACTIVATE|SWP_SHOWWINDOW);
     // Unlike the fixed Reset tooltip, this popup receives its text while it is
     // still 0x0. Force the shared tooltip painter to redraw the complete
@@ -1865,18 +1916,9 @@ void UpdateResetTooltip(){
     const int tipW=sz.cx+16;
     const int tipH=sz.cy+10;
 
-    // Match the profile-name and executable tooltip placement.
-    int x=rr.left;
-    int y=rr.bottom+TOOLTIP_GAP;
+    POINT position=TooltipPositionForRect(rr,tipW,tipH);
 
-    HMONITOR mon=MonitorFromWindow(reset,MONITOR_DEFAULTTONEAREST);
-    MONITORINFO mi{sizeof(mi)};
-    if(GetMonitorInfoW(mon,&mi)){
-        if(x<mi.rcWork.left) x=rr.left;
-        y=std::clamp(y,(int)mi.rcWork.top,(int)mi.rcWork.bottom-tipH);
-    }
-
-    SetWindowPos(gResetTooltip,HWND_TOPMOST,x,y,tipW,tipH,
+    SetWindowPos(gResetTooltip,HWND_TOPMOST,position.x,position.y,tipW,tipH,
         SWP_NOACTIVATE|SWP_SHOWWINDOW);
     gResetTooltipVisible=true;
 }
