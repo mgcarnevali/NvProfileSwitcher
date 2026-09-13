@@ -34,6 +34,7 @@
 #include <regex>
 #include <algorithm>
 #include <cmath>
+#include <utility>
 #include "resource.h"
 #include "switching_core.h"
 #include "hotkey_core.h"
@@ -94,9 +95,10 @@ constexpr int DIALOG_SECTION_GAP=16;
 constexpr int DIALOG_BUTTON_GAP=12;
 constexpr int DIALOG_BUTTON_WIDTH=100;
 constexpr int DIALOG_BUTTON_HEIGHT=36;
-enum {IDC_LIST=1001,IDC_NAME,IDC_EXE,IDC_BROWSE,IDC_ENABLED,IDC_DISPLAY,IDC_LBL_DISPLAY,IDC_VIB,IDC_HUE,IDC_BRI,IDC_CON,IDC_GAM,IDC_SAVE,IDC_ADD=1015,IDC_REMOVE,IDC_STARTWIN=1018,IDC_STARTMIN,IDC_VALVIB,IDC_VALHUE,IDC_VALBRI,IDC_VALCON,IDC_VALGAM,IDC_LBL_NAME,IDC_LBL_EXE,IDC_LBL_ENABLED,IDC_LBL_VIB,IDC_LBL_HUE,IDC_LBL_BRI,IDC_LBL_CON,IDC_LBL_GAM,IDC_DEFAULTS,IDC_MINTRAY,IDC_CHECKUPDATES,IDC_FOOT_GITHUB,IDC_FOOT_SUPPORT,IDC_FOOT_ABOUT,IDC_HOTKEYS_TITLE,IDC_HOTKEY_SHOW_LABEL,IDC_HOTKEY_SHOW,IDC_HOTKEY_SHOW_CLEAR,IDC_HOTKEY_OVERRIDE_LABEL,IDC_HOTKEY_OVERRIDE,IDC_HOTKEY_OVERRIDE_CLEAR,IDC_PROFILE_HOTKEY_LABEL,IDC_PROFILE_HOTKEY,IDC_PROFILE_HOTKEY_CLEAR,IDC_HOTKEY_RESUME_LABEL,IDC_HOTKEY_RESUME,IDC_HOTKEY_RESUME_CLEAR,IDC_CHECKUPDATES_LABEL};
+enum {IDC_LIST=1001,IDC_NAME,IDC_EXE,IDC_BROWSE,IDC_ENABLED,IDC_DISPLAY,IDC_LBL_DISPLAY,IDC_VIB,IDC_HUE,IDC_BRI,IDC_CON,IDC_GAM,IDC_SAVE,IDC_ADD=1015,IDC_REMOVE,IDC_STARTWIN=1018,IDC_STARTMIN,IDC_VALVIB,IDC_VALHUE,IDC_VALBRI,IDC_VALCON,IDC_VALGAM,IDC_LBL_NAME,IDC_LBL_EXE,IDC_LBL_ENABLED,IDC_LBL_VIB,IDC_LBL_HUE,IDC_LBL_BRI,IDC_LBL_CON,IDC_LBL_GAM,IDC_DEFAULTS,IDC_MINTRAY,IDC_CHECKUPDATES,IDC_FOOT_GITHUB,IDC_FOOT_SUPPORT,IDC_FOOT_ABOUT,IDC_HOTKEYS_TITLE,IDC_HOTKEY_SHOW_LABEL,IDC_HOTKEY_SHOW,IDC_HOTKEY_SHOW_CLEAR,IDC_HOTKEY_OVERRIDE_LABEL,IDC_HOTKEY_OVERRIDE,IDC_HOTKEY_OVERRIDE_CLEAR,IDC_PROFILE_HOTKEY_LABEL,IDC_PROFILE_HOTKEY,IDC_PROFILE_HOTKEY_CLEAR,IDC_HOTKEY_RESUME_LABEL,IDC_HOTKEY_RESUME,IDC_HOTKEY_RESUME_CLEAR,IDC_CHECKUPDATES_LABEL,IDC_RUNNING_APPS};
 enum {ID_TRAY_OPEN=2001,ID_TRAY_CHECK_UPDATE,ID_TRAY_ABOUT,ID_TRAY_EXIT};
 enum {ID_HOTKEY_SHOW_HIDE=3001,ID_HOTKEY_WINDOWS_OVERRIDE,ID_HOTKEY_RESUME_AUTOMATIC,ID_HOTKEY_TEST};
+enum {IDC_RUNNING_LIST=5101,IDC_RUNNING_REFRESH,IDC_RUNNING_SELECT};
 constexpr int ID_HOTKEY_PROFILE_BASE=4000;
 
 struct AppMessageData {
@@ -2191,7 +2193,7 @@ void SetDesktopUi(bool desktop){
     const int rightW=centerPanelW-44;
 
     int showApplication=desktop?SW_HIDE:SW_SHOW;
-    for(int id:{IDC_LBL_NAME,IDC_NAME,IDC_LBL_EXE,IDC_EXE,IDC_BROWSE,IDC_ENABLED,IDC_LBL_ENABLED,
+    for(int id:{IDC_LBL_NAME,IDC_NAME,IDC_LBL_EXE,IDC_EXE,IDC_BROWSE,IDC_RUNNING_APPS,IDC_ENABLED,IDC_LBL_ENABLED,
                 IDC_PROFILE_HOTKEY_LABEL,IDC_PROFILE_HOTKEY,IDC_PROFILE_HOTKEY_CLEAR})
         ShowWindow(H(id),showApplication);
     ShowWindow(H(IDC_REMOVE),desktop?SW_HIDE:SW_SHOW);
@@ -2592,7 +2594,7 @@ void DrawOwnerButton(const DRAWITEMSTRUCT* d){
     bool hover=d->hwndItem==gMainButtonHover;
 
     COLORREF textColor=disabled?C_MUTED:C_TEXT, icon=C_MUTED;
-    if(id==IDC_SAVE){
+    if(id==IDC_SAVE||id==IDC_RUNNING_SELECT){
         textColor=disabled?C_MUTED:C_TEXT;
         icon=disabled?C_MUTED:C_TEXT;
     }else if(id==IDC_DEFAULTS){
@@ -2603,12 +2605,12 @@ void DrawOwnerButton(const DRAWITEMSTRUCT* d){
     }
 
     RECT r=d->rcItem;
-    DrawMainButtonSurface(d->hDC,r,id==IDC_SAVE,hover,down,disabled);
+    DrawMainButtonSurface(d->hDC,r,id==IDC_SAVE||id==IDC_RUNNING_SELECT,hover,down,disabled);
 
     wchar_t caption[128]{};
     GetWindowTextW(d->hwndItem,caption,128);
     SIZE sz{};
-    HFONT buttonFont=(id==IDC_SAVE||id==IDC_DEFAULTS)?gFontBold:gFont;
+    HFONT buttonFont=(id==IDC_SAVE||id==IDC_DEFAULTS||id==IDC_RUNNING_SELECT)?gFontBold:gFont;
     SelectObject(d->hDC,buttonFont);
     GetTextExtentPoint32W(d->hDC,caption,(int)wcslen(caption),&sz);
 
@@ -3183,8 +3185,11 @@ void BuildControls(){
         SetWindowSubclass(gExeTooltip,ProfileTooltipSubclassProc,3,0);
     }
 
+    HWND runningApps=Add(L"BUTTON",L"Running apps...",BS_OWNERDRAW,
+        rightX+rightW-browseW,190,browseW,30,IDC_RUNNING_APPS);
+    StyleMainButton(runningApps);
     HWND browse=Add(L"BUTTON",L"Browse...",BS_OWNERDRAW,
-        rightX+rightW-browseW,222,browseW,36,IDC_BROWSE);
+        rightX+rightW-browseW,225,browseW,30,IDC_BROWSE);
     StyleMainButton(browse);
 
     HWND enabled=Add(L"BUTTON",L"",BS_AUTOCHECKBOX,rightX,272,22,22,IDC_ENABLED);
@@ -3325,7 +3330,8 @@ void ResizeControls(){
     const int fieldGap=10;
     MoveWindow(H(IDC_LBL_EXE),rightX,194,120,22,TRUE);
     MoveWindow(H(IDC_EXE),rightX+2,229,rightW-browseW-fieldGap-4,22,TRUE);
-    MoveWindow(H(IDC_BROWSE),rightX+rightW-browseW,222,browseW,36,TRUE);
+    MoveWindow(H(IDC_RUNNING_APPS),rightX+rightW-browseW,190,browseW,30,TRUE);
+    MoveWindow(H(IDC_BROWSE),rightX+rightW-browseW,225,browseW,30,TRUE);
     MoveWindow(H(IDC_ENABLED),rightX,272,22,22,TRUE);
     MoveWindow(H(IDC_LBL_ENABLED),rightX+27,272,205,22,TRUE);
     const int profileHotkeyX=rightX+rightW-288;
@@ -3906,6 +3912,204 @@ void ShowAbout(){
     }
 }
 
+struct RunningAppEntry{
+    std::wstring name;
+    std::wstring executable;
+    std::wstring path;
+};
+
+struct RunningAppsDialogData{
+    std::vector<RunningAppEntry> apps;
+    std::wstring selectedPath;
+    HWND list{};
+    HIMAGELIST images{};
+};
+
+std::wstring FileNameFromPath(const std::wstring& path){
+    const wchar_t* name=PathFindFileNameW(path.c_str());
+    return name?name:L"";
+}
+
+bool EqualPathInsensitive(const std::wstring& a,const std::wstring& b){
+    return CompareStringOrdinal(a.c_str(),-1,b.c_str(),-1,TRUE)==CSTR_EQUAL;
+}
+
+BOOL CALLBACK CollectRunningAppWindow(HWND hwnd,LPARAM param){
+    auto* apps=reinterpret_cast<std::vector<RunningAppEntry>*>(param);
+    if(!apps||!IsWindowVisible(hwnd)||GetWindow(hwnd,GW_OWNER))return TRUE;
+
+    int titleLength=GetWindowTextLengthW(hwnd);
+    if(titleLength<=0)return TRUE;
+    std::wstring title((size_t)titleLength+1,L'\0');
+    GetWindowTextW(hwnd,title.data(),titleLength+1);
+    title.resize(wcslen(title.c_str()));
+    if(title.empty())return TRUE;
+
+    DWORD processId=0;
+    GetWindowThreadProcessId(hwnd,&processId);
+    if(!processId||processId==GetCurrentProcessId())return TRUE;
+
+    HANDLE process=OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION,FALSE,processId);
+    if(!process)return TRUE;
+    std::wstring path(32768,L'\0');
+    DWORD pathLength=(DWORD)path.size();
+    const BOOL queried=QueryFullProcessImageNameW(process,0,path.data(),&pathLength);
+    CloseHandle(process);
+    if(!queried||!pathLength)return TRUE;
+    path.resize(pathLength);
+
+    for(const auto& app:*apps)
+        if(EqualPathInsensitive(app.path,path))return TRUE;
+
+    apps->push_back({std::move(title),FileNameFromPath(path),std::move(path)});
+    return TRUE;
+}
+
+std::vector<RunningAppEntry> EnumerateRunningApps(){
+    std::vector<RunningAppEntry> apps;
+    EnumWindows(CollectRunningAppWindow,(LPARAM)&apps);
+    std::sort(apps.begin(),apps.end(),[](const RunningAppEntry& a,const RunningAppEntry& b){
+        return CompareStringOrdinal(a.name.c_str(),-1,b.name.c_str(),-1,TRUE)==CSTR_LESS_THAN;
+    });
+    return apps;
+}
+
+void PopulateRunningAppsList(RunningAppsDialogData* data){
+    if(!data||!data->list)return;
+    ListView_DeleteAllItems(data->list);
+    if(data->images)ImageList_RemoveAll(data->images);
+    data->apps=EnumerateRunningApps();
+
+    for(size_t i=0;i<data->apps.size();++i){
+        SHFILEINFOW info{};
+        int image=-1;
+        if(SHGetFileInfoW(data->apps[i].path.c_str(),0,&info,sizeof(info),SHGFI_ICON|SHGFI_SMALLICON)){
+            image=ImageList_AddIcon(data->images,info.hIcon);
+            DestroyIcon(info.hIcon);
+        }
+        LVITEMW item{};
+        item.mask=LVIF_TEXT|LVIF_PARAM|LVIF_IMAGE;
+        item.iItem=(int)i;
+        item.iImage=image;
+        item.lParam=(LPARAM)i;
+        item.pszText=(LPWSTR)data->apps[i].name.c_str();
+        const int row=ListView_InsertItem(data->list,&item);
+        ListView_SetItemText(data->list,row,1,(LPWSTR)data->apps[i].executable.c_str());
+        ListView_SetItemText(data->list,row,2,(LPWSTR)data->apps[i].path.c_str());
+    }
+}
+
+LRESULT CALLBACK RunningAppsDialogProc(HWND w,UINT m,WPARAM wp,LPARAM lp){
+    auto* data=(RunningAppsDialogData*)GetWindowLongPtrW(w,GWLP_USERDATA);
+    switch(m){
+    case WM_CREATE:{
+        data=(RunningAppsDialogData*)((CREATESTRUCTW*)lp)->lpCreateParams;
+        SetWindowLongPtrW(w,GWLP_USERDATA,(LONG_PTR)data);
+        RECT client{};GetClientRect(w,&client);
+        data->list=CreateWindowExW(WS_EX_CLIENTEDGE,WC_LISTVIEWW,L"",
+            WS_CHILD|WS_VISIBLE|WS_TABSTOP|LVS_REPORT|LVS_SINGLESEL|LVS_SHOWSELALWAYS,
+            DIALOG_MARGIN,DIALOG_MARGIN,client.right-DIALOG_MARGIN*2,330,
+            w,(HMENU)IDC_RUNNING_LIST,gInst,nullptr);
+        SetWindowTheme(data->list,L"DarkMode_Explorer",nullptr);
+        SendMessageW(data->list,WM_SETFONT,(WPARAM)gFont,TRUE);
+        ListView_SetExtendedListViewStyle(data->list,LVS_EX_FULLROWSELECT|LVS_EX_DOUBLEBUFFER);
+        data->images=ImageList_Create(16,16,ILC_COLOR32|ILC_MASK,16,16);
+        ListView_SetImageList(data->list,data->images,LVSIL_SMALL);
+
+        LVCOLUMNW column{LVCF_TEXT|LVCF_WIDTH|LVCF_SUBITEM};
+        column.pszText=(LPWSTR)L"Application";column.cx=210;column.iSubItem=0;
+        ListView_InsertColumn(data->list,0,&column);
+        column.pszText=(LPWSTR)L"Executable";column.cx=145;column.iSubItem=1;
+        ListView_InsertColumn(data->list,1,&column);
+        column.pszText=(LPWSTR)L"Path";column.cx=285;column.iSubItem=2;
+        ListView_InsertColumn(data->list,2,&column);
+
+        const int buttonY=client.bottom-DIALOG_MARGIN-DIALOG_BUTTON_HEIGHT;
+        HWND refresh=CreateWindowExW(0,L"BUTTON",L"Refresh",WS_CHILD|WS_VISIBLE|WS_TABSTOP|BS_OWNERDRAW,
+            DIALOG_MARGIN,buttonY,DIALOG_BUTTON_WIDTH,DIALOG_BUTTON_HEIGHT,w,(HMENU)IDC_RUNNING_REFRESH,gInst,nullptr);
+        HWND cancel=CreateWindowExW(0,L"BUTTON",L"Cancel",WS_CHILD|WS_VISIBLE|WS_TABSTOP|BS_OWNERDRAW,
+            client.right-DIALOG_MARGIN-DIALOG_BUTTON_WIDTH,buttonY,DIALOG_BUTTON_WIDTH,DIALOG_BUTTON_HEIGHT,w,(HMENU)IDCANCEL,gInst,nullptr);
+        HWND select=CreateWindowExW(0,L"BUTTON",L"Select",WS_CHILD|WS_VISIBLE|WS_TABSTOP|BS_OWNERDRAW,
+            client.right-DIALOG_MARGIN-DIALOG_BUTTON_WIDTH*2-DIALOG_BUTTON_GAP,buttonY,DIALOG_BUTTON_WIDTH,DIALOG_BUTTON_HEIGHT,w,(HMENU)IDC_RUNNING_SELECT,gInst,nullptr);
+        for(HWND button:{refresh,cancel,select}){
+            SendMessageW(button,WM_SETFONT,(WPARAM)gFontBold,TRUE);
+            StyleMainButton(button);
+        }
+        PopulateRunningAppsList(data);
+        SetFocus(data->list);
+        return 0;
+    }
+    case WM_NOTIFY:
+        if(((NMHDR*)lp)->idFrom==IDC_RUNNING_LIST&&((NMHDR*)lp)->code==NM_DBLCLK){
+            SendMessageW(w,WM_COMMAND,IDC_RUNNING_SELECT,0);return 0;
+        }
+        break;
+    case WM_COMMAND:
+        if(LOWORD(wp)==IDC_RUNNING_REFRESH){PopulateRunningAppsList(data);return 0;}
+        if(LOWORD(wp)==IDC_RUNNING_SELECT){
+            int row=ListView_GetNextItem(data->list,-1,LVNI_SELECTED);
+            if(row>=0&&row<(int)data->apps.size()){
+                LVITEMW item{};item.mask=LVIF_PARAM;item.iItem=row;
+                if(ListView_GetItem(data->list,&item))data->selectedPath=data->apps[(size_t)item.lParam].path;
+                DestroyWindow(w);
+            }
+            return 0;
+        }
+        if(LOWORD(wp)==IDCANCEL){DestroyWindow(w);return 0;}
+        break;
+    case WM_DRAWITEM:{
+        auto* draw=(DRAWITEMSTRUCT*)lp;
+        if(draw->CtlID==IDC_RUNNING_REFRESH||draw->CtlID==IDC_RUNNING_SELECT||draw->CtlID==IDCANCEL){
+            DrawOwnerButton(draw);return TRUE;
+        }
+        break;
+    }
+    case WM_CTLCOLORSTATIC:{
+        HDC dc=(HDC)wp;SetTextColor(dc,C_TEXT);SetBkColor(dc,C_BACK);SetBkMode(dc,TRANSPARENT);
+        return (LRESULT)gBackBrush;
+    }
+    case WM_CLOSE:DestroyWindow(w);return 0;
+    case WM_DESTROY:
+        if(data&&data->images){ImageList_Destroy(data->images);data->images=nullptr;}
+        return 0;
+    }
+    return DefWindowProcW(w,m,wp,lp);
+}
+
+bool SelectRunningApplication(HWND owner,std::wstring& selectedPath){
+    static bool registered=false;
+    if(!registered){
+        WNDCLASSEXW wc{sizeof(wc)};wc.lpfnWndProc=RunningAppsDialogProc;wc.hInstance=gInst;
+        wc.hIcon=gIcon;wc.hIconSm=gIcon;wc.hCursor=LoadCursor(nullptr,IDC_ARROW);
+        wc.hbrBackground=gBackBrush;wc.lpszClassName=L"NvProfileSwitcherRunningApps";
+        if(!RegisterClassExW(&wc)&&GetLastError()!=ERROR_CLASS_ALREADY_EXISTS)return false;
+        registered=true;
+    }
+
+    RunningAppsDialogData data;
+    HWND previousFocus=GetFocus();
+    const bool disableOwner=owner&&IsWindowEnabled(owner);
+    if(disableOwner)EnableWindow(owner,FALSE);
+    HWND dialog=CreateWindowExW(WS_EX_DLGMODALFRAME|WS_EX_TOPMOST,L"NvProfileSwitcherRunningApps",
+        L"Select running application",WS_CAPTION|WS_SYSMENU,0,0,720,455,owner,nullptr,gInst,&data);
+    if(!dialog){if(disableOwner)EnableWindow(owner,TRUE);return false;}
+    BOOL darkTitle=TRUE;DwmSetWindowAttribute(dialog,20,&darkTitle,sizeof(darkTitle));
+    RECT wr{},target{};GetWindowRect(dialog,&wr);
+    if(owner&&IsWindowVisible(owner))GetWindowRect(owner,&target);else SystemParametersInfoW(SPI_GETWORKAREA,0,&target,0);
+    const int ww=wr.right-wr.left,wh=wr.bottom-wr.top;
+    SetWindowPos(dialog,HWND_TOPMOST,target.left+(target.right-target.left-ww)/2,
+        target.top+(target.bottom-target.top-wh)/2,0,0,SWP_NOSIZE|SWP_SHOWWINDOW);
+    SetForegroundWindow(dialog);
+
+    MSG msg{};
+    while(IsWindow(dialog)&&GetMessageW(&msg,nullptr,0,0)>0){
+        if(!IsDialogMessageW(dialog,&msg)){TranslateMessage(&msg);DispatchMessageW(&msg);}
+    }
+    if(disableOwner){EnableWindow(owner,TRUE);if(previousFocus&&IsWindow(previousFocus))SetFocus(previousFocus);else SetFocus(owner);SetForegroundWindow(owner);}
+    selectedPath=std::move(data.selectedPath);
+    return !selectedPath.empty();
+}
+
 bool gTrayIconVisible=false;
 
 void SetTrayIconVisible(bool visible){
@@ -4029,7 +4233,7 @@ case WM_CTLCOLORSTATIC:{HDC dc=(HDC)wp;
     if(d->CtlID==IDC_ADD||d->CtlID==IDC_REMOVE){
         DrawProfileHeaderButton(d);return TRUE;
     }
-    if(d->CtlID==IDC_SAVE||d->CtlID==IDC_DEFAULTS||d->CtlID==IDC_BROWSE||d->CtlID==IDC_HOTKEY_SHOW_CLEAR||d->CtlID==IDC_HOTKEY_OVERRIDE_CLEAR||d->CtlID==IDC_HOTKEY_RESUME_CLEAR||d->CtlID==IDC_PROFILE_HOTKEY_CLEAR){
+    if(d->CtlID==IDC_SAVE||d->CtlID==IDC_DEFAULTS||d->CtlID==IDC_BROWSE||d->CtlID==IDC_RUNNING_APPS||d->CtlID==IDC_HOTKEY_SHOW_CLEAR||d->CtlID==IDC_HOTKEY_OVERRIDE_CLEAR||d->CtlID==IDC_HOTKEY_RESUME_CLEAR||d->CtlID==IDC_PROFILE_HOTKEY_CLEAR){
         DrawOwnerButton(d);return TRUE;
     }
     if(d->CtlID==IDC_FOOT_GITHUB||d->CtlID==IDC_FOOT_SUPPORT||d->CtlID==IDC_FOOT_ABOUT){
@@ -4148,7 +4352,7 @@ case WM_TIMER:
     }
 #endif
     return 0;
-case WM_COMMAND:{int id=LOWORD(wp);if(id==IDC_HOTKEY_SHOW&&HIWORD(wp)==EN_CHANGE){UpdateConfiguredHotkey(IDC_HOTKEY_SHOW,gSettings.showHideHotkey);return 0;}if(id==IDC_HOTKEY_OVERRIDE&&HIWORD(wp)==EN_CHANGE){UpdateConfiguredHotkey(IDC_HOTKEY_OVERRIDE,gSettings.windowsOverrideHotkey);return 0;}if(id==IDC_HOTKEY_RESUME&&HIWORD(wp)==EN_CHANGE){UpdateConfiguredHotkey(IDC_HOTKEY_RESUME,gSettings.resumeAutomaticHotkey);return 0;}if(id==IDC_PROFILE_HOTKEY&&HIWORD(wp)==EN_CHANGE&&!IsDesktopSelected()){if(auto*p=SelectedProfile()){UpdateConfiguredHotkey(IDC_PROFILE_HOTKEY,p->hotkey);InvalidateRect(H(IDC_LIST),nullptr,TRUE);}return 0;}if(id==IDC_LIST&&HIWORD(wp)==LBN_SELCHANGE){HideExecutableTooltip();DiscardPreview();LoadSelected();return 0;}if(id==IDC_DISPLAY&&HIWORD(wp)==CBN_SELCHANGE){DiscardPreview();int ds=(int)SendMessageW(H(IDC_DISPLAY),CB_GETCURSEL,0,0);if(ds>=0&&ds<(int)gDisplays.size()){if(IsDesktopSelected()){auto*p=EnsureDesktopProfile(gDisplays[ds].gdiName,gDisplays[ds].monitorId);LoadValuesToSliders(ValuesFromFlatProfile(*p));}else{auto*p=SelectedProfile();if(p){LoadValuesToSliders(*EnsureApplicationValuesForDisplay(*p,gDisplays[ds].gdiName,gDisplays[ds].monitorId));}}}return 0;}switch(id){case IDC_HOTKEY_SHOW_CLEAR:ClearConfiguredHotkey(IDC_HOTKEY_SHOW,gSettings.showHideHotkey);break;case IDC_HOTKEY_OVERRIDE_CLEAR:ClearConfiguredHotkey(IDC_HOTKEY_OVERRIDE,gSettings.windowsOverrideHotkey);break;case IDC_HOTKEY_RESUME_CLEAR:ClearConfiguredHotkey(IDC_HOTKEY_RESUME,gSettings.resumeAutomaticHotkey);break;case IDC_PROFILE_HOTKEY_CLEAR:if(!IsDesktopSelected()){if(auto*p=SelectedProfile()){ClearConfiguredHotkey(IDC_PROFILE_HOTKEY,p->hotkey);InvalidateRect(H(IDC_LIST),nullptr,TRUE);}}break;case IDC_BROWSE:{OPENFILENAMEW o{sizeof(o)};wchar_t f[MAX_PATH]{};o.hwndOwner=w;o.lpstrFilter=L"Executables (*.exe)\0*.exe\0All files\0*.*\0";o.lpstrFile=f;o.nMaxFile=MAX_PATH;o.Flags=OFN_FILEMUSTEXIST;if(GetOpenFileNameW(&o)){Txt(IDC_EXE,f);InvalidateRect(H(IDC_EXE),nullptr,TRUE);auto* p=SelectedProfile();if(p&&!IsDesktopSelected()){p->exePath=f;InvalidateRect(H(IDC_LIST),nullptr,TRUE);}}break;}case IDC_DEFAULTS:ResetSlidersToDefaults();break;case IDC_SAVE:SaveSelected();break;case IDC_ADD:{ApplicationProfile np{};if(!gDisplays.empty()){for(const auto&d:gDisplays)np.displayProfiles.push_back(ApplicationDefaultsForDisplay(d.gdiName,d.monitorId));}gSettings.profiles.push_back(np);gSelected=(int)gSettings.profiles.size();Save();RefreshList();LoadSelected();break;}case IDC_REMOVE:if(gSelected>0&&gSelected<=(int)gSettings.profiles.size()){size_t removed=(size_t)(gSelected-1);UnregisterConfiguredHotkeys();if(gOverrideMode==OverrideMode::Profile){if(gOverrideProfileIndex==removed)gOverrideMode=OverrideMode::Automatic;else if(gOverrideProfileIndex>removed)--gOverrideProfileIndex;}gSettings.profiles.erase(gSettings.profiles.begin()+removed);RegisterConfiguredHotkeys();gSelected=std::max<int>(0,gSelected-1);Save();RefreshList();LoadSelected();gActive.clear();CheckProcesses();}break;case IDC_STARTWIN:gSettings.startWindows=SendMessageW(H(IDC_STARTWIN),BM_GETCHECK,0,0)==BST_CHECKED;SetStartup(gSettings.startWindows);Save();break;case IDC_STARTMIN:gSettings.startMinimized=SendMessageW(H(IDC_STARTMIN),BM_GETCHECK,0,0)==BST_CHECKED;Save();break;case IDC_MINTRAY:
+case WM_COMMAND:{int id=LOWORD(wp);if(id==IDC_HOTKEY_SHOW&&HIWORD(wp)==EN_CHANGE){UpdateConfiguredHotkey(IDC_HOTKEY_SHOW,gSettings.showHideHotkey);return 0;}if(id==IDC_HOTKEY_OVERRIDE&&HIWORD(wp)==EN_CHANGE){UpdateConfiguredHotkey(IDC_HOTKEY_OVERRIDE,gSettings.windowsOverrideHotkey);return 0;}if(id==IDC_HOTKEY_RESUME&&HIWORD(wp)==EN_CHANGE){UpdateConfiguredHotkey(IDC_HOTKEY_RESUME,gSettings.resumeAutomaticHotkey);return 0;}if(id==IDC_PROFILE_HOTKEY&&HIWORD(wp)==EN_CHANGE&&!IsDesktopSelected()){if(auto*p=SelectedProfile()){UpdateConfiguredHotkey(IDC_PROFILE_HOTKEY,p->hotkey);InvalidateRect(H(IDC_LIST),nullptr,TRUE);}return 0;}if(id==IDC_LIST&&HIWORD(wp)==LBN_SELCHANGE){HideExecutableTooltip();DiscardPreview();LoadSelected();return 0;}if(id==IDC_DISPLAY&&HIWORD(wp)==CBN_SELCHANGE){DiscardPreview();int ds=(int)SendMessageW(H(IDC_DISPLAY),CB_GETCURSEL,0,0);if(ds>=0&&ds<(int)gDisplays.size()){if(IsDesktopSelected()){auto*p=EnsureDesktopProfile(gDisplays[ds].gdiName,gDisplays[ds].monitorId);LoadValuesToSliders(ValuesFromFlatProfile(*p));}else{auto*p=SelectedProfile();if(p){LoadValuesToSliders(*EnsureApplicationValuesForDisplay(*p,gDisplays[ds].gdiName,gDisplays[ds].monitorId));}}}return 0;}if(id==IDC_RUNNING_APPS){std::wstring path;if(SelectRunningApplication(w,path)){Txt(IDC_EXE,path);InvalidateRect(H(IDC_EXE),nullptr,TRUE);auto* p=SelectedProfile();if(p&&!IsDesktopSelected()){p->exePath=path;InvalidateRect(H(IDC_LIST),nullptr,TRUE);}}return 0;}switch(id){case IDC_HOTKEY_SHOW_CLEAR:ClearConfiguredHotkey(IDC_HOTKEY_SHOW,gSettings.showHideHotkey);break;case IDC_HOTKEY_OVERRIDE_CLEAR:ClearConfiguredHotkey(IDC_HOTKEY_OVERRIDE,gSettings.windowsOverrideHotkey);break;case IDC_HOTKEY_RESUME_CLEAR:ClearConfiguredHotkey(IDC_HOTKEY_RESUME,gSettings.resumeAutomaticHotkey);break;case IDC_PROFILE_HOTKEY_CLEAR:if(!IsDesktopSelected()){if(auto*p=SelectedProfile()){ClearConfiguredHotkey(IDC_PROFILE_HOTKEY,p->hotkey);InvalidateRect(H(IDC_LIST),nullptr,TRUE);}}break;case IDC_BROWSE:{OPENFILENAMEW o{sizeof(o)};wchar_t f[MAX_PATH]{};o.hwndOwner=w;o.lpstrFilter=L"Executables (*.exe)\0*.exe\0All files\0*.*\0";o.lpstrFile=f;o.nMaxFile=MAX_PATH;o.Flags=OFN_FILEMUSTEXIST;if(GetOpenFileNameW(&o)){Txt(IDC_EXE,f);InvalidateRect(H(IDC_EXE),nullptr,TRUE);auto* p=SelectedProfile();if(p&&!IsDesktopSelected()){p->exePath=f;InvalidateRect(H(IDC_LIST),nullptr,TRUE);}}break;}case IDC_DEFAULTS:ResetSlidersToDefaults();break;case IDC_SAVE:SaveSelected();break;case IDC_ADD:{ApplicationProfile np{};if(!gDisplays.empty()){for(const auto&d:gDisplays)np.displayProfiles.push_back(ApplicationDefaultsForDisplay(d.gdiName,d.monitorId));}gSettings.profiles.push_back(np);gSelected=(int)gSettings.profiles.size();Save();RefreshList();LoadSelected();break;}case IDC_REMOVE:if(gSelected>0&&gSelected<=(int)gSettings.profiles.size()){size_t removed=(size_t)(gSelected-1);UnregisterConfiguredHotkeys();if(gOverrideMode==OverrideMode::Profile){if(gOverrideProfileIndex==removed)gOverrideMode=OverrideMode::Automatic;else if(gOverrideProfileIndex>removed)--gOverrideProfileIndex;}gSettings.profiles.erase(gSettings.profiles.begin()+removed);RegisterConfiguredHotkeys();gSelected=std::max<int>(0,gSelected-1);Save();RefreshList();LoadSelected();gActive.clear();CheckProcesses();}break;case IDC_STARTWIN:gSettings.startWindows=SendMessageW(H(IDC_STARTWIN),BM_GETCHECK,0,0)==BST_CHECKED;SetStartup(gSettings.startWindows);Save();break;case IDC_STARTMIN:gSettings.startMinimized=SendMessageW(H(IDC_STARTMIN),BM_GETCHECK,0,0)==BST_CHECKED;Save();break;case IDC_MINTRAY:
     gSettings.minimizeToTray=SendMessageW(H(IDC_MINTRAY),BM_GETCHECK,0,0)==BST_CHECKED;
     if(!gSettings.minimizeToTray)
         SetTrayIconVisible(false);
