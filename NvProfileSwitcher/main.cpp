@@ -1751,10 +1751,10 @@ void UpdateExecutableTooltip(){
     HDC dc=GetDC(gExeTooltip);
     if(!dc) return;
     HFONT old=(HFONT)SelectObject(dc,gFont);
-    auto textWidth=[&](const std::wstring& text){
+    auto textWidth=[&](const std::wstring& text)->int{
         SIZE size{};
         GetTextExtentPoint32W(dc,text.c_str(),(int)text.size(),&size);
-        return size.cx;
+        return static_cast<int>(size.cx);
     };
 
     std::wstring wrapped;
