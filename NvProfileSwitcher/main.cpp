@@ -1565,7 +1565,7 @@ void UpdateProfileTooltip(POINT clientPt){
 
     RECT itemRect{};
     SendMessageW(list,LB_GETITEMRECT,item,(LPARAM)&itemRect);
-    POINT screenPt{itemRect.left+66,itemRect.bottom+TOOLTIP_GAP};
+    POINT screenPt{itemRect.left,itemRect.bottom+TOOLTIP_GAP};
     ClientToScreen(list,&screenPt);
 
     TOOLINFOW ti{sizeof(ti)};
@@ -1634,7 +1634,7 @@ LRESULT CALLBACK ProfileTooltipSubclassProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM 
         SetBkMode(dc,TRANSPARENT);
         SetTextColor(dc,C_TEXT);
         SelectObject(dc,gFont);
-        DrawTextW(dc,text,-1,&tr,DT_LEFT|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);
+        DrawTextW(dc,text,-1,&tr,DT_LEFT|DT_NOPREFIX);
 
         EndPaint(hwnd,&ps);
         return 0;
@@ -1740,31 +1740,76 @@ void UpdateExecutableTooltip(){
     RECT er{};
     GetWindowRect(edit,&er);
 
+    HMONITOR mon=MonitorFromWindow(edit,MONITOR_DEFAULTTONEAREST);
+    MONITORINFO mi{sizeof(mi)};
+    const bool haveMonitorInfo=GetMonitorInfoW(mon,&mi)!=FALSE;
+
+    const int workWidth=haveMonitorInfo?(int)(mi.rcWork.right-mi.rcWork.left):700;
+    const int maxTipW=std::min(700,std::max(120,workWidth-16));
+    const int maxTextW=maxTipW-16;
+
     HDC dc=GetDC(gExeTooltip);
     if(!dc) return;
     HFONT old=(HFONT)SelectObject(dc,gFont);
-    SIZE sz{};
-    GetTextExtentPoint32W(dc,path.c_str(),(int)path.size(),&sz);
+    auto textWidth=[&](const std::wstring& text){
+        SIZE size{};
+        GetTextExtentPoint32W(dc,text.c_str(),(int)text.size(),&size);
+        return size.cx;
+    };
+
+    std::wstring wrapped;
+    std::wstring line;
+    size_t partStart=0;
+    for(size_t i=0;i<=path.size();++i){
+        if(i<path.size()&&path[i]!=L'\\'&&path[i]!=L'/') continue;
+        const size_t partEnd=i<path.size()?i+1:i;
+        std::wstring part=path.substr(partStart,partEnd-partStart);
+        std::wstring candidate=line+part;
+        if(!line.empty()&&textWidth(candidate)>maxTextW){
+            if(!wrapped.empty()) wrapped+=L'\n';
+            wrapped+=line;
+            line=part;
+        }else{
+            line=candidate;
+        }
+        partStart=partEnd;
+    }
+    if(!line.empty()){
+        if(!wrapped.empty()) wrapped+=L'\n';
+        wrapped+=line;
+    }
+
+    int lineCount=1;
+    int widestLine=0;
+    size_t lineStart=0;
+    for(size_t i=0;i<=wrapped.size();++i){
+        if(i<wrapped.size()&&wrapped[i]!=L'\n') continue;
+        widestLine=std::max(widestLine,textWidth(wrapped.substr(lineStart,i-lineStart)));
+        if(i<wrapped.size()) ++lineCount;
+        lineStart=i+1;
+    }
+    SIZE lineSize{};
+    GetTextExtentPoint32W(dc,L"Ag",2,&lineSize);
     SelectObject(dc,old);
     ReleaseDC(gExeTooltip,dc);
 
-    const int tipW=std::min(700,(int)sz.cx+16);
-    const int tipH=sz.cy+10;
-    int x=er.left;
+    const int tipW=std::min(maxTipW,widestLine+16);
+    const int tipH=lineSize.cy*lineCount+10;
+    RECT labelRect{};
+    HWND label=H(IDC_LBL_EXE);
+    int x=label&&GetWindowRect(label,&labelRect)?labelRect.left:er.left;
     // The EDIT's rendered lower edge extends beyond the rectangle used to
     // position this popup. Add 7 px so its visible gap matches the other
     // tooltips.
     int y=er.bottom+TOOLTIP_GAP+7;
 
-    HMONITOR mon=MonitorFromWindow(edit,MONITOR_DEFAULTTONEAREST);
-    MONITORINFO mi{sizeof(mi)};
-    if(GetMonitorInfoW(mon,&mi)){
+    if(haveMonitorInfo){
         if(x+tipW>mi.rcWork.right) x=std::max((int)mi.rcWork.left,(int)mi.rcWork.right-tipW);
         if(x<mi.rcWork.left) x=mi.rcWork.left;
         y=std::clamp(y,(int)mi.rcWork.top,(int)mi.rcWork.bottom-tipH);
     }
 
-    SetWindowTextW(gExeTooltip,path.c_str());
+    SetWindowTextW(gExeTooltip,wrapped.c_str());
     SetWindowPos(gExeTooltip,HWND_TOPMOST,x,y,tipW,tipH,
         SWP_NOACTIVATE|SWP_SHOWWINDOW);
     // Unlike the fixed Reset tooltip, this popup receives its text while it is
