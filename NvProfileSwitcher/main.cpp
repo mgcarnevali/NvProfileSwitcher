@@ -3063,7 +3063,7 @@ void Paint(HWND w){
     // Rounded frames for application text fields. The EDIT controls themselves
     // are borderless and inset, avoiding clipped corners or double borders.
     if(!desktop){
-        const int browseW=150;
+        const int browseW=135;
         const int fieldGap=10;
         RECT nameFrame{rightX+118,146,rightX+rightW,182};
         FillRound(dc,nameFrame,C_FIELD,C_BORDER,8);
@@ -3184,7 +3184,7 @@ void BuildControls(){
     SendMessageW(eName,EM_SETMARGINS,EC_LEFTMARGIN|EC_RIGHTMARGIN,MAKELPARAM(8,8));
 
     Add(L"STATIC",L"Executable",0,rightX,194,120,22,IDC_LBL_EXE);
-    const int browseW=150;
+    const int browseW=135;
     const int fieldGap=10;
     HWND eExe=Add(L"EDIT",L"",ES_AUTOHSCROLL,rightX+2,229,rightW-browseW-fieldGap-4,22,IDC_EXE);
     SetWindowTheme(eExe,L"DarkMode_Explorer",nullptr);
@@ -3339,7 +3339,7 @@ void ResizeControls(){
     MoveWindow(H(IDC_LBL_NAME),rightX,152,110,22,TRUE);
     MoveWindow(H(IDC_NAME),rightX+120,153,rightW-122,22,TRUE);
 
-    const int browseW=150;
+    const int browseW=135;
     const int fieldGap=10;
     MoveWindow(H(IDC_LBL_EXE),rightX,194,120,22,TRUE);
     MoveWindow(H(IDC_EXE),rightX+2,229,rightW-browseW-fieldGap-4,22,TRUE);
@@ -4021,12 +4021,16 @@ LRESULT CALLBACK RunningAppsDialogProc(HWND w,UINT m,WPARAM wp,LPARAM lp){
         data=(RunningAppsDialogData*)((CREATESTRUCTW*)lp)->lpCreateParams;
         SetWindowLongPtrW(w,GWLP_USERDATA,(LONG_PTR)data);
         RECT client{};GetClientRect(w,&client);
+        const int buttonY=client.bottom-DIALOG_MARGIN-DIALOG_BUTTON_HEIGHT;
+        const int contentBottom=buttonY-DIALOG_MARGIN;
+        const int headerHeight=32;
+        const int listHeight=contentBottom-DIALOG_MARGIN-headerHeight;
         CreateWindowExW(0,L"STATIC",L"",WS_CHILD|WS_VISIBLE|SS_OWNERDRAW,
-            DIALOG_MARGIN,DIALOG_MARGIN,client.right-DIALOG_MARGIN*2,32,
+            DIALOG_MARGIN,DIALOG_MARGIN,client.right-DIALOG_MARGIN*2,headerHeight,
             w,(HMENU)IDC_RUNNING_HEADER,gInst,nullptr);
         data->list=CreateWindowExW(0,WC_LISTVIEWW,L"",
             WS_CHILD|WS_VISIBLE|WS_TABSTOP|LVS_REPORT|LVS_SINGLESEL|LVS_SHOWSELALWAYS|LVS_NOCOLUMNHEADER,
-            DIALOG_MARGIN,DIALOG_MARGIN+32,client.right-DIALOG_MARGIN*2,298,
+            DIALOG_MARGIN,DIALOG_MARGIN+headerHeight,client.right-DIALOG_MARGIN*2,listHeight,
             w,(HMENU)IDC_RUNNING_LIST,gInst,nullptr);
         SetWindowTheme(data->list,L"",L"");
         SendMessageW(data->list,WM_SETFONT,(WPARAM)gFont,TRUE);
@@ -4038,8 +4042,8 @@ LRESULT CALLBACK RunningAppsDialogProc(HWND w,UINT m,WPARAM wp,LPARAM lp){
         ListView_SetImageList(data->list,data->images,LVSIL_SMALL);
 
         data->emptyMessage=CreateWindowExW(0,L"STATIC",L"No running applications found.",
-            WS_CHILD|SS_CENTER|SS_CENTERIMAGE,DIALOG_MARGIN+1,DIALOG_MARGIN+33,
-            client.right-DIALOG_MARGIN*2-2,296,w,(HMENU)IDC_RUNNING_EMPTY,gInst,nullptr);
+            WS_CHILD|SS_CENTER|SS_CENTERIMAGE,DIALOG_MARGIN+1,DIALOG_MARGIN+headerHeight+1,
+            client.right-DIALOG_MARGIN*2-2,listHeight-2,w,(HMENU)IDC_RUNNING_EMPTY,gInst,nullptr);
         SendMessageW(data->emptyMessage,WM_SETFONT,(WPARAM)gFont,TRUE);
 
         LVCOLUMNW column{LVCF_TEXT|LVCF_WIDTH|LVCF_SUBITEM};
@@ -4050,7 +4054,6 @@ LRESULT CALLBACK RunningAppsDialogProc(HWND w,UINT m,WPARAM wp,LPARAM lp){
         column.pszText=(LPWSTR)L"Path";column.cx=265;column.iSubItem=2;
         ListView_InsertColumn(data->list,2,&column);
 
-        const int buttonY=client.bottom-DIALOG_MARGIN-DIALOG_BUTTON_HEIGHT;
         HWND refresh=CreateWindowExW(0,L"BUTTON",L"Refresh",WS_CHILD|WS_VISIBLE|WS_TABSTOP|BS_OWNERDRAW,
             DIALOG_MARGIN,buttonY,DIALOG_BUTTON_WIDTH,DIALOG_BUTTON_HEIGHT,w,(HMENU)IDC_RUNNING_REFRESH,gInst,nullptr);
         HWND cancel=CreateWindowExW(0,L"BUTTON",L"Cancel",WS_CHILD|WS_VISIBLE|WS_TABSTOP|BS_OWNERDRAW,
@@ -4125,7 +4128,8 @@ LRESULT CALLBACK RunningAppsDialogProc(HWND w,UINT m,WPARAM wp,LPARAM lp){
     case WM_PAINT:{
         PAINTSTRUCT ps{};HDC dc=BeginPaint(w,&ps);
         RECT client{};GetClientRect(w,&client);
-        RECT border{DIALOG_MARGIN-1,DIALOG_MARGIN-1,client.right-DIALOG_MARGIN+1,DIALOG_MARGIN+331};
+        const int buttonY=client.bottom-DIALOG_MARGIN-DIALOG_BUTTON_HEIGHT;
+        RECT border{DIALOG_MARGIN,DIALOG_MARGIN,client.right-DIALOG_MARGIN,buttonY-DIALOG_MARGIN};
         HBRUSH brush=CreateSolidBrush(C_BORDER);FrameRect(dc,&border,brush);DeleteObject(brush);
         EndPaint(w,&ps);return 0;
     }
