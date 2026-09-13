@@ -1538,16 +1538,19 @@ bool ProfileTitleIsTruncated(int item){
 }
 
 POINT TooltipPositionForRect(const RECT& visibleRect,int tipW,int tipH){
-    POINT position{visibleRect.left,visibleRect.bottom+TOOLTIP_GAP};
+    int x=static_cast<int>(visibleRect.left);
+    int y=static_cast<int>(visibleRect.bottom)+TOOLTIP_GAP;
     HMONITOR monitor=MonitorFromRect(&visibleRect,MONITOR_DEFAULTTONEAREST);
     MONITORINFO info{sizeof(info)};
     if(GetMonitorInfoW(monitor,&info)){
-        position.x=std::clamp(position.x,(int)info.rcWork.left,
-            std::max((int)info.rcWork.left,(int)info.rcWork.right-tipW));
-        position.y=std::clamp(position.y,(int)info.rcWork.top,
-            std::max((int)info.rcWork.top,(int)info.rcWork.bottom-tipH));
+        const int workLeft=static_cast<int>(info.rcWork.left);
+        const int workTop=static_cast<int>(info.rcWork.top);
+        const int workRight=static_cast<int>(info.rcWork.right);
+        const int workBottom=static_cast<int>(info.rcWork.bottom);
+        x=std::clamp(x,workLeft,std::max(workLeft,workRight-tipW));
+        y=std::clamp(y,workTop,std::max(workTop,workBottom-tipH));
     }
-    return position;
+    return POINT{static_cast<LONG>(x),static_cast<LONG>(y)};
 }
 
 void HideProfileTooltip(){
