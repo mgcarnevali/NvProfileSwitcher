@@ -27,6 +27,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - Normalized display adjustment icon dimensions, proportions, and alignment, and added a multicolor Digital Vibrance icon.
 - Expanded GitHub Actions to run the native MSVC build and automated tests on development branches and pull requests.
 - Improved pull request workflow names to show the source and destination branches.
+- Disabled update checks in development builds while preserving normal update behavior in release builds.
+- Updated application message dialogs to adjust their height automatically based on content.
+- Made the About dialog modal and updated it to adjust its height automatically based on content.
 
 ### Fixed
 
@@ -37,6 +40,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - Fixed the monitor selector popup using the Windows blue hover border instead of the application's dark border.
 - Fixed dark corner artifacts around the Add profile and Remove buttons.
 - Fixed mismatched corner geometry in the headers of the Profiles, Profile Settings, and Application Settings panels.
+- Standardized tooltip punctuation throughout the interface.
 
 ## 1.3.0 --- 2026-09-09
 
