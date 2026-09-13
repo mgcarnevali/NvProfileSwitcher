@@ -98,7 +98,7 @@ constexpr int DIALOG_BUTTON_HEIGHT=36;
 enum {IDC_LIST=1001,IDC_NAME,IDC_EXE,IDC_BROWSE,IDC_ENABLED,IDC_DISPLAY,IDC_LBL_DISPLAY,IDC_VIB,IDC_HUE,IDC_BRI,IDC_CON,IDC_GAM,IDC_SAVE,IDC_ADD=1015,IDC_REMOVE,IDC_STARTWIN=1018,IDC_STARTMIN,IDC_VALVIB,IDC_VALHUE,IDC_VALBRI,IDC_VALCON,IDC_VALGAM,IDC_LBL_NAME,IDC_LBL_EXE,IDC_LBL_ENABLED,IDC_LBL_VIB,IDC_LBL_HUE,IDC_LBL_BRI,IDC_LBL_CON,IDC_LBL_GAM,IDC_DEFAULTS,IDC_MINTRAY,IDC_CHECKUPDATES,IDC_FOOT_GITHUB,IDC_FOOT_SUPPORT,IDC_FOOT_ABOUT,IDC_HOTKEYS_TITLE,IDC_HOTKEY_SHOW_LABEL,IDC_HOTKEY_SHOW,IDC_HOTKEY_SHOW_CLEAR,IDC_HOTKEY_OVERRIDE_LABEL,IDC_HOTKEY_OVERRIDE,IDC_HOTKEY_OVERRIDE_CLEAR,IDC_PROFILE_HOTKEY_LABEL,IDC_PROFILE_HOTKEY,IDC_PROFILE_HOTKEY_CLEAR,IDC_HOTKEY_RESUME_LABEL,IDC_HOTKEY_RESUME,IDC_HOTKEY_RESUME_CLEAR,IDC_CHECKUPDATES_LABEL,IDC_RUNNING_APPS};
 enum {ID_TRAY_OPEN=2001,ID_TRAY_CHECK_UPDATE,ID_TRAY_ABOUT,ID_TRAY_EXIT};
 enum {ID_HOTKEY_SHOW_HIDE=3001,ID_HOTKEY_WINDOWS_OVERRIDE,ID_HOTKEY_RESUME_AUTOMATIC,ID_HOTKEY_TEST};
-enum {IDC_RUNNING_LIST=5101,IDC_RUNNING_REFRESH,IDC_RUNNING_SELECT};
+enum {IDC_RUNNING_LIST=5101,IDC_RUNNING_REFRESH,IDC_RUNNING_SELECT,IDC_RUNNING_HEADER,IDC_RUNNING_EMPTY};
 constexpr int ID_HOTKEY_PROFILE_BASE=4000;
 
 struct AppMessageData {
@@ -2527,6 +2527,18 @@ void DrawFolderIcon(HDC dc,int x,int y,COLORREF c){
     g.DrawPath(&frontPen,&front);
 }
 
+void DrawRunningAppsIcon(HDC dc,int x,int y,COLORREF c){
+    HPEN pen=CreatePen(PS_SOLID,1,c);
+    HGDIOBJ oldPen=SelectObject(dc,pen);
+    HGDIOBJ oldBrush=SelectObject(dc,GetStockObject(NULL_BRUSH));
+    RoundRect(dc,x+1,y+2,x+16,y+14,3,3);
+    MoveToEx(dc,x+5,y+17,nullptr);LineTo(dc,x+18,y+17);
+    RoundRect(dc,x+5,y+6,x+20,y+18,3,3);
+    SelectObject(dc,oldBrush);
+    SelectObject(dc,oldPen);
+    DeleteObject(pen);
+}
+
 
 void DrawProfileHeaderButton(const DRAWITEMSTRUCT* d){
     const int id=(int)d->CtlID;
@@ -2600,7 +2612,7 @@ void DrawOwnerButton(const DRAWITEMSTRUCT* d){
     }else if(id==IDC_DEFAULTS){
         textColor=disabled?C_MUTED:C_TEXT;
         icon=C_MUTED;
-    }else if(id==IDC_BROWSE){
+    }else if(id==IDC_BROWSE||id==IDC_RUNNING_APPS){
         icon=C_TEXT;
     }
 
@@ -2624,15 +2636,16 @@ void DrawOwnerButton(const DRAWITEMSTRUCT* d){
     {
         int iconW=0;
         int gap=0;
-        if(id==IDC_BROWSE){ iconW=20; gap=7; }
+        if(id==IDC_BROWSE||id==IDC_RUNNING_APPS){ iconW=20; gap=7; }
 
         int total=iconW+gap+sz.cx;
         int contentX=r.left+((r.right-r.left)-total)/2+pressOffset;
 
         if(id==IDC_BROWSE) DrawFolderIcon(d->hDC,contentX,cy-10,icon);
+        else if(id==IDC_RUNNING_APPS) DrawRunningAppsIcon(d->hDC,contentX,cy-10,icon);
 
         int textY=cy-sz.cy/2;
-        if(id==IDC_BROWSE) textY-=1;
+        if(id==IDC_BROWSE||id==IDC_RUNNING_APPS) textY-=1;
         TextOutW(d->hDC,contentX+iconW+gap,textY,caption,(int)wcslen(caption));
     }
 }
@@ -3922,6 +3935,7 @@ struct RunningAppsDialogData{
     std::vector<RunningAppEntry> apps;
     std::wstring selectedPath;
     HWND list{};
+    HWND emptyMessage{};
     HIMAGELIST images{};
 };
 
@@ -3979,6 +3993,7 @@ void PopulateRunningAppsList(RunningAppsDialogData* data){
     ListView_DeleteAllItems(data->list);
     if(data->images)ImageList_RemoveAll(data->images);
     data->apps=EnumerateRunningApps();
+    if(data->emptyMessage)ShowWindow(data->emptyMessage,data->apps.empty()?SW_SHOW:SW_HIDE);
 
     for(size_t i=0;i<data->apps.size();++i){
         SHFILEINFOW info{};
@@ -4006,22 +4021,33 @@ LRESULT CALLBACK RunningAppsDialogProc(HWND w,UINT m,WPARAM wp,LPARAM lp){
         data=(RunningAppsDialogData*)((CREATESTRUCTW*)lp)->lpCreateParams;
         SetWindowLongPtrW(w,GWLP_USERDATA,(LONG_PTR)data);
         RECT client{};GetClientRect(w,&client);
-        data->list=CreateWindowExW(WS_EX_CLIENTEDGE,WC_LISTVIEWW,L"",
-            WS_CHILD|WS_VISIBLE|WS_TABSTOP|LVS_REPORT|LVS_SINGLESEL|LVS_SHOWSELALWAYS,
-            DIALOG_MARGIN,DIALOG_MARGIN,client.right-DIALOG_MARGIN*2,330,
+        CreateWindowExW(0,L"STATIC",L"",WS_CHILD|WS_VISIBLE|SS_OWNERDRAW,
+            DIALOG_MARGIN,DIALOG_MARGIN,client.right-DIALOG_MARGIN*2,32,
+            w,(HMENU)IDC_RUNNING_HEADER,gInst,nullptr);
+        data->list=CreateWindowExW(0,WC_LISTVIEWW,L"",
+            WS_CHILD|WS_VISIBLE|WS_TABSTOP|LVS_REPORT|LVS_SINGLESEL|LVS_SHOWSELALWAYS|LVS_NOCOLUMNHEADER,
+            DIALOG_MARGIN,DIALOG_MARGIN+32,client.right-DIALOG_MARGIN*2,298,
             w,(HMENU)IDC_RUNNING_LIST,gInst,nullptr);
-        SetWindowTheme(data->list,L"DarkMode_Explorer",nullptr);
+        SetWindowTheme(data->list,L"",L"");
         SendMessageW(data->list,WM_SETFONT,(WPARAM)gFont,TRUE);
         ListView_SetExtendedListViewStyle(data->list,LVS_EX_FULLROWSELECT|LVS_EX_DOUBLEBUFFER);
-        data->images=ImageList_Create(16,16,ILC_COLOR32|ILC_MASK,16,16);
+        ListView_SetBkColor(data->list,C_FIELD);
+        ListView_SetTextBkColor(data->list,C_FIELD);
+        ListView_SetTextColor(data->list,C_TEXT);
+        data->images=ImageList_Create(20,28,ILC_COLOR32|ILC_MASK,16,16);
         ListView_SetImageList(data->list,data->images,LVSIL_SMALL);
 
+        data->emptyMessage=CreateWindowExW(0,L"STATIC",L"No running applications found.",
+            WS_CHILD|SS_CENTER|SS_CENTERIMAGE,DIALOG_MARGIN+1,DIALOG_MARGIN+33,
+            client.right-DIALOG_MARGIN*2-2,296,w,(HMENU)IDC_RUNNING_EMPTY,gInst,nullptr);
+        SendMessageW(data->emptyMessage,WM_SETFONT,(WPARAM)gFont,TRUE);
+
         LVCOLUMNW column{LVCF_TEXT|LVCF_WIDTH|LVCF_SUBITEM};
-        column.pszText=(LPWSTR)L"Application";column.cx=210;column.iSubItem=0;
+        column.pszText=(LPWSTR)L"Application";column.cx=230;column.iSubItem=0;
         ListView_InsertColumn(data->list,0,&column);
         column.pszText=(LPWSTR)L"Executable";column.cx=145;column.iSubItem=1;
         ListView_InsertColumn(data->list,1,&column);
-        column.pszText=(LPWSTR)L"Path";column.cx=285;column.iSubItem=2;
+        column.pszText=(LPWSTR)L"Path";column.cx=265;column.iSubItem=2;
         ListView_InsertColumn(data->list,2,&column);
 
         const int buttonY=client.bottom-DIALOG_MARGIN-DIALOG_BUTTON_HEIGHT;
@@ -4040,6 +4066,16 @@ LRESULT CALLBACK RunningAppsDialogProc(HWND w,UINT m,WPARAM wp,LPARAM lp){
         return 0;
     }
     case WM_NOTIFY:
+        if(((NMHDR*)lp)->idFrom==IDC_RUNNING_LIST&&((NMHDR*)lp)->code==NM_CUSTOMDRAW){
+            auto* custom=(NMLVCUSTOMDRAW*)lp;
+            if(custom->nmcd.dwDrawStage==CDDS_PREPAINT)return CDRF_NOTIFYITEMDRAW;
+            if(custom->nmcd.dwDrawStage==CDDS_ITEMPREPAINT){
+                const bool selected=(ListView_GetItemState(data->list,(int)custom->nmcd.dwItemSpec,LVIS_SELECTED)&LVIS_SELECTED)!=0;
+                custom->clrText=C_TEXT;
+                custom->clrTextBk=selected?C_ACCENT_DARK:C_FIELD;
+                return CDRF_NEWFONT;
+            }
+        }
         if(((NMHDR*)lp)->idFrom==IDC_RUNNING_LIST&&((NMHDR*)lp)->code==NM_DBLCLK){
             SendMessageW(w,WM_COMMAND,IDC_RUNNING_SELECT,0);return 0;
         }
@@ -4059,14 +4095,39 @@ LRESULT CALLBACK RunningAppsDialogProc(HWND w,UINT m,WPARAM wp,LPARAM lp){
         break;
     case WM_DRAWITEM:{
         auto* draw=(DRAWITEMSTRUCT*)lp;
+        if(draw->CtlID==IDC_RUNNING_HEADER){
+            RECT r=draw->rcItem;
+            FillRect(draw->hDC,&r,gPanel2Brush);
+            SetBkMode(draw->hDC,TRANSPARENT);SetTextColor(draw->hDC,C_TEXT);
+            HFONT old=(HFONT)SelectObject(draw->hDC,gFontBold);
+            RECT app{r.left+10,r.top,r.left+230,r.bottom};
+            RECT exe{r.left+238,r.top,r.left+375,r.bottom};
+            RECT path{r.left+383,r.top,r.right-8,r.bottom};
+            DrawTextW(draw->hDC,L"Application",-1,&app,DT_LEFT|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);
+            DrawTextW(draw->hDC,L"Executable",-1,&exe,DT_LEFT|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);
+            DrawTextW(draw->hDC,L"Path",-1,&path,DT_LEFT|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);
+            Fill(draw->hDC,230,r.top+6,1,r.bottom-r.top-12,C_BORDER);
+            Fill(draw->hDC,375,r.top+6,1,r.bottom-r.top-12,C_BORDER);
+            Fill(draw->hDC,r.left,r.bottom-1,r.right-r.left,1,C_BORDER);
+            SelectObject(draw->hDC,old);
+            return TRUE;
+        }
         if(draw->CtlID==IDC_RUNNING_REFRESH||draw->CtlID==IDC_RUNNING_SELECT||draw->CtlID==IDCANCEL){
             DrawOwnerButton(draw);return TRUE;
         }
         break;
     }
     case WM_CTLCOLORSTATIC:{
-        HDC dc=(HDC)wp;SetTextColor(dc,C_TEXT);SetBkColor(dc,C_BACK);SetBkMode(dc,TRANSPARENT);
-        return (LRESULT)gBackBrush;
+        HDC dc=(HDC)wp;SetTextColor(dc,GetDlgCtrlID((HWND)lp)==IDC_RUNNING_EMPTY?C_MUTED:C_TEXT);
+        SetBkColor(dc,GetDlgCtrlID((HWND)lp)==IDC_RUNNING_EMPTY?C_FIELD:C_BACK);SetBkMode(dc,TRANSPARENT);
+        return (LRESULT)(GetDlgCtrlID((HWND)lp)==IDC_RUNNING_EMPTY?gFieldBrush:gBackBrush);
+    }
+    case WM_PAINT:{
+        PAINTSTRUCT ps{};HDC dc=BeginPaint(w,&ps);
+        RECT client{};GetClientRect(w,&client);
+        RECT border{DIALOG_MARGIN-1,DIALOG_MARGIN-1,client.right-DIALOG_MARGIN+1,DIALOG_MARGIN+331};
+        HBRUSH brush=CreateSolidBrush(C_BORDER);FrameRect(dc,&border,brush);DeleteObject(brush);
+        EndPaint(w,&ps);return 0;
     }
     case WM_CLOSE:DestroyWindow(w);return 0;
     case WM_DESTROY:
@@ -4091,7 +4152,7 @@ bool SelectRunningApplication(HWND owner,std::wstring& selectedPath){
     const bool disableOwner=owner&&IsWindowEnabled(owner);
     if(disableOwner)EnableWindow(owner,FALSE);
     HWND dialog=CreateWindowExW(WS_EX_DLGMODALFRAME|WS_EX_TOPMOST,L"NvProfileSwitcherRunningApps",
-        L"Select running application",WS_CAPTION|WS_SYSMENU,0,0,720,455,owner,nullptr,gInst,&data);
+        L"Running applications",WS_CAPTION|WS_SYSMENU,0,0,720,455,owner,nullptr,gInst,&data);
     if(!dialog){if(disableOwner)EnableWindow(owner,TRUE);return false;}
     BOOL darkTitle=TRUE;DwmSetWindowAttribute(dialog,20,&darkTitle,sizeof(darkTitle));
     RECT wr{},target{};GetWindowRect(dialog,&wr);
