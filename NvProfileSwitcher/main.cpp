@@ -1674,7 +1674,8 @@ void ShowUpdateCheckTooltip(){
 
     const int tipW=textSize.cx+16;
     const int tipH=textSize.cy+10;
-    int x=checkboxRect.left;
+    // Align with the visible checkbox square, which is inset inside its HWND.
+    int x=checkboxRect.left+3;
     int y=checkboxRect.bottom+TOOLTIP_GAP;
 
     HMONITOR mon=MonitorFromWindow(checkbox,MONITOR_DEFAULTTONEAREST);
