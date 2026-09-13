@@ -1853,7 +1853,7 @@ void UpdateResetTooltip(){
     RECT rr{};
     GetWindowRect(reset,&rr);
 
-    static const wchar_t* text=L"Reset to NVIDIA defaults";
+    static const wchar_t* text=L"Reset to NVIDIA defaults.";
     HDC dc=GetDC(gResetTooltip);
     if(!dc) return;
     HFONT old=(HFONT)SelectObject(dc,gFont);
@@ -3167,7 +3167,7 @@ void BuildControls(){
     HWND reset=Add(L"BUTTON",L"Reset",BS_OWNERDRAW,rightX,764,132,38,IDC_DEFAULTS);
     StyleMainButton(reset);
     gResetTooltip=CreateWindowExW(WS_EX_TOOLWINDOW|WS_EX_TOPMOST,L"STATIC",
-        L"Reset to NVIDIA defaults",WS_POPUP,0,0,0,0,gWnd,nullptr,gInst,nullptr);
+        L"Reset to NVIDIA defaults.",WS_POPUP,0,0,0,0,gWnd,nullptr,gInst,nullptr);
     if(gResetTooltip){
         SendMessageW(gResetTooltip,WM_SETFONT,(WPARAM)gFont,FALSE);
         SetWindowSubclass(gResetTooltip,ProfileTooltipSubclassProc,2,0);
