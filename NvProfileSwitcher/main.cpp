@@ -124,7 +124,6 @@ int gProfileTooltipItem=-1;
 int gProfileHoverItem=-1;
 int gProfilePressedItem=-1;
 std::wstring gProfileTooltipText;
-std::wstring gProfileTooltipDisplayText;
 
 void InvalidateFooter(){
     if(!gWnd)return;
@@ -1554,69 +1553,6 @@ POINT TooltipPositionForRect(const RECT& visibleRect,int tipW,int tipH){
     return POINT{static_cast<LONG>(x),static_cast<LONG>(y)};
 }
 
-struct TooltipLayout{
-    std::wstring text;
-    int width{};
-    int height{};
-};
-
-TooltipLayout MeasureTooltipLayout(HWND tooltip,const std::wstring& text,int maxWidth){
-    TooltipLayout result{};
-    const int outerWidth=std::max(40,maxWidth);
-    const int maxTextWidth=std::max(24,outerWidth-16);
-    HDC dc=GetDC(tooltip);
-    if(!dc) return result;
-    HFONT old=(HFONT)SelectObject(dc,gFont);
-    auto widthOf=[&](const std::wstring& value){
-        SIZE size{};
-        GetTextExtentPoint32W(dc,value.c_str(),static_cast<int>(value.size()),&size);
-        return static_cast<int>(size.cx);
-    };
-
-    std::wstring line;
-    auto appendLine=[&](){
-        if(!result.text.empty()) result.text+=L'\n';
-        result.text+=line;
-        line.clear();
-    };
-    size_t start=0;
-    for(size_t i=0;i<=text.size();++i){
-        const bool boundary=i==text.size() || text[i]==L' ' || text[i]==L'\\' ||
-            text[i]==L'/' || text[i]==L'-';
-        if(!boundary) continue;
-        const size_t end=i<text.size()?i+1:i;
-        std::wstring part=text.substr(start,end-start);
-        if(!line.empty() && widthOf(line+part)>maxTextWidth) appendLine();
-        while(widthOf(part)>maxTextWidth && part.size()>1){
-            size_t count=1;
-            while(count<part.size() && widthOf(part.substr(0,count+1))<=maxTextWidth) ++count;
-            line=part.substr(0,count);
-            appendLine();
-            part.erase(0,count);
-        }
-        line+=part;
-        start=end;
-    }
-    if(!line.empty() || result.text.empty()) appendLine();
-
-    int lineCount=1;
-    int widest=0;
-    size_t lineStart=0;
-    for(size_t i=0;i<=result.text.size();++i){
-        if(i<result.text.size() && result.text[i]!=L'\n') continue;
-        widest=std::max(widest,widthOf(result.text.substr(lineStart,i-lineStart)));
-        if(i<result.text.size()) ++lineCount;
-        lineStart=i+1;
-    }
-    SIZE lineSize{};
-    GetTextExtentPoint32W(dc,L"Ag",2,&lineSize);
-    SelectObject(dc,old);
-    ReleaseDC(tooltip,dc);
-    result.width=std::min(outerWidth,widest+16);
-    result.height=static_cast<int>(lineSize.cy)*lineCount+10;
-    return result;
-}
-
 void HideProfileTooltip(){
     if(gProfileTooltip){
         TOOLINFOW ti{sizeof(ti)};
@@ -1643,30 +1579,39 @@ void UpdateProfileTooltip(POINT clientPt){
 
     gProfileTooltipText=item==0?L"Windows":gSettings.profiles[item-1].name;
 
-    RECT visibleRect{};
-    SendMessageW(list,LB_GETITEMRECT,item,(LPARAM)&visibleRect);
-    visibleRect.left+=5;
-    visibleRect.right-=5;
-    visibleRect.top+=5;
-    visibleRect.bottom-=5;
-    MapWindowPoints(list,nullptr,(POINT*)&visibleRect,2);
-    const int maxWidth=static_cast<int>(visibleRect.right-visibleRect.left);
-    TooltipLayout layout=MeasureTooltipLayout(gProfileTooltip,gProfileTooltipText,maxWidth);
-    if(layout.width<=0 || layout.height<=0) return;
-    gProfileTooltipDisplayText=std::move(layout.text);
-
     TOOLINFOW ti{sizeof(ti)};
     ti.hwnd=list;
     ti.uId=1;
-    ti.lpszText=(LPWSTR)gProfileTooltipDisplayText.c_str();
+    ti.lpszText=(LPWSTR)gProfileTooltipText.c_str();
     SendMessageW(gProfileTooltip,TTM_UPDATETIPTEXTW,0,(LPARAM)&ti);
 
-    POINT position=TooltipPositionForRect(visibleRect,layout.width,layout.height);
-    SendMessageW(gProfileTooltip,TTM_TRACKPOSITION,0,
-        MAKELPARAM(position.x,position.y));
-    SendMessageW(gProfileTooltip,TTM_TRACKACTIVATE,TRUE,(LPARAM)&ti);
-    SetWindowPos(gProfileTooltip,HWND_TOPMOST,position.x,position.y,
-        layout.width,layout.height,SWP_NOACTIVATE|SWP_SHOWWINDOW);
+    // The tooltip is custom-painted, so explicitly size the popup to the
+    // complete profile name instead of relying on the native tooltip layout.
+    HDC tipDc=GetDC(gProfileTooltip);
+    if(tipDc){
+        HFONT oldFont=(HFONT)SelectObject(tipDc,gFont);
+        SIZE textSize{};
+        GetTextExtentPoint32W(tipDc,gProfileTooltipText.c_str(),
+            (int)gProfileTooltipText.size(),&textSize);
+        SelectObject(tipDc,oldFont);
+        ReleaseDC(gProfileTooltip,tipDc);
+
+        const int tipW=std::min(500,(int)textSize.cx+16);
+        const int tipH=textSize.cy+10;
+        RECT visibleRect{};
+        SendMessageW(list,LB_GETITEMRECT,item,(LPARAM)&visibleRect);
+        visibleRect.left+=5;
+        visibleRect.right-=5;
+        visibleRect.top+=5;
+        visibleRect.bottom-=5;
+        MapWindowPoints(list,nullptr,(POINT*)&visibleRect,2);
+        POINT position=TooltipPositionForRect(visibleRect,tipW,tipH);
+        SendMessageW(gProfileTooltip,TTM_TRACKPOSITION,0,
+            MAKELPARAM(position.x,position.y));
+        SendMessageW(gProfileTooltip,TTM_TRACKACTIVATE,TRUE,(LPARAM)&ti);
+        SetWindowPos(gProfileTooltip,HWND_TOPMOST,position.x,position.y,
+            tipW,tipH,SWP_NOACTIVATE|SWP_SHOWWINDOW);
+    }
 
     gProfileTooltipItem=item;
 }
@@ -1739,18 +1684,21 @@ void ShowUpdateCheckTooltip(){
     RECT checkboxRect{};
     GetWindowRect(checkbox,&checkboxRect);
 
+    HDC dc=GetDC(gUpdateCheckTooltip);
+    if(!dc) return;
+    HFONT old=(HFONT)SelectObject(dc,gFont);
+    SIZE textSize{};
+    GetTextExtentPoint32W(dc,text,(int)wcslen(text),&textSize);
+    SelectObject(dc,old);
+    ReleaseDC(gUpdateCheckTooltip,dc);
+
+    const int tipW=textSize.cx+16;
+    const int tipH=textSize.cy+10;
     RECT visibleRect=checkboxRect;
     InflateRect(&visibleRect,-3,-3);
-    RECT appRect{};
-    GetWindowRect(gWnd,&appRect);
-    const int maxWidth=std::max(40,static_cast<int>(appRect.right-visibleRect.left)-18);
-    TooltipLayout layout=MeasureTooltipLayout(gUpdateCheckTooltip,text,maxWidth);
-    if(layout.width<=0 || layout.height<=0) return;
-    POINT position=TooltipPositionForRect(visibleRect,layout.width,layout.height);
+    POINT position=TooltipPositionForRect(visibleRect,tipW,tipH);
 
-    SetWindowTextW(gUpdateCheckTooltip,layout.text.c_str());
-    SetWindowPos(gUpdateCheckTooltip,HWND_TOPMOST,position.x,position.y,
-        layout.width,layout.height,
+    SetWindowPos(gUpdateCheckTooltip,HWND_TOPMOST,position.x,position.y,tipW,tipH,
         SWP_NOACTIVATE|SWP_SHOWWINDOW);
     RedrawWindow(gUpdateCheckTooltip,nullptr,nullptr,
         RDW_INVALIDATE|RDW_ERASE|RDW_FRAME|RDW_UPDATENOW);
@@ -1805,23 +1753,70 @@ void UpdateExecutableTooltip(){
     RECT er{};
     GetWindowRect(edit,&er);
 
+    HMONITOR mon=MonitorFromWindow(edit,MONITOR_DEFAULTTONEAREST);
+    MONITORINFO mi{sizeof(mi)};
+    const bool haveMonitorInfo=GetMonitorInfoW(mon,&mi)!=FALSE;
+
+    const int workWidth=haveMonitorInfo?(int)(mi.rcWork.right-mi.rcWork.left):700;
+    const int maxTipW=std::min(700,std::max(120,workWidth-16));
+    const int maxTextW=maxTipW-16;
+
+    HDC dc=GetDC(gExeTooltip);
+    if(!dc) return;
+    HFONT old=(HFONT)SelectObject(dc,gFont);
+    auto textWidth=[&](const std::wstring& text)->int{
+        SIZE size{};
+        GetTextExtentPoint32W(dc,text.c_str(),(int)text.size(),&size);
+        return static_cast<int>(size.cx);
+    };
+
+    std::wstring wrapped;
+    std::wstring line;
+    size_t partStart=0;
+    for(size_t i=0;i<=path.size();++i){
+        if(i<path.size()&&path[i]!=L'\\'&&path[i]!=L'/') continue;
+        const size_t partEnd=i<path.size()?i+1:i;
+        std::wstring part=path.substr(partStart,partEnd-partStart);
+        std::wstring candidate=line+part;
+        if(!line.empty()&&textWidth(candidate)>maxTextW){
+            if(!wrapped.empty()) wrapped+=L'\n';
+            wrapped+=line;
+            line=part;
+        }else{
+            line=candidate;
+        }
+        partStart=partEnd;
+    }
+    if(!line.empty()){
+        if(!wrapped.empty()) wrapped+=L'\n';
+        wrapped+=line;
+    }
+
+    int lineCount=1;
+    int widestLine=0;
+    size_t lineStart=0;
+    for(size_t i=0;i<=wrapped.size();++i){
+        if(i<wrapped.size()&&wrapped[i]!=L'\n') continue;
+        widestLine=std::max(widestLine,textWidth(wrapped.substr(lineStart,i-lineStart)));
+        if(i<wrapped.size()) ++lineCount;
+        lineStart=i+1;
+    }
+    SIZE lineSize{};
+    GetTextExtentPoint32W(dc,L"Ag",2,&lineSize);
+    SelectObject(dc,old);
+    ReleaseDC(gExeTooltip,dc);
+
+    const int tipW=std::min(maxTipW,widestLine+16);
+    const int tipH=lineSize.cy*lineCount+10;
     RECT visibleRect=er;
     RECT labelRect{};
     HWND label=H(IDC_LBL_EXE);
     if(label&&GetWindowRect(label,&labelRect)) visibleRect.left=labelRect.left;
     visibleRect.bottom+=7;
-    RECT browseRect{};
-    HWND browse=H(IDC_BROWSE);
-    const int panelRight=browse&&GetWindowRect(browse,&browseRect)?
-        static_cast<int>(browseRect.right):static_cast<int>(er.right);
-    const int maxWidth=std::max(40,panelRight-static_cast<int>(visibleRect.left));
-    TooltipLayout layout=MeasureTooltipLayout(gExeTooltip,path,maxWidth);
-    if(layout.width<=0 || layout.height<=0) return;
-    POINT position=TooltipPositionForRect(visibleRect,layout.width,layout.height);
+    POINT position=TooltipPositionForRect(visibleRect,tipW,tipH);
 
-    SetWindowTextW(gExeTooltip,layout.text.c_str());
-    SetWindowPos(gExeTooltip,HWND_TOPMOST,position.x,position.y,
-        layout.width,layout.height,
+    SetWindowTextW(gExeTooltip,wrapped.c_str());
+    SetWindowPos(gExeTooltip,HWND_TOPMOST,position.x,position.y,tipW,tipH,
         SWP_NOACTIVATE|SWP_SHOWWINDOW);
     // Unlike the fixed Reset tooltip, this popup receives its text while it is
     // still 0x0. Force the shared tooltip painter to redraw the complete
