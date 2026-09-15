@@ -1124,18 +1124,29 @@ HWND CreateAppMessageWindow(AppMessageData* data,HWND owner){
         registered=true;
     }
 
+    const int messageX=DIALOG_MARGIN+54;
+    const int messageWidth=374;
+
     HDC measureDc=GetDC(nullptr);
-    RECT measure{0,0,374,0};
+    RECT measure{0,0,messageWidth,0};
     HFONT oldFont=(HFONT)SelectObject(measureDc,gFont);
     DrawTextW(measureDc,data->text.c_str(),-1,&measure,
         DT_CALCRECT|DT_WORDBREAK|DT_NOPREFIX);
     SelectObject(measureDc,oldFont);
     ReleaseDC(nullptr,measureDc);
-    const int windowHeight=std::max(40,static_cast<int>(measure.bottom))+139;
+
+    const int contentHeight=std::max(40,static_cast<int>(measure.bottom));
+    const int clientWidth=messageX+messageWidth+DIALOG_MARGIN;
+    const int clientHeight=DIALOG_MARGIN+contentHeight+20+
+        DIALOG_BUTTON_HEIGHT+DIALOG_MARGIN;
+
+    RECT windowRect{0,0,clientWidth,clientHeight};
+    AdjustWindowRectEx(&windowRect,WS_CAPTION|WS_SYSMENU,FALSE,WS_EX_DLGMODALFRAME);
 
     HWND dialog=CreateWindowExW(WS_EX_DLGMODALFRAME,
         L"NvProfileSwitcherMessage",data->title.c_str(),WS_CAPTION|WS_SYSMENU,
-        0,0,488,windowHeight,owner,nullptr,gInst,data);
+        0,0,windowRect.right-windowRect.left,windowRect.bottom-windowRect.top,
+        owner,nullptr,gInst,data);
     if(!dialog)return nullptr;
 
     BOOL darkTitle=TRUE;
