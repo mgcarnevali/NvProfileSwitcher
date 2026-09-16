@@ -101,13 +101,29 @@ enum {ID_HOTKEY_SHOW_HIDE=3001,ID_HOTKEY_WINDOWS_OVERRIDE,ID_HOTKEY_RESUME_AUTOM
 enum {IDC_RUNNING_LIST=5101,IDC_RUNNING_REFRESH,IDC_RUNNING_SELECT,IDC_RUNNING_HEADER,IDC_RUNNING_EMPTY};
 constexpr int ID_HOTKEY_PROFILE_BASE=4000;
 
+
+constexpr int MAIN_BASE_CLIENT_WIDTH=1344;
+constexpr int MAIN_BASE_CLIENT_HEIGHT=891;
+constexpr int MAIN_SAFE_MARGIN=12;
+double gUiScale=1.0;
+
+int Ui(int value){
+    return static_cast<int>(std::lround(static_cast<double>(value)*gUiScale));
+}
+RECT LogicalClientRect(HWND){
+    return RECT{0,0,MAIN_BASE_CLIENT_WIDTH,MAIN_BASE_CLIENT_HEIGHT};
+}
+void MoveUi(HWND hwnd,int x,int y,int width,int height,BOOL repaint=TRUE){
+    if(hwnd) MoveWindow(hwnd,Ui(x),Ui(y),Ui(width),Ui(height),repaint);
+}
+
 struct AppMessageData {
     std::wstring title;
     std::wstring text;
     bool deleteOnClose=false;
 };
 
-HINSTANCE gInst{}; HWND gWnd{}; HFONT gFont{},gFontBold{},gFontPanelTitle{},gFontTitle{},gFontSmall{},gFontHeaderButton{},gIconFont{}; HBRUSH gBackBrush{},gPanelBrush{},gPanel2Brush{},gFieldBrush{}; HICON gIcon{};
+HINSTANCE gInst{}; HWND gWnd{}; HFONT gFont{},gFontBold{},gFontPanelTitle{},gFontTitle{},gFontSmall{},gFontHeaderButton{},gIconFont{}; HFONT gBaseFont{},gBaseFontBold{},gBaseFontPanelTitle{},gBaseFontTitle{},gBaseFontSmall{},gBaseFontHeaderButton{},gBaseIconFont{}; HBRUSH gBackBrush{},gPanelBrush{},gPanel2Brush{},gFieldBrush{}; HICON gIcon{};
 ULONG_PTR gGdiPlusToken{}; Gdiplus::Image* gHeaderImage{};
 Gdiplus::Image *gSliderBrightness{},*gSliderContrast{},*gSliderGamma{},*gSliderVibrance{},*gSliderHue{},*gNvidiaDriverIcon{};
 enum class OverrideMode { Automatic, Windows, Profile };
@@ -943,7 +959,7 @@ void SetStartup(bool on){
 }
 
 HWND H(int id){return GetDlgItem(gWnd,id);} void Txt(int id,const std::wstring&s){SetWindowTextW(H(id),s.c_str());} std::wstring GetTxt(int id){int n=GetWindowTextLengthW(H(id));std::wstring s(n+1,0);GetWindowTextW(H(id),s.data(),n+1);s.resize(n);return s;}
-HWND Add(const wchar_t*cls,const wchar_t*txt,DWORD style,int x,int y,int w,int h,int id){ HWND c=CreateWindowExW(0,cls,txt,WS_CHILD|WS_VISIBLE|style,x,y,w,h,gWnd,(HMENU)(INT_PTR)id,gInst,nullptr); SendMessageW(c,WM_SETFONT,(WPARAM)gFont,TRUE); return c; }
+HWND Add(const wchar_t*cls,const wchar_t*txt,DWORD style,int x,int y,int w,int h,int id){ HWND c=CreateWindowExW(0,cls,txt,WS_CHILD|WS_VISIBLE|style,Ui(x),Ui(y),Ui(w),Ui(h),gWnd,(HMENU)(INT_PTR)id,gInst,nullptr); SendMessageW(c,WM_SETFONT,(WPARAM)gFont,TRUE); return c; }
 
 void FillRound(HDC dc,const RECT&r,COLORREF fill,COLORREF border,int radius);
 
@@ -2322,7 +2338,7 @@ bool IsDesktopSelected(){return gSelected==0;}
 ApplicationProfile* SelectedProfile(){ if(gSelected==0)return CurrentDesktopProfile(); int i=gSelected-1; return (i>=0&&i<(int)gSettings.profiles.size())?&gSettings.profiles[i]:nullptr; }
 
 void SetDesktopUi(bool desktop){
-    RECT r{}; GetClientRect(gWnd,&r);
+    RECT r{0,0,MAIN_BASE_CLIENT_WIDTH,MAIN_BASE_CLIENT_HEIGHT};
 
     const int margin=18;
     const int leftW=360;
@@ -2352,12 +2368,12 @@ void SetDesktopUi(bool desktop){
     const int ySave=panelBottom-19-38;
 
     const int profileHotkeyX=rightX+rightW-288;
-    MoveWindow(H(IDC_PROFILE_HOTKEY_LABEL),profileHotkeyX,272,220,22,TRUE);
-    MoveWindow(H(IDC_PROFILE_HOTKEY),profileHotkeyX+2,306,206,22,TRUE);
-    MoveWindow(H(IDC_PROFILE_HOTKEY_CLEAR),profileHotkeyX+220,300,68,34,TRUE);
+    MoveUi(H(IDC_PROFILE_HOTKEY_LABEL),profileHotkeyX,272,220,22,TRUE);
+    MoveUi(H(IDC_PROFILE_HOTKEY),profileHotkeyX+2,306,206,22,TRUE);
+    MoveUi(H(IDC_PROFILE_HOTKEY_CLEAR),profileHotkeyX+220,300,68,34,TRUE);
 
-    MoveWindow(H(IDC_LBL_DISPLAY),rightX+31,yDisplay,150,22,TRUE);
-    MoveWindow(H(IDC_DISPLAY),rightX,yDisplay+24,rightW,34,TRUE);
+    MoveUi(H(IDC_LBL_DISPLAY),rightX+31,yDisplay,150,22,TRUE);
+    MoveUi(H(IDC_DISPLAY),rightX,yDisplay+24,rightW,34,TRUE);
 
     const int labelX=rightX+30;
     const int labelW=154;
@@ -2374,35 +2390,35 @@ void SetDesktopUi(bool desktop){
         {IDC_LBL_VIB,IDC_VIB,IDC_VALVIB,yVib},
         {IDC_LBL_HUE,IDC_HUE,IDC_VALHUE,yHue}
     }){
-        MoveWindow(H(sp.lbl),labelX,sp.y-2,labelW,22,TRUE);
-        MoveWindow(H(sp.track),trackX,sp.y-4,trackW,28,TRUE);
-        MoveWindow(H(sp.val),valueX,sp.y-5,valueW,28,TRUE);
+        MoveUi(H(sp.lbl),labelX,sp.y-2,labelW,22,TRUE);
+        MoveUi(H(sp.track),trackX,sp.y-4,trackW,28,TRUE);
+        MoveUi(H(sp.val),valueX,sp.y-5,valueW,28,TRUE);
     }
 
-    MoveWindow(H(IDC_DEFAULTS),rightX,ySave,132,38,TRUE);
-    MoveWindow(H(IDC_SAVE),rightX+rightW-160,ySave,160,38,TRUE);
+    MoveUi(H(IDC_DEFAULTS),rightX,ySave,132,38,TRUE);
+    MoveUi(H(IDC_SAVE),rightX+rightW-160,ySave,160,38,TRUE);
 
     const int appX=centerPanelX+centerPanelW+gap+22;
-    MoveWindow(H(IDC_HOTKEY_SHOW_LABEL),appX,150,286,22,TRUE);
-    MoveWindow(H(IDC_HOTKEY_SHOW),appX+2,182,206,22,TRUE);
-    MoveWindow(H(IDC_HOTKEY_SHOW_CLEAR),appX+218,176,68,34,TRUE);
-    MoveWindow(H(IDC_HOTKEY_OVERRIDE_LABEL),appX,234,286,22,TRUE);
-    MoveWindow(H(IDC_HOTKEY_OVERRIDE),appX+2,266,206,22,TRUE);
-    MoveWindow(H(IDC_HOTKEY_OVERRIDE_CLEAR),appX+218,260,68,34,TRUE);
-    MoveWindow(H(IDC_HOTKEY_RESUME_LABEL),appX,318,286,22,TRUE);
-    MoveWindow(H(IDC_HOTKEY_RESUME),appX+2,350,206,22,TRUE);
-    MoveWindow(H(IDC_HOTKEY_RESUME_CLEAR),appX+218,344,68,34,TRUE);
-    MoveWindow(H(IDC_APP_SETTINGS_TITLE),appX,579,250,24,TRUE);
-    MoveWindow(H(IDC_STARTWIN),appX,617,22,22,TRUE);
-    MoveWindow(GetWindow(H(IDC_STARTWIN),GW_HWNDNEXT),appX+27,617,220,22,TRUE);
-    MoveWindow(H(IDC_STARTMIN),appX,645,22,22,TRUE);
-    MoveWindow(GetWindow(H(IDC_STARTMIN),GW_HWNDNEXT),appX+27,645,220,22,TRUE);
-    MoveWindow(H(IDC_MINTRAY),appX,673,22,22,TRUE);
-    MoveWindow(GetWindow(H(IDC_MINTRAY),GW_HWNDNEXT),appX+27,673,220,22,TRUE);
-    MoveWindow(H(IDC_CHECKUPDATES),appX,701,22,22,TRUE);
-    MoveWindow(GetWindow(H(IDC_CHECKUPDATES),GW_HWNDNEXT),appX+27,701,220,22,TRUE);
-    MoveWindow(H(IDC_IMPORT_PROFILES),appX,ySave,138,38,TRUE);
-    MoveWindow(H(IDC_EXPORT_PROFILES),appX+148,ySave,138,38,TRUE);
+    MoveUi(H(IDC_HOTKEY_SHOW_LABEL),appX,150,286,22,TRUE);
+    MoveUi(H(IDC_HOTKEY_SHOW),appX+2,182,206,22,TRUE);
+    MoveUi(H(IDC_HOTKEY_SHOW_CLEAR),appX+218,176,68,34,TRUE);
+    MoveUi(H(IDC_HOTKEY_OVERRIDE_LABEL),appX,234,286,22,TRUE);
+    MoveUi(H(IDC_HOTKEY_OVERRIDE),appX+2,266,206,22,TRUE);
+    MoveUi(H(IDC_HOTKEY_OVERRIDE_CLEAR),appX+218,260,68,34,TRUE);
+    MoveUi(H(IDC_HOTKEY_RESUME_LABEL),appX,318,286,22,TRUE);
+    MoveUi(H(IDC_HOTKEY_RESUME),appX+2,350,206,22,TRUE);
+    MoveUi(H(IDC_HOTKEY_RESUME_CLEAR),appX+218,344,68,34,TRUE);
+    MoveUi(H(IDC_APP_SETTINGS_TITLE),appX,579,250,24,TRUE);
+    MoveUi(H(IDC_STARTWIN),appX,617,22,22,TRUE);
+    MoveUi(GetWindow(H(IDC_STARTWIN),GW_HWNDNEXT),appX+27,617,220,22,TRUE);
+    MoveUi(H(IDC_STARTMIN),appX,645,22,22,TRUE);
+    MoveUi(GetWindow(H(IDC_STARTMIN),GW_HWNDNEXT),appX+27,645,220,22,TRUE);
+    MoveUi(H(IDC_MINTRAY),appX,673,22,22,TRUE);
+    MoveUi(GetWindow(H(IDC_MINTRAY),GW_HWNDNEXT),appX+27,673,220,22,TRUE);
+    MoveUi(H(IDC_CHECKUPDATES),appX,701,22,22,TRUE);
+    MoveUi(GetWindow(H(IDC_CHECKUPDATES),GW_HWNDNEXT),appX+27,701,220,22,TRUE);
+    MoveUi(H(IDC_IMPORT_PROFILES),appX,ySave,138,38,TRUE);
+    MoveUi(H(IDC_EXPORT_PROFILES),appX+148,ySave,138,38,TRUE);
 
     InvalidateRect(gWnd,nullptr,TRUE);
 }
@@ -2955,34 +2971,36 @@ void DrawHeaderImage(HDC dc){
     graphics.SetCompositingMode(Gdiplus::CompositingModeSourceOver);
     graphics.SetCompositingQuality(Gdiplus::CompositingQualityHighQuality);
 
-    const int targetH=58;
+    const int targetH=Ui(58);
     const UINT iw=gHeaderImage->GetWidth();
     const UINT ih=gHeaderImage->GetHeight();
     if(!iw||!ih) return;
     const int targetW=(int)llround((double)iw*targetH/(double)ih);
-    graphics.DrawImage(gHeaderImage,Gdiplus::Rect(27,9,targetW,targetH));
+    graphics.DrawImage(gHeaderImage,Gdiplus::Rect(Ui(27),Ui(9),targetW,targetH));
 }
 
 
-void DrawSliderIcon(HDC dc,Gdiplus::Image* image,int x,int y){
+void DrawSliderIconPhysical(HDC dc,Gdiplus::Image* image,int x,int y,int iconBox){
     if(!image) return;
     const UINT sourceW=image->GetWidth();
     const UINT sourceH=image->GetHeight();
-    if(!sourceW||!sourceH) return;
+    if(!sourceW||!sourceH||iconBox<=0) return;
 
-    constexpr int iconBox=22;
     const double scale=std::min((double)iconBox/sourceW,(double)iconBox/sourceH);
-    const int targetW=(int)llround(sourceW*scale);
-    const int targetH=(int)llround(sourceH*scale);
+    const int targetW=std::max(1,(int)std::lround(sourceW*scale));
+    const int targetH=std::max(1,(int)std::lround(sourceH*scale));
     const int targetX=x+(iconBox-targetW)/2;
     const int targetY=y+(iconBox-targetH)/2;
 
+    int saved=SaveDC(dc);
+    SetMapMode(dc,MM_TEXT);
+    SetWindowOrgEx(dc,0,0,nullptr);
+    SetViewportOrgEx(dc,0,0,nullptr);
     Gdiplus::Graphics graphics(dc);
     graphics.SetInterpolationMode(Gdiplus::InterpolationModeHighQualityBicubic);
     graphics.SetPixelOffsetMode(Gdiplus::PixelOffsetModeHighQuality);
-    graphics.SetCompositingMode(Gdiplus::CompositingModeSourceOver);
-    graphics.SetCompositingQuality(Gdiplus::CompositingQualityHighQuality);
     graphics.DrawImage(image,Gdiplus::Rect(targetX,targetY,targetW,targetH));
+    RestoreDC(dc,saved);
 }
 
 
@@ -3059,7 +3077,7 @@ void DrawDisplayPrototypeIcon(HDC dc,int x,int y){
     const COLORREF frame=RGB(145,151,154);
     const COLORREF screen=RGB(245,245,245);
 
-    HPEN framePen=CreatePen(PS_SOLID,1,frame);
+    HPEN framePen=CreatePen(PS_SOLID,std::max(1,Ui(1)),frame);
     HBRUSH frameBrush=CreateSolidBrush(frame);
     HBRUSH screenBrush=CreateSolidBrush(screen);
 
@@ -3070,19 +3088,19 @@ void DrawDisplayPrototypeIcon(HDC dc,int x,int y){
     // Draw the bezel as a solid 1 px shell so GDI Rectangle's inclusive edge
     // doesn't visually turn it into a ~2 px border.
     SelectObject(dc,frameBrush);
-    PatBlt(dc,x,y,22,1,PATCOPY);          // top
-    PatBlt(dc,x,y+1,1,14,PATCOPY);        // left
-    PatBlt(dc,x+21,y+1,1,14,PATCOPY);     // right
-    PatBlt(dc,x,y+15,22,1,PATCOPY);       // bottom
+    PatBlt(dc,x,y,Ui(22),std::max(1,Ui(1)),PATCOPY);          // top
+    PatBlt(dc,x,y+Ui(1),std::max(1,Ui(1)),Ui(14),PATCOPY);        // left
+    PatBlt(dc,x+Ui(21),y+Ui(1),std::max(1,Ui(1)),Ui(14),PATCOPY);     // right
+    PatBlt(dc,x,y+Ui(15),Ui(22),std::max(1,Ui(1)),PATCOPY);       // bottom
 
     // White screen.
     SelectObject(dc,screenBrush);
-    PatBlt(dc,x+1,y+1,20,14,PATCOPY);
+    PatBlt(dc,x+Ui(1),y+Ui(1),Ui(20),Ui(14),PATCOPY);
 
     // Very thin stand/base, matching the reference.
     SelectObject(dc,frameBrush);
-    PatBlt(dc,x+10,y+16,2,4,PATCOPY);
-    PatBlt(dc,x+6,y+20,10,1,PATCOPY);
+    PatBlt(dc,x+Ui(10),y+Ui(16),Ui(2),Ui(4),PATCOPY);
+    PatBlt(dc,x+Ui(6),y+Ui(20),Ui(10),std::max(1,Ui(1)),PATCOPY);
 
     SelectObject(dc,oldBrush);
     SelectObject(dc,oldPen);
@@ -3096,7 +3114,7 @@ void DrawDriverIcon(HDC dc,int x,int y,COLORREF){
     Gdiplus::Graphics g(dc);
     g.SetInterpolationMode(Gdiplus::InterpolationModeHighQualityBicubic);
     g.SetPixelOffsetMode(Gdiplus::PixelOffsetModeHighQuality);
-    g.DrawImage(gNvidiaDriverIcon,Gdiplus::Rect(x,y,16,16));
+    g.DrawImage(gNvidiaDriverIcon,Gdiplus::Rect(x,y,Ui(16),Ui(16)));
 }
 
 LRESULT CALLBACK FooterLinkSubclassProc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp,
@@ -3151,8 +3169,14 @@ void DrawFooterLink(const DRAWITEMSTRUCT* d){
 }
 
 void Paint(HWND w){
-    PAINTSTRUCT ps{}; HDC dc=BeginPaint(w,&ps); RECT rc{}; GetClientRect(w,&rc);
-    FillRect(dc,&rc,gBackBrush);
+    PAINTSTRUCT ps{}; HDC dc=BeginPaint(w,&ps);
+    RECT physical{}; GetClientRect(w,&physical);
+    FillRect(dc,&physical,gBackBrush);
+    RECT rc{0,0,MAIN_BASE_CLIENT_WIDTH,MAIN_BASE_CLIENT_HEIGHT};
+    auto SR=[](const RECT& r){ return RECT{Ui(r.left),Ui(r.top),Ui(r.right),Ui(r.bottom)}; };
+    auto FR=[&](const RECT& r,COLORREF fill,COLORREF border,int radius){ RECT q=SR(r); FillRound(dc,q,fill,border,std::max(1,Ui(radius))); };
+    auto FL=[&](int x,int y,int ww,int hh,COLORREF c){ Fill(dc,Ui(x),Ui(y),std::max(1,Ui(ww)),std::max(1,Ui(hh)),c); };
+    auto DL=[&](const wchar_t* t,int x,int y,COLORREF c,HFONT f){ DrawLabel(dc,t,Ui(x),Ui(y),c,f); };
 
     const int margin=18, top=88, gap=14, footerH=56;
     const int leftW=360, settingsW=330;
@@ -3166,9 +3190,9 @@ void Paint(HWND w){
     RECT left{margin,top,margin+leftW,panelBottom};
     RECT center{centerX,top,centerX+centerW,panelBottom};
     RECT settings{settingsX,top,rc.right-margin,panelBottom};
-    FillRound(dc,left,C_PANEL,C_BORDER,10);
-    FillRound(dc,center,C_PANEL,C_BORDER,10);
-    FillRound(dc,settings,C_PANEL,C_BORDER,10);
+    FR(left,C_PANEL,C_BORDER,10);
+    FR(center,C_PANEL,C_BORDER,10);
+    FR(settings,C_PANEL,C_BORDER,10);
 
     DrawHeaderImage(dc);
 
@@ -3179,23 +3203,24 @@ void Paint(HWND w){
     headerVersion=L"v";
     headerVersion+=APP_VERSION;
 #endif
-    RECT headerVersionRect{rc.right-240,48,rc.right-27,68};
+    RECT headerVersionRect=SR(RECT{rc.right-240,48,rc.right-27,68});
     SetBkMode(dc,TRANSPARENT);
     SetTextColor(dc,C_MUTED);
     SelectObject(dc,gFontSmall);
     DrawTextW(dc,headerVersion.c_str(),-1,&headerVersionRect,
         DT_RIGHT|DT_BOTTOM|DT_SINGLELINE|DT_NOPREFIX);
 
-    Fill(dc,0,78,rc.right,1,C_BORDER);
+    FL(0,78,rc.right,1,C_BORDER);
 
     // Panel header fill is clipped to the rounded panel and stops exactly
     // at the separator. No rounded header overlay and no repaint workaround.
     const int separatorY=136;
     auto PaintPanelHeader=[&](const RECT& panel){
         int saved=SaveDC(dc);
-        HRGN clip=CreateRoundRectRgn(panel.left+1,panel.top+1,panel.right,panel.bottom,10,10);
+        RECT q=SR(panel);
+        HRGN clip=CreateRoundRectRgn(q.left+Ui(1),q.top+Ui(1),q.right,q.bottom,Ui(10),Ui(10));
         SelectClipRgn(dc,clip);
-        Fill(dc,panel.left+1,panel.top+1,
+        FL(panel.left+1,panel.top+1,
              panel.right-panel.left-2,separatorY-panel.top-1,C_PANEL2);
         SelectClipRgn(dc,nullptr);
         DeleteObject(clip);
@@ -3205,28 +3230,28 @@ void Paint(HWND w){
     PaintPanelHeader(center);
     PaintPanelHeader(settings);
 
-    DrawLabel(dc,L"Profiles",left.left+14,99,C_TEXT,gFontPanelTitle);
-    DrawLabel(dc,L"Profile Settings",center.left+14,99,C_TEXT,gFontPanelTitle);
-    DrawLabel(dc,L"Hotkeys",settings.left+14,99,C_TEXT,gFontPanelTitle);
+    DL(L"Profiles",left.left+14,99,C_TEXT,gFontPanelTitle);
+    DL(L"Profile Settings",center.left+14,99,C_TEXT,gFontPanelTitle);
+    DL(L"Hotkeys",settings.left+14,99,C_TEXT,gFontPanelTitle);
 
-    Fill(dc,left.left+1,separatorY,leftW-2,1,C_BORDER);
-    Fill(dc,center.left+1,separatorY,centerW-2,1,C_BORDER);
-    Fill(dc,settings.left+1,separatorY,settingsW-2,1,C_BORDER);
-    Fill(dc,settings.left+22,560,settingsW-44,1,C_BORDER);
+    FL(left.left+1,separatorY,leftW-2,1,C_BORDER);
+    FL(center.left+1,separatorY,centerW-2,1,C_BORDER);
+    FL(settings.left+1,separatorY,settingsW-2,1,C_BORDER);
+    FL(settings.left+22,560,settingsW-44,1,C_BORDER);
 
     // Match the application text fields: the app paints the complete rounded
     // frame and the native hotkey control sits borderless inside it.
     RECT showHotkeyFrame{settingsX+22,176,settingsX+232,210};
     RECT overrideHotkeyFrame{settingsX+22,260,settingsX+232,294};
     RECT resumeHotkeyFrame{settingsX+22,344,settingsX+232,378};
-    FillRound(dc,showHotkeyFrame,C_FIELD,C_BORDER,8);
-    FillRound(dc,overrideHotkeyFrame,C_FIELD,C_BORDER,8);
-    FillRound(dc,resumeHotkeyFrame,C_FIELD,C_BORDER,8);
+    FR(showHotkeyFrame,C_FIELD,C_BORDER,8);
+    FR(overrideHotkeyFrame,C_FIELD,C_BORDER,8);
+    FR(resumeHotkeyFrame,C_FIELD,C_BORDER,8);
 
     const bool desktop=IsDesktopSelected();
     const int displayY=desktop?154:358;
 
-    DrawDisplayPrototypeIcon(dc,centerX+22,displayY);
+    DrawDisplayPrototypeIcon(dc,Ui(centerX+22),Ui(displayY));
 
     // Rounded frames for application text fields. The EDIT controls themselves
     // are borderless and inset, avoiding clipped corners or double borders.
@@ -3234,14 +3259,14 @@ void Paint(HWND w){
         const int browseW=135;
         const int fieldGap=10;
         RECT nameFrame{rightX+118,146,rightX+rightW,182};
-        FillRound(dc,nameFrame,C_FIELD,C_BORDER,8);
+        FR(nameFrame,C_FIELD,C_BORDER,8);
 
         RECT exeFrame{rightX,222,rightX+rightW-browseW-fieldGap,258};
-        FillRound(dc,exeFrame,C_FIELD,C_BORDER,8);
+        FR(exeFrame,C_FIELD,C_BORDER,8);
 
         const int profileHotkeyX=rightX+rightW-288;
         RECT profileHotkeyFrame{profileHotkeyX,300,profileHotkeyX+210,334};
-        FillRound(dc,profileHotkeyFrame,C_FIELD,C_BORDER,8);
+        FR(profileHotkeyFrame,C_FIELD,C_BORDER,8);
     }
 
     const int iconX=centerX+22;
@@ -3250,62 +3275,63 @@ void Paint(HWND w){
     const int iconGam=iconCon+64;
     const int iconVib=iconGam+64;
     const int iconHue=iconVib+64;
-    DrawSliderIcon(dc,gSliderBrightness,iconX,iconBri-2);
-    DrawSliderIcon(dc,gSliderContrast,iconX,iconCon-2);
-    DrawSliderIcon(dc,gSliderGamma,iconX,iconGam-2);
-    DrawSliderIcon(dc,gSliderVibrance,iconX,iconVib-2);
-    DrawSliderIcon(dc,gSliderHue,iconX,iconHue-2);
+    DrawSliderIconPhysical(dc,gSliderBrightness,Ui(iconX),Ui(iconBri-2),Ui(22));
+    DrawSliderIconPhysical(dc,gSliderContrast,Ui(iconX),Ui(iconCon-2),Ui(22));
+    DrawSliderIconPhysical(dc,gSliderGamma,Ui(iconX),Ui(iconGam-2),Ui(22));
+    DrawSliderIconPhysical(dc,gSliderVibrance,Ui(iconX),Ui(iconVib-2),Ui(22));
+    DrawSliderIconPhysical(dc,gSliderHue,Ui(iconX),Ui(iconHue-2),Ui(22));
 
     const int footerTop=rc.bottom-footerH;
-    Fill(dc,0,footerTop,rc.right,1,C_BORDER);
+    FL(0,footerTop,rc.right,1,C_BORDER);
     const int footerY=footerTop+19;
 
-    const int dotX=38, dotY=footerY+5;
+    const int dotX=Ui(38), dotY=Ui(footerY+5);
     HBRUSH statusBrush=CreateSolidBrush(gStatusOk?C_ACCENT:C_DANGER);
     HGDIOBJ oldBrush=SelectObject(dc,statusBrush);
-    Ellipse(dc,dotX,dotY,dotX+8,dotY+8);
+    Ellipse(dc,dotX,dotY,dotX+Ui(8),dotY+Ui(8));
     SelectObject(dc,oldBrush);
     DeleteObject(statusBrush);
 
-    DrawLabel(dc,L"NVIDIA API",54,footerY,C_MUTED,gFont);
+    DrawLabel(dc,L"NVIDIA API",Ui(54),Ui(footerY),C_MUTED,gFont);
     SIZE apiLabel{}; SelectObject(dc,gFont);
     GetTextExtentPoint32W(dc,L"NVIDIA API",10,&apiLabel);
     const wchar_t* apiState=gStatusOk?L"Available":L"Unavailable";
     COLORREF apiColor=gStatusOk?C_ACCENT:C_DANGER;
-    int apiStateX=54+apiLabel.cx+8;
-    DrawLabel(dc,apiState,apiStateX,footerY,apiColor,gFont);
+    int apiStateX=Ui(54)+apiLabel.cx+Ui(8);
+    DrawLabel(dc,apiState,apiStateX,Ui(footerY),apiColor,gFont);
 
     SIZE stateSize{}; SelectObject(dc,gFont);
     GetTextExtentPoint32W(dc,apiState,(int)wcslen(apiState),&stateSize);
-    int dividerX=apiStateX+stateSize.cx+18;
-    Fill(dc,dividerX,footerY,1,17,C_BORDER);
+    int dividerX=apiStateX+stateSize.cx+Ui(18);
+    Fill(dc,dividerX,Ui(footerY),std::max(1,Ui(1)),Ui(17),C_BORDER);
 
-    int driverIconX=dividerX+16;
-    DrawDriverIcon(dc,driverIconX,footerY+1,C_MUTED);
-    int driverTextX=driverIconX+23;
-    DrawLabel(dc,L"Driver",driverTextX,footerY,C_MUTED,gFont);
+    int driverIconX=dividerX+Ui(16);
+    DrawDriverIcon(dc,driverIconX,Ui(footerY+1),C_MUTED);
+    int driverTextX=driverIconX+Ui(23);
+    DrawLabel(dc,L"Driver",driverTextX,Ui(footerY),C_MUTED,gFont);
     SIZE driverLabel{}; SelectObject(dc,gFont);
     GetTextExtentPoint32W(dc,L"Driver",6,&driverLabel);
-    int driverVersionX=driverTextX+driverLabel.cx+8;
-    DrawLabel(dc,gDriverVersion.c_str(),driverVersionX,footerY,C_TEXT,gFont);
+    int driverVersionX=driverTextX+driverLabel.cx+Ui(8);
+    DrawLabel(dc,gDriverVersion.c_str(),driverVersionX,Ui(footerY),C_TEXT,gFont);
 
     SIZE driverVersionSize{}; SelectObject(dc,gFont);
     GetTextExtentPoint32W(dc,gDriverVersion.c_str(),(int)gDriverVersion.size(),&driverVersionSize);
-    int activeDividerX=driverVersionX+driverVersionSize.cx+18;
-    Fill(dc,activeDividerX,footerY,1,17,C_BORDER);
+    int activeDividerX=driverVersionX+driverVersionSize.cx+Ui(18);
+    Fill(dc,activeDividerX,Ui(footerY),std::max(1,Ui(1)),Ui(17),C_BORDER);
     constexpr wchar_t activeProfileLabel[]=L"Active profile:";
-    DrawLabel(dc,activeProfileLabel,activeDividerX+16,footerY,C_MUTED,gFont);
+    DrawLabel(dc,activeProfileLabel,activeDividerX+Ui(16),Ui(footerY),C_MUTED,gFont);
     SIZE activeLabel{}; SelectObject(dc,gFont);
     GetTextExtentPoint32W(dc,activeProfileLabel,
         (int)(sizeof(activeProfileLabel)/sizeof(activeProfileLabel[0])-1),&activeLabel);
     std::wstring displayedActive=gActive;
     if(gOverrideMode!=OverrideMode::Automatic)displayedActive+=L" (override)";
-    DrawLabel(dc,displayedActive.c_str(),activeDividerX+16+activeLabel.cx+8,footerY,C_TEXT,gFontBold);
+    DrawLabel(dc,displayedActive.c_str(),activeDividerX+Ui(16)+activeLabel.cx+Ui(8),Ui(footerY),C_TEXT,gFontBold);
+
 
     EndPaint(w,&ps);
 }
 void BuildControls(){
-    RECT r{}; GetClientRect(gWnd,&r);
+    RECT r{0,0,MAIN_BASE_CLIENT_WIDTH,MAIN_BASE_CLIENT_HEIGHT};
     const int margin=18, top=88, gap=14, footerH=56;
     const int leftW=360, settingsW=330;
     const int centerPanelX=margin+leftW+gap;
@@ -3317,7 +3343,7 @@ void BuildControls(){
     HWND list=Add(L"LISTBOX",L"",LBS_NOTIFY|LBS_OWNERDRAWFIXED|WS_VSCROLL,
         margin+10,144,leftW-20,panelBottom-144-18,IDC_LIST);
     SetWindowTheme(list,L"DarkMode_Explorer",nullptr);
-    SendMessageW(list,LB_SETITEMHEIGHT,0,70);
+    SendMessageW(list,LB_SETITEMHEIGHT,0,Ui(70));
 
     gProfileTooltip=CreateWindowExW(WS_EX_TOPMOST,TOOLTIPS_CLASSW,nullptr,
         WS_POPUP|TTS_ALWAYSTIP|TTS_NOPREFIX,
@@ -3394,8 +3420,8 @@ void BuildControls(){
     Add(L"STATIC",L"Display",0,rightX+31,358,150,22,IDC_LBL_DISPLAY);
     HWND display=Add(L"COMBOBOX",L"",CBS_DROPDOWNLIST|CBS_OWNERDRAWFIXED|CBS_HASSTRINGS|WS_VSCROLL,
         rightX,382,rightW,240,IDC_DISPLAY);
-    SendMessageW(display,CB_SETITEMHEIGHT,0,28);
-    SendMessageW(display,CB_SETITEMHEIGHT,(WPARAM)-1,26);
+    SendMessageW(display,CB_SETITEMHEIGHT,0,Ui(28));
+    SendMessageW(display,CB_SETITEMHEIGHT,(WPARAM)-1,Ui(26));
     StyleFlatCombo(display);
 
     const int labelX=rightX+30;
@@ -3515,7 +3541,7 @@ void BuildControls(){
 }
 
 void ResizeControls(){
-    RECT r{}; GetClientRect(gWnd,&r);
+    RECT r{0,0,MAIN_BASE_CLIENT_WIDTH,MAIN_BASE_CLIENT_HEIGHT};
     const int margin=18, gap=14, footerH=56;
     const int leftW=360, settingsW=330;
     const int centerPanelX=margin+leftW+gap;
@@ -3524,34 +3550,187 @@ void ResizeControls(){
     const int rightW=centerPanelW-44;
     const int panelBottom=r.bottom-footerH-14;
 
-    MoveWindow(H(IDC_LIST),margin+10,144,leftW-20,(int)std::max(300,panelBottom-144-18),TRUE);
-    MoveWindow(H(IDC_ADD),120,95,112,32,TRUE);
-    MoveWindow(H(IDC_REMOVE),236,95,92,32,TRUE);
-    MoveWindow(H(IDC_PROFILE_UP),332,95,32,15,TRUE);
-    MoveWindow(H(IDC_PROFILE_DOWN),332,112,32,15,TRUE);
+    MoveUi(H(IDC_LIST),margin+10,144,leftW-20,(int)std::max(300,panelBottom-144-18),TRUE);
+    MoveUi(H(IDC_ADD),120,95,112,32,TRUE);
+    MoveUi(H(IDC_REMOVE),236,95,92,32,TRUE);
+    MoveUi(H(IDC_PROFILE_UP),332,95,32,15,TRUE);
+    MoveUi(H(IDC_PROFILE_DOWN),332,112,32,15,TRUE);
 
-    MoveWindow(H(IDC_LBL_NAME),rightX,152,110,22,TRUE);
-    MoveWindow(H(IDC_NAME),rightX+120,153,rightW-122,22,TRUE);
+    MoveUi(H(IDC_LBL_NAME),rightX,152,110,22,TRUE);
+    MoveUi(H(IDC_NAME),rightX+120,153,rightW-122,22,TRUE);
 
     const int browseW=135;
     const int fieldGap=10;
-    MoveWindow(H(IDC_LBL_EXE),rightX,194,120,22,TRUE);
-    MoveWindow(H(IDC_EXE),rightX+2,229,rightW-browseW-fieldGap-4,22,TRUE);
-    MoveWindow(H(IDC_RUNNING_APPS),rightX+rightW-browseW,209,browseW,28,TRUE);
-    MoveWindow(H(IDC_BROWSE),rightX+rightW-browseW,243,browseW,28,TRUE);
-    MoveWindow(H(IDC_ENABLED),rightX,272,22,22,TRUE);
-    MoveWindow(H(IDC_LBL_ENABLED),rightX+27,272,205,22,TRUE);
+    MoveUi(H(IDC_LBL_EXE),rightX,194,120,22,TRUE);
+    MoveUi(H(IDC_EXE),rightX+2,229,rightW-browseW-fieldGap-4,22,TRUE);
+    MoveUi(H(IDC_RUNNING_APPS),rightX+rightW-browseW,209,browseW,28,TRUE);
+    MoveUi(H(IDC_BROWSE),rightX+rightW-browseW,243,browseW,28,TRUE);
+    MoveUi(H(IDC_ENABLED),rightX,272,22,22,TRUE);
+    MoveUi(H(IDC_LBL_ENABLED),rightX+27,272,205,22,TRUE);
     const int profileHotkeyX=rightX+rightW-288;
-    MoveWindow(H(IDC_PROFILE_HOTKEY_LABEL),profileHotkeyX,272,220,22,TRUE);
-    MoveWindow(H(IDC_PROFILE_HOTKEY),profileHotkeyX+2,306,206,22,TRUE);
-    MoveWindow(H(IDC_PROFILE_HOTKEY_CLEAR),profileHotkeyX+220,300,68,34,TRUE);
+    MoveUi(H(IDC_PROFILE_HOTKEY_LABEL),profileHotkeyX,272,220,22,TRUE);
+    MoveUi(H(IDC_PROFILE_HOTKEY),profileHotkeyX+2,306,206,22,TRUE);
+    MoveUi(H(IDC_PROFILE_HOTKEY_CLEAR),profileHotkeyX+220,300,68,34,TRUE);
 
-    MoveWindow(H(IDC_FOOT_GITHUB),r.right-284,r.bottom-43,66,24,TRUE);
-    MoveWindow(H(IDC_FOOT_SUPPORT),r.right-212,r.bottom-43,98,24,TRUE);
-    MoveWindow(H(IDC_FOOT_ABOUT),r.right-108,r.bottom-43,64,24,TRUE);
+    MoveUi(H(IDC_FOOT_GITHUB),r.right-284,r.bottom-43,66,24,TRUE);
+    MoveUi(H(IDC_FOOT_SUPPORT),r.right-212,r.bottom-43,98,24,TRUE);
+    MoveUi(H(IDC_FOOT_ABOUT),r.right-108,r.bottom-43,64,24,TRUE);
 
     SetDesktopUi(IsDesktopSelected());
 }
+
+
+HFONT ScaledFontFromBase(HFONT base,double scale){
+    if(!base||scale>=0.999) return base;
+    LOGFONTW lf{};
+    if(!GetObjectW(base,sizeof(lf),&lf)) return base;
+    lf.lfHeight=(LONG)std::lround((double)lf.lfHeight*scale);
+    if(lf.lfHeight==0) lf.lfHeight=-1;
+    return CreateFontIndirectW(&lf);
+}
+void RecreateScaledUiFonts(){
+    auto replace=[&](HFONT& current,HFONT base){
+        if(current&&current!=base) DeleteObject(current);
+        current=ScaledFontFromBase(base,gUiScale);
+    };
+    replace(gFont,gBaseFont);
+    replace(gFontBold,gBaseFontBold);
+    replace(gFontPanelTitle,gBaseFontPanelTitle);
+    replace(gFontTitle,gBaseFontTitle);
+    replace(gFontSmall,gBaseFontSmall);
+    replace(gFontHeaderButton,gBaseFontHeaderButton);
+    replace(gIconFont,gBaseIconFont);
+
+    if(gWnd){
+        EnumChildWindows(gWnd,[](HWND child,LPARAM){
+            SendMessageW(child,WM_SETFONT,(WPARAM)gFont,TRUE);
+            return TRUE;
+        },0);
+        if(HWND title=H(IDC_APP_SETTINGS_TITLE))
+            SendMessageW(title,WM_SETFONT,(WPARAM)gFontBold,TRUE);
+        if(gProfileTooltip) SendMessageW(gProfileTooltip,WM_SETFONT,(WPARAM)gFont,TRUE);
+        if(gExeTooltip) SendMessageW(gExeTooltip,WM_SETFONT,(WPARAM)gFont,TRUE);
+        if(gResetTooltip) SendMessageW(gResetTooltip,WM_SETFONT,(WPARAM)gFont,TRUE);
+        if(gImportTooltip) SendMessageW(gImportTooltip,WM_SETFONT,(WPARAM)gFont,TRUE);
+        if(gExportTooltip) SendMessageW(gExportTooltip,WM_SETFONT,(WPARAM)gFont,TRUE);
+    }
+}
+
+SIZE MainWindowSizeForScale(HWND hwnd,double scale){
+    const DWORD style=(DWORD)GetWindowLongPtrW(hwnd,GWL_STYLE);
+    const DWORD exStyle=(DWORD)GetWindowLongPtrW(hwnd,GWL_EXSTYLE);
+    const UINT dpi=GetDpiForWindow(hwnd);
+    RECT r{0,0,
+        static_cast<LONG>(std::lround(MAIN_BASE_CLIENT_WIDTH*scale)),
+        static_cast<LONG>(std::lround(MAIN_BASE_CLIENT_HEIGHT*scale))};
+    if(!AdjustWindowRectExForDpi(&r,style,FALSE,exStyle,dpi))
+        AdjustWindowRectEx(&r,style,FALSE,exStyle);
+    return SIZE{r.right-r.left,r.bottom-r.top};
+}
+
+double CalculateMainWindowScale(HWND hwnd,HMONITOR monitor){
+    MONITORINFO mi{sizeof(mi)};
+    if(!monitor||!GetMonitorInfoW(monitor,&mi)) return 1.0;
+
+    // GetMonitorInfo and MainWindowSizeForScale both use physical pixels for
+    // this DPI-aware process, so keep the fit calculation in the same space.
+    const int workW=(mi.rcWork.right-mi.rcWork.left)-MAIN_SAFE_MARGIN*2;
+    const int workH=(mi.rcWork.bottom-mi.rcWork.top)-MAIN_SAFE_MARGIN*2;
+    if(workW<=0||workH<=0) return 1.0;
+
+    // Keep the 100% desktop layout unchanged, but grow it gently on high-DPI
+    // displays so it remains physically comfortable to read. The work-area
+    // fit below still has the final say if the preferred size does not fit.
+    UINT dpi=GetDpiForWindow(hwnd);
+    if(dpi==0) dpi=96;
+    const double dpiScale=static_cast<double>(dpi)/96.0;
+    const double adaptiveScale=dpiScale<=2.0
+        ? 1.0+(dpiScale-1.0)*0.20
+        : 1.20+(dpiScale-2.0)*0.10;
+    const double preferredScale=std::clamp(adaptiveScale,1.0,1.30);
+
+    double lo=0.25,hi=preferredScale;
+    SIZE preferred=MainWindowSizeForScale(hwnd,preferredScale);
+    if(preferred.cx<=workW&&preferred.cy<=workH) return preferredScale;
+
+    for(int i=0;i<24;++i){
+        const double mid=(lo+hi)*0.5;
+        SIZE size=MainWindowSizeForScale(hwnd,mid);
+        if(size.cx<=workW&&size.cy<=workH) lo=mid;
+        else hi=mid;
+    }
+    return lo;
+}
+
+void ApplyResponsiveLayout(HWND hwnd,HMONITOR monitor,const RECT* suggested=nullptr,bool center=false){
+    MONITORINFO mi{sizeof(mi)};
+    if(!monitor||!GetMonitorInfoW(monitor,&mi)) return;
+
+    gUiScale=CalculateMainWindowScale(hwnd,monitor);
+    RecreateScaledUiFonts();
+    SIZE size=MainWindowSizeForScale(hwnd,gUiScale);
+
+    const int left=(int)mi.rcWork.left+MAIN_SAFE_MARGIN;
+    const int top=(int)mi.rcWork.top+MAIN_SAFE_MARGIN;
+    const int right=(int)mi.rcWork.right-MAIN_SAFE_MARGIN;
+    const int bottom=(int)mi.rcWork.bottom-MAIN_SAFE_MARGIN;
+
+    int x=left+(right-left-size.cx)/2;
+    int y=top+(bottom-top-size.cy)/2;
+    if(!center&&suggested){
+        x=(int)suggested->left;
+        y=(int)suggested->top;
+    }
+    const int maxX=std::max<int>(left,static_cast<int>(right-size.cx));
+    const int maxY=std::max<int>(top,static_cast<int>(bottom-size.cy));
+    x=std::clamp<int>(x,left,maxX);
+    y=std::clamp<int>(y,top,maxY);
+
+    // Size the top-level window from the client area we actually need.  The
+    // non-client metrics returned by Windows can be DPI-virtualized depending
+    // on the manifest/current monitor, so verify the resulting client size and
+    // correct the outer size by the measured delta instead of assuming it.
+    const int desiredClientW=Ui(MAIN_BASE_CLIENT_WIDTH);
+    const int desiredClientH=Ui(MAIN_BASE_CLIENT_HEIGHT);
+
+    SetWindowPos(hwnd,nullptr,x,y,size.cx,size.cy,SWP_NOZORDER|SWP_NOACTIVATE);
+
+    for(int pass=0;pass<3;++pass){
+        RECT client{};
+        RECT window{};
+        GetClientRect(hwnd,&client);
+        GetWindowRect(hwnd,&window);
+
+        const int actualClientW=client.right-client.left;
+        const int actualClientH=client.bottom-client.top;
+        const int deltaW=desiredClientW-actualClientW;
+        const int deltaH=desiredClientH-actualClientH;
+        if(std::abs(deltaW)<=1&&std::abs(deltaH)<=1) break;
+
+        const int outerW=(window.right-window.left)+deltaW;
+        const int outerH=(window.bottom-window.top)+deltaH;
+        SetWindowPos(hwnd,nullptr,0,0,outerW,outerH,
+            SWP_NOMOVE|SWP_NOZORDER|SWP_NOACTIVATE);
+    }
+
+    // The correction above may change the final outer dimensions by a few
+    // pixels. Keep the finished window inside the selected monitor work area.
+    RECT finalWindow{};
+    GetWindowRect(hwnd,&finalWindow);
+    const int finalW=finalWindow.right-finalWindow.left;
+    const int finalH=finalWindow.bottom-finalWindow.top;
+    const int finalMaxX=std::max(left,right-finalW);
+    const int finalMaxY=std::max(top,bottom-finalH);
+    const int finalX=std::clamp<int>(static_cast<int>(finalWindow.left),left,finalMaxX);
+    const int finalY=std::clamp<int>(static_cast<int>(finalWindow.top),top,finalMaxY);
+    if(finalX!=finalWindow.left||finalY!=finalWindow.top)
+        SetWindowPos(hwnd,nullptr,finalX,finalY,0,0,
+            SWP_NOSIZE|SWP_NOZORDER|SWP_NOACTIVATE);
+
+    ResizeControls();
+    InvalidateRect(hwnd,nullptr,TRUE);
+}
+
 
 
 struct UpdateInfo{
@@ -4506,7 +4685,18 @@ bool ImportConfiguration(HWND owner){
     return true;
 }
 
-LRESULT CALLBACK Proc(HWND w,UINT m,WPARAM wp,LPARAM lp){switch(m){case WM_SHOW_EXISTING_INSTANCE:ShowMain();return 0;case WM_UPDATE_AVAILABLE:ShowUpdateAvailable((UpdateInfo*)lp);return 0;case WM_SHOW_APP_MESSAGE:{auto* data=(AppMessageData*)lp;if(data){std::wstring title=data->title,text=data->text;delete data;ShowAppMessage(title,text);}return 0;}case WM_CREATE:gWnd=w;BuildControls();RegisterConfiguredHotkeys();RefreshList();LoadSelected();SetTimer(w,1,250,nullptr);return 0;case WM_HOTKEY:if(wp==ID_HOTKEY_SHOW_HIDE){ToggleMainVisibility();return 0;}if(wp==ID_HOTKEY_WINDOWS_OVERRIDE){ToggleWindowsOverride();return 0;}if(wp==ID_HOTKEY_RESUME_AUTOMATIC){ResumeAutomaticSwitching();return 0;}if(wp>=ID_HOTKEY_PROFILE_BASE&&wp<ID_HOTKEY_PROFILE_BASE+(WPARAM)gSettings.profiles.size()){ToggleProfileOverride((size_t)(wp-ID_HOTKEY_PROFILE_BASE));return 0;}break;case WM_ACTIVATE:
+LRESULT CALLBACK Proc(HWND w,UINT m,WPARAM wp,LPARAM lp){switch(m){case WM_SHOW_EXISTING_INSTANCE:ShowMain();return 0;case WM_UPDATE_AVAILABLE:ShowUpdateAvailable((UpdateInfo*)lp);return 0;case WM_SHOW_APP_MESSAGE:{auto* data=(AppMessageData*)lp;if(data){std::wstring title=data->title,text=data->text;delete data;ShowAppMessage(title,text);}return 0;}case WM_CREATE:gWnd=w;BuildControls();RegisterConfiguredHotkeys();RefreshList();LoadSelected();SetTimer(w,1,250,nullptr);return 0;case WM_DPICHANGED:{
+    // Windows has already selected the new DPI for this HWND. Apply the
+    // responsive size immediately while that DPI is authoritative. Deferring
+    // this message left the top-level HWND at the previous monitor's physical
+    // size while only the child/layout scale changed, producing the large
+    // unused background seen on high-DPI displays.
+    RECT target=*reinterpret_cast<RECT*>(lp);
+    HMONITOR monitor=MonitorFromRect(&target,MONITOR_DEFAULTTONEAREST);
+    KillTimer(w,2);
+    ApplyResponsiveLayout(w,monitor,&target,false);
+    return 0;
+}case WM_EXITSIZEMOVE:return 0;case WM_HOTKEY:if(wp==ID_HOTKEY_SHOW_HIDE){ToggleMainVisibility();return 0;}if(wp==ID_HOTKEY_WINDOWS_OVERRIDE){ToggleWindowsOverride();return 0;}if(wp==ID_HOTKEY_RESUME_AUTOMATIC){ResumeAutomaticSwitching();return 0;}if(wp>=ID_HOTKEY_PROFILE_BASE&&wp<ID_HOTKEY_PROFILE_BASE+(WPARAM)gSettings.profiles.size()){ToggleProfileOverride((size_t)(wp-ID_HOTKEY_PROFILE_BASE));return 0;}break;case WM_ACTIVATE:
     if(LOWORD(wp)!=WA_INACTIVE) RefreshDriverVersion();
     return 0;case WM_SIZE:
     if(wp==SIZE_MINIMIZED){
@@ -4663,6 +4853,8 @@ case WM_CTLCOLORSTATIC:{HDC dc=(HDC)wp;
     break;
 }case WM_HSCROLL:UpdateSliderLabels();if((HWND)lp)InvalidateRect((HWND)lp,nullptr,FALSE);RequestPreview();return 0;
 case WM_DISPLAYCHANGE:
+    // Display topology may still be changing. Restart the settle timer instead
+    // of applying the layout from this notification.
     KillTimer(w,2);
     SetTimer(w,2,750,nullptr);
     return 0;
@@ -4680,6 +4872,14 @@ case WM_TIMER:
     if(wp==2){
         KillTimer(w,2);
         RefreshDisplayTopology();
+
+        RECT targetRect{};
+        // Preserve the current position for topology-only changes. Passing
+        // the current rect prevents ApplyResponsiveLayout from recentering
+        // the window just because a display/device notification fired.
+        GetWindowRect(w,&targetRect);
+        HMONITOR monitor=MonitorFromRect(&targetRect,MONITOR_DEFAULTTONEAREST);
+        ApplyResponsiveLayout(w,monitor,&targetRect,false);
         return 0;
     }
 #if NVPS_DEV_BUILD
@@ -4753,25 +4953,40 @@ if(Gdiplus::GdiplusStartup(&gGdiPlusToken,&gdiplusInput,nullptr)!=Gdiplus::Ok)
     gGdiPlusToken=0;
 if(gGdiPlusToken){LoadHeaderImage();LoadSliderIcons();}
 INITCOMMONCONTROLSEX ic{sizeof(ic),ICC_BAR_CLASSES|ICC_STANDARD_CLASSES|ICC_HOTKEY_CLASS};InitCommonControlsEx(&ic);Load();gSettings.desktop.name=L"Windows";gBackBrush=CreateSolidBrush(C_BACK);gPanelBrush=CreateSolidBrush(C_PANEL);gPanel2Brush=CreateSolidBrush(C_PANEL2);gFieldBrush=CreateSolidBrush(C_FIELD);
+RECT startupWork{};
+SystemParametersInfoW(SPI_GETWORKAREA,0,&startupWork,0);
+const int startupWorkW=startupWork.right-startupWork.left;
+const int startupWorkH=startupWork.bottom-startupWork.top;
+// Keep startup in design coordinates. The authoritative fit is calculated
+// once the real HWND exists, using that window's actual monitor/non-client metrics.
+gUiScale=1.0;
+
 const wchar_t* uiFamily=FontFamilyAvailable(L"Bahnschrift")?L"Bahnschrift":L"Segoe UI";
-gFont=CreateUiFont(-15,FW_NORMAL,uiFamily);
-gFontBold=CreateUiFont(-15,FW_SEMIBOLD,uiFamily);
-gFontPanelTitle=CreateUiFont(-18,FW_SEMIBOLD,uiFamily);
-gFontTitle=CreateUiFont(-24,FW_BOLD,uiFamily);
-gFontSmall=CreateUiFont(-13,FW_NORMAL,uiFamily);
-gFontHeaderButton=CreateUiFont(-14,FW_SEMIBOLD,uiFamily);
-gIconFont=CreateFontW(-18,0,0,0,FW_NORMAL,FALSE,FALSE,FALSE,DEFAULT_CHARSET,OUT_DEFAULT_PRECIS,CLIP_DEFAULT_PRECIS,CLEARTYPE_QUALITY,DEFAULT_PITCH,L"Segoe MDL2 Assets");gIcon=LoadIconW(h,MAKEINTRESOURCEW(IDI_APPICON));WNDCLASSEXW wc{sizeof(wc)};wc.style=CS_HREDRAW|CS_VREDRAW;wc.lpfnWndProc=Proc;wc.hInstance=h;wc.hIcon=gIcon;wc.hIconSm=gIcon;wc.hCursor=LoadCursor(nullptr,IDC_ARROW);wc.hbrBackground=gBackBrush;wc.lpszClassName=L"NvProfileSwitcherNative";RegisterClassExW(&wc);
-gWnd=CreateWindowExW(0,wc.lpszClassName,L"NvProfileSwitcher",WS_OVERLAPPED|WS_CAPTION|WS_SYSMENU|WS_MINIMIZEBOX,CW_USEDEFAULT,CW_USEDEFAULT,1360,930,nullptr,nullptr,h,nullptr);
+gBaseFont=CreateUiFont(-15,FW_NORMAL,uiFamily);
+gBaseFontBold=CreateUiFont(-15,FW_SEMIBOLD,uiFamily);
+gBaseFontPanelTitle=CreateUiFont(-18,FW_SEMIBOLD,uiFamily);
+gBaseFontTitle=CreateUiFont(-24,FW_BOLD,uiFamily);
+gBaseFontSmall=CreateUiFont(-13,FW_NORMAL,uiFamily);
+gBaseFontHeaderButton=CreateUiFont(-14,FW_SEMIBOLD,uiFamily);
+gBaseIconFont=CreateFontW(-18,0,0,0,FW_NORMAL,FALSE,FALSE,FALSE,DEFAULT_CHARSET,OUT_DEFAULT_PRECIS,CLIP_DEFAULT_PRECIS,CLEARTYPE_QUALITY,DEFAULT_PITCH,L"Segoe MDL2 Assets");
+gFont=ScaledFontFromBase(gBaseFont,gUiScale);
+gFontBold=ScaledFontFromBase(gBaseFontBold,gUiScale);
+gFontPanelTitle=ScaledFontFromBase(gBaseFontPanelTitle,gUiScale);
+gFontTitle=ScaledFontFromBase(gBaseFontTitle,gUiScale);
+gFontSmall=ScaledFontFromBase(gBaseFontSmall,gUiScale);
+gFontHeaderButton=ScaledFontFromBase(gBaseFontHeaderButton,gUiScale);
+gIconFont=ScaledFontFromBase(gBaseIconFont,gUiScale);gIcon=LoadIconW(h,MAKEINTRESOURCEW(IDI_APPICON));WNDCLASSEXW wc{sizeof(wc)};wc.style=CS_HREDRAW|CS_VREDRAW;wc.lpfnWndProc=Proc;wc.hInstance=h;wc.hIcon=gIcon;wc.hIconSm=gIcon;wc.hCursor=LoadCursor(nullptr,IDC_ARROW);wc.hbrBackground=gBackBrush;wc.lpszClassName=L"NvProfileSwitcherNative";RegisterClassExW(&wc);
+DWORD mainStyle=WS_OVERLAPPED|WS_CAPTION|WS_SYSMENU|WS_MINIMIZEBOX;
+RECT initialClient{0,0,Ui(MAIN_BASE_CLIENT_WIDTH),Ui(MAIN_BASE_CLIENT_HEIGHT)};
+AdjustWindowRectEx(&initialClient,mainStyle,FALSE,0);
+const int initialW=initialClient.right-initialClient.left;
+const int initialH=initialClient.bottom-initialClient.top;
+const int initialX=startupWork.left+(startupWorkW-initialW)/2;
+const int initialY=startupWork.top+(startupWorkH-initialH)/2;
+gWnd=CreateWindowExW(0,wc.lpszClassName,L"NvProfileSwitcher",mainStyle,initialX,initialY,initialW,initialH,nullptr,nullptr,h,nullptr);
+ApplyResponsiveLayout(gWnd,MonitorFromWindow(gWnd,MONITOR_DEFAULTTONEAREST),nullptr,true);
 BOOL darkTitle=TRUE;DwmSetWindowAttribute(gWnd,20,&darkTitle,sizeof(darkTitle));
 
-// Center the main window on the primary monitor.
-RECT mainWr{},mainWork{};
-GetWindowRect(gWnd,&mainWr);
-SystemParametersInfoW(SPI_GETWORKAREA,0,&mainWork,0);
-int mainW=mainWr.right-mainWr.left, mainH=mainWr.bottom-mainWr.top;
-int mainX=mainWork.left+((mainWork.right-mainWork.left)-mainW)/2;
-int mainY=mainWork.top+((mainWork.bottom-mainWork.top)-mainH)/2;
-SetWindowPos(gWnd,nullptr,mainX,mainY,0,0,SWP_NOSIZE|SWP_NOZORDER|SWP_NOACTIVATE);
 SetWindowLongPtrW(gWnd,GWLP_USERDATA,0);gTrayMenu=CreatePopupMenu();AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_OPEN,L"Open NvProfileSwitcher");AppendMenuW(gTrayMenu,MF_SEPARATOR,0,nullptr);AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_CHECK_UPDATE,L"Check for updates");AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_ABOUT,L"About NvProfileSwitcher");AppendMenuW(gTrayMenu,MF_SEPARATOR,0,nullptr);AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_EXIT,L"Exit");gNid.cbSize=sizeof(gNid);gNid.hWnd=gWnd;gNid.uID=1;gNid.uFlags=NIF_MESSAGE|NIF_ICON|NIF_TIP;gNid.uCallbackMessage=WM_TRAY;gNid.hIcon=gIcon;wcscpy_s(gNid.szTip,L"NvProfileSwitcher");gStatusOk=InitNv();if(gStatusOk){for(const auto&d:gDisplays)EnsureDesktopProfile(d.gdiName,d.monitorId);EnsureAllApplicationDisplayProfiles();Save();if(auto* p=SelectedProfile())RefreshDisplayCombo(*p);RestoreAllDesktopProfiles();LoadSelected();}gActive=L"Windows";bool min=(wcsstr(cmd,L"--minimized")!=nullptr);
 if(min) SetTrayIconVisible(true);
 ShowWindow(gWnd,min?SW_HIDE:SW_SHOW);
