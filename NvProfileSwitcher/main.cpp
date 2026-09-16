@@ -5001,6 +5001,7 @@ HFONT CreateUiFont(int height,int weight,const wchar_t* family){
 }
 
 int WINAPI wWinMain(HINSTANCE h,HINSTANCE,LPWSTR cmd,int){
+SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
 HANDLE instanceMutex=CreateMutexW(nullptr,TRUE,INSTANCE_MUTEX_NAME);
 if(instanceMutex && GetLastError()==ERROR_ALREADY_EXISTS){
     HWND existing=FindWindowW(L"NvProfileSwitcherNative",nullptr);
