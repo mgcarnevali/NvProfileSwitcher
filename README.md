@@ -11,6 +11,7 @@ It allows you to create individual profiles for applications and games, with ind
 - Automatic profile switching based on the foreground application
 - Per-application display color profiles
 - Manual application profile reordering with persistent custom order
+- Configuration import and export for backup and restore
 - Independent settings for each monitor
 - NVIDIA Digital Vibrance control
 - NVIDIA Hue control
@@ -159,7 +160,7 @@ Monitor connections and disconnections are detected automatically while NvProfil
 Profiles are stored locally in:
 
 ```text
-profiles.json
+config.json
 ```
 
 The configuration contains:
@@ -173,6 +174,10 @@ The configuration contains:
 Application profiles can be reordered with the **Move Up** and **Move Down** controls. The custom order is saved and restored across application restarts. New application profiles are added to the end of the existing order.
 
 Disconnected monitors remain stored in the configuration so their settings can be restored when they are connected again.
+
+### Import and export
+
+Use **Export...** to create a backup of the NvProfileSwitcher configuration and **Import...** to restore a previously exported configuration. This can also be used to move your settings to another NvProfileSwitcher installation.
 
 ## Portable version
 

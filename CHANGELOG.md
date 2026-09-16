@@ -4,6 +4,24 @@ All notable changes to NvProfileSwitcher will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project follows [Semantic Versioning](https://semver.org/).
 
+## 2.2.0 --- 2026-09-15
+
+### Added
+
+- Added configuration export and import for backing up and restoring NvProfileSwitcher settings.
+
+### Changed
+
+- Replaced `profiles.json` with the unified `config.json` configuration file.
+- Improved UI scaling across different Windows DPI and display scaling settings.
+- Improved font sizing and readability on high-DPI displays.
+- Improved layout consistency across different resolutions and monitor configurations.
+- Refined control sizing, spacing, and alignment throughout the interface.
+
+### Fixed
+
+- Fixed several layout and alignment issues caused by Windows DPI scaling.
+
 ## 2.1.0 --- 2026-09-13
 
 ### Added

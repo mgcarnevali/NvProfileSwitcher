@@ -142,7 +142,7 @@ Disconnected display profiles are intentionally retained.
 
 ## Configuration
 
-Profiles are stored in `profiles.json`.
+Application configuration is stored in `config.json`.
 
 The top-level profile collections are:
 
@@ -156,6 +156,11 @@ The order of application profiles is user-configurable through the Move Up
 and Move Down controls. The custom order is persisted and restored across
 application restarts. New application profiles are appended to the end of
 the existing order. Refreshing or editing profiles must not reset that order.
+
+The application provides **Export** and **Import** controls for backing up
+and restoring its configuration. Exported configuration can be used to
+restore settings or move the NvProfileSwitcher configuration to another
+installation.
 
 The current configuration format uses stable `MonitorId` values. There
 is no legacy DISPLAY-number migration or backward-compatibility path for
