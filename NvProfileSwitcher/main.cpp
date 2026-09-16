@@ -3700,33 +3700,6 @@ void ApplyResponsiveLayout(HWND hwnd,HMONITOR monitor,const RECT* suggested=null
 
     SetWindowPos(hwnd,nullptr,x,y,size.cx,size.cy,SWP_NOZORDER|SWP_NOACTIVATE);
 
-    // TEMPORARY RESPONSIVE DIAGNOSTIC: record exactly what was requested and
-    // what Windows actually applied. This does not change layout behavior.
-    {
-        RECT debugWindow{};
-        RECT debugClient{};
-        GetWindowRect(hwnd,&debugWindow);
-        GetClientRect(hwnd,&debugClient);
-
-        wchar_t tempPath[MAX_PATH]{};
-        if(GetTempPathW(MAX_PATH,tempPath)){
-            std::wstring logPath=std::wstring(tempPath)+L"NvProfileSwitcher-responsive-sizing.log";
-            std::wofstream log(logPath,std::ios::app);
-            if(log){
-                log << L"DPI=" << GetDpiForWindow(hwnd)
-                    << L" | WorkArea=" << (mi.rcWork.right-mi.rcWork.left) << L"x" << (mi.rcWork.bottom-mi.rcWork.top)
-                    << L" [" << mi.rcWork.left << L"," << mi.rcWork.top << L"," << mi.rcWork.right << L"," << mi.rcWork.bottom << L"]"
-                    << L" | Scale=" << gUiScale
-                    << L" | RequestedWindow=" << size.cx << L"x" << size.cy
-                    << L" | DesiredClient=" << desiredClientW << L"x" << desiredClientH
-                    << L" | WindowAfterFirstSet=" << (debugWindow.right-debugWindow.left) << L"x" << (debugWindow.bottom-debugWindow.top)
-                    << L" [" << debugWindow.left << L"," << debugWindow.top << L"," << debugWindow.right << L"," << debugWindow.bottom << L"]"
-                    << L" | ClientAfterFirstSet=" << (debugClient.right-debugClient.left) << L"x" << (debugClient.bottom-debugClient.top)
-                    << L"\n";
-            }
-        }
-    }
-
     for(int pass=0;pass<3;++pass){
         RECT client{};
         RECT window{};
@@ -3758,30 +3731,6 @@ void ApplyResponsiveLayout(HWND hwnd,HMONITOR monitor,const RECT* suggested=null
     if(finalX!=finalWindow.left||finalY!=finalWindow.top)
         SetWindowPos(hwnd,nullptr,finalX,finalY,0,0,
             SWP_NOSIZE|SWP_NOZORDER|SWP_NOACTIVATE);
-
-    // TEMPORARY RESPONSIVE DIAGNOSTIC: final HWND/client dimensions after the
-    // client-size correction loop and work-area clamping.
-    {
-        RECT debugWindow{};
-        RECT debugClient{};
-        GetWindowRect(hwnd,&debugWindow);
-        GetClientRect(hwnd,&debugClient);
-
-        wchar_t tempPath[MAX_PATH]{};
-        if(GetTempPathW(MAX_PATH,tempPath)){
-            std::wstring logPath=std::wstring(tempPath)+L"NvProfileSwitcher-responsive-sizing.log";
-            std::wofstream log(logPath,std::ios::app);
-            if(log){
-                log << L"FINAL"
-                    << L" | DPI=" << GetDpiForWindow(hwnd)
-                    << L" | Scale=" << gUiScale
-                    << L" | Window=" << (debugWindow.right-debugWindow.left) << L"x" << (debugWindow.bottom-debugWindow.top)
-                    << L" [" << debugWindow.left << L"," << debugWindow.top << L"," << debugWindow.right << L"," << debugWindow.bottom << L"]"
-                    << L" | Client=" << (debugClient.right-debugClient.left) << L"x" << (debugClient.bottom-debugClient.top)
-                    << L"\n";
-            }
-        }
-    }
 
     ResizeControls();
     InvalidateRect(hwnd,nullptr,TRUE);
@@ -5001,7 +4950,6 @@ HFONT CreateUiFont(int height,int weight,const wchar_t* family){
 }
 
 int WINAPI wWinMain(HINSTANCE h,HINSTANCE,LPWSTR cmd,int){
-SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
 HANDLE instanceMutex=CreateMutexW(nullptr,TRUE,INSTANCE_MUTEX_NAME);
 if(instanceMutex && GetLastError()==ERROR_ALREADY_EXISTS){
     HWND existing=FindWindowW(L"NvProfileSwitcherNative",nullptr);
