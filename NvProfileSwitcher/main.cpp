@@ -3586,7 +3586,7 @@ void ResizeControls(){
 
 
 HFONT ScaledFontFromBase(HFONT base,double scale){
-    if(!base||scale>=0.999) return base;
+    if(!base||std::abs(scale-1.0)<0.001) return base;
     LOGFONTW lf{};
     if(!GetObjectW(base,sizeof(lf),&lf)) return base;
     lf.lfHeight=(LONG)std::lround((double)lf.lfHeight*scale);
