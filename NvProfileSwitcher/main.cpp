@@ -95,10 +95,11 @@ constexpr int DIALOG_SECTION_GAP=16;
 constexpr int DIALOG_BUTTON_GAP=12;
 constexpr int DIALOG_BUTTON_WIDTH=100;
 constexpr int DIALOG_BUTTON_HEIGHT=36;
-enum {IDC_LIST=1001,IDC_NAME,IDC_EXE,IDC_BROWSE,IDC_ENABLED,IDC_DISPLAY,IDC_LBL_DISPLAY,IDC_VIB,IDC_HUE,IDC_BRI,IDC_CON,IDC_GAM,IDC_SAVE,IDC_ADD=1015,IDC_REMOVE,IDC_STARTWIN=1018,IDC_STARTMIN,IDC_VALVIB,IDC_VALHUE,IDC_VALBRI,IDC_VALCON,IDC_VALGAM,IDC_LBL_NAME,IDC_LBL_EXE,IDC_LBL_ENABLED,IDC_LBL_VIB,IDC_LBL_HUE,IDC_LBL_BRI,IDC_LBL_CON,IDC_LBL_GAM,IDC_DEFAULTS,IDC_MINTRAY,IDC_CHECKUPDATES,IDC_FOOT_GITHUB,IDC_FOOT_SUPPORT,IDC_FOOT_ABOUT,IDC_APP_SETTINGS_TITLE,IDC_HOTKEY_SHOW_LABEL,IDC_HOTKEY_SHOW,IDC_HOTKEY_SHOW_CLEAR,IDC_HOTKEY_OVERRIDE_LABEL,IDC_HOTKEY_OVERRIDE,IDC_HOTKEY_OVERRIDE_CLEAR,IDC_PROFILE_HOTKEY_LABEL,IDC_PROFILE_HOTKEY,IDC_PROFILE_HOTKEY_CLEAR,IDC_HOTKEY_RESUME_LABEL,IDC_HOTKEY_RESUME,IDC_HOTKEY_RESUME_CLEAR,IDC_CHECKUPDATES_LABEL,IDC_RUNNING_APPS,IDC_PROFILE_UP,IDC_PROFILE_DOWN,IDC_IMPORT_PROFILES,IDC_EXPORT_PROFILES};
+enum {IDC_LIST=1001,IDC_NAME,IDC_EXE,IDC_BROWSE,IDC_ENABLED,IDC_DISPLAY,IDC_LBL_DISPLAY,IDC_VIB,IDC_HUE,IDC_BRI,IDC_CON,IDC_GAM,IDC_SAVE,IDC_ADD=1015,IDC_REMOVE,IDC_STARTWIN=1018,IDC_STARTMIN,IDC_VALVIB,IDC_VALHUE,IDC_VALBRI,IDC_VALCON,IDC_VALGAM,IDC_LBL_NAME,IDC_LBL_EXE,IDC_LBL_ENABLED,IDC_LBL_VIB,IDC_LBL_HUE,IDC_LBL_BRI,IDC_LBL_CON,IDC_LBL_GAM,IDC_DEFAULTS,IDC_MINTRAY,IDC_CHECKUPDATES,IDC_FOOT_GITHUB,IDC_FOOT_SUPPORT,IDC_FOOT_ABOUT,IDC_APP_SETTINGS_TITLE,IDC_HOTKEY_SHOW_LABEL,IDC_HOTKEY_SHOW,IDC_HOTKEY_SHOW_CLEAR,IDC_HOTKEY_OVERRIDE_LABEL,IDC_HOTKEY_OVERRIDE,IDC_HOTKEY_OVERRIDE_CLEAR,IDC_PROFILE_HOTKEY_LABEL,IDC_PROFILE_HOTKEY,IDC_PROFILE_HOTKEY_CLEAR,IDC_HOTKEY_RESUME_LABEL,IDC_HOTKEY_RESUME,IDC_HOTKEY_RESUME_CLEAR,IDC_CHECKUPDATES_LABEL,IDC_RUNNING_APPS,IDC_PROFILE_UP,IDC_PROFILE_DOWN,IDC_IMPORT_PROFILES,IDC_EXPORT_PROFILES,IDC_DISPLAYS_TITLE,IDC_MANAGE_DISPLAYS};
 enum {ID_TRAY_OPEN=2001,ID_TRAY_CHECK_UPDATE,ID_TRAY_ABOUT,ID_TRAY_EXIT};
 enum {ID_HOTKEY_SHOW_HIDE=3001,ID_HOTKEY_WINDOWS_OVERRIDE,ID_HOTKEY_RESUME_AUTOMATIC,ID_HOTKEY_TEST};
 enum {IDC_RUNNING_LIST=5101,IDC_RUNNING_REFRESH,IDC_RUNNING_SELECT,IDC_RUNNING_HEADER,IDC_RUNNING_EMPTY};
+enum {IDC_MANAGE_LIST=5201,IDC_MANAGE_REMOVE,IDC_MANAGE_CLOSE,IDC_MANAGE_HEADER,IDC_MANAGE_EMPTY};
 constexpr int ID_HOTKEY_PROFILE_BASE=4000;
 
 
@@ -2413,6 +2414,8 @@ void SetDesktopUi(bool desktop){
     MoveUi(H(IDC_HOTKEY_RESUME_LABEL),appX,318,286,22,TRUE);
     MoveUi(H(IDC_HOTKEY_RESUME),appX+2,350,206,22,TRUE);
     MoveUi(H(IDC_HOTKEY_RESUME_CLEAR),appX+218,344,68,34,TRUE);
+    MoveUi(H(IDC_DISPLAYS_TITLE),appX,441,286,24,TRUE);
+    MoveUi(H(IDC_MANAGE_DISPLAYS),appX,479,160,38,TRUE);
     MoveUi(H(IDC_APP_SETTINGS_TITLE),appX,579,250,24,TRUE);
     MoveUi(H(IDC_STARTWIN),appX,617,22,22,TRUE);
     MoveUi(GetWindow(H(IDC_STARTWIN),GW_HWNDNEXT),appX+27,617,220,22,TRUE);
@@ -3242,6 +3245,7 @@ void Paint(HWND w){
     FL(left.left+1,separatorY,leftW-2,1,C_BORDER);
     FL(center.left+1,separatorY,centerW-2,1,C_BORDER);
     FL(settings.left+1,separatorY,settingsW-2,1,C_BORDER);
+    FL(settings.left+22,397,settingsW-44,1,C_BORDER);
     FL(settings.left+22,560,settingsW-44,1,C_BORDER);
 
     // Match the application text fields: the app paints the complete rounded
@@ -3486,6 +3490,11 @@ void BuildControls(){
     SendMessageW(resumeHotkey,HKM_SETRULES,0,0);
     HWND clearResume=Add(L"BUTTON",L"Clear",BS_OWNERDRAW,appX+218,344,68,34,IDC_HOTKEY_RESUME_CLEAR);
     StyleMainButton(clearResume);
+
+    HWND displaysTitle=Add(L"STATIC",L"Displays",0,appX,441,286,24,IDC_DISPLAYS_TITLE);
+    SendMessageW(displaysTitle,WM_SETFONT,(WPARAM)gFontBold,TRUE);
+    HWND manageDisplays=Add(L"BUTTON",L"Manage displays...",BS_OWNERDRAW,appX,479,160,38,IDC_MANAGE_DISPLAYS);
+    StyleMainButton(manageDisplays);
 
     HWND appSettingsTitle=Add(L"STATIC",L"Application Settings",0,appX,579,250,24,IDC_APP_SETTINGS_TITLE);
     SendMessageW(appSettingsTitle,WM_SETFONT,(WPARAM)gFontBold,TRUE);
@@ -4390,6 +4399,149 @@ void PopulateRunningAppsList(RunningAppsDialogData* data){
     }
 }
 
+
+struct SavedDisplayInfo {
+    std::wstring monitorId;
+    std::wstring name;
+    bool connected=false;
+};
+struct ManageDisplaysDialogData {
+    HWND list{};
+    HWND emptyMessage{};
+    std::vector<SavedDisplayInfo> displays;
+};
+
+std::vector<SavedDisplayInfo> GetSavedDisplays(){
+    std::vector<SavedDisplayInfo> result;
+    auto add=[&](const DisplayProfileValues& values){
+        if(values.monitorId.empty())return;
+        auto it=std::find_if(result.begin(),result.end(),[&](const SavedDisplayInfo& d){return d.monitorId==values.monitorId;});
+        if(it==result.end()){
+            SavedDisplayInfo info{};
+            info.monitorId=values.monitorId;
+            info.name=values.displayName.empty()?values.monitorId:values.displayName;
+            result.push_back(std::move(info));
+        }else if(it->name==it->monitorId&&!values.displayName.empty())it->name=values.displayName;
+    };
+    for(const auto& profile:gSettings.desktopProfiles)for(const auto& values:profile.displayProfiles)add(values);
+    for(const auto& profile:gSettings.profiles)for(const auto& values:profile.displayProfiles)add(values);
+    for(auto& saved:result){
+        auto active=std::find_if(gDisplays.begin(),gDisplays.end(),[&](const DisplayTarget& d){return d.monitorId==saved.monitorId;});
+        if(active!=gDisplays.end()){
+            saved.connected=true;
+            if(!active->label.empty())saved.name=active->label;
+        }
+    }
+    std::stable_sort(result.begin(),result.end(),[](const SavedDisplayInfo& a,const SavedDisplayInfo& b){
+        if(a.connected!=b.connected)return a.connected>b.connected;
+        return a.name<b.name;
+    });
+    return result;
+}
+
+void RemoveSavedDisplay(const std::wstring& monitorId){
+    auto eraseFrom=[](ApplicationProfile& profile,const std::wstring& id){
+        profile.displayProfiles.erase(std::remove_if(profile.displayProfiles.begin(),profile.displayProfiles.end(),
+            [&](const DisplayProfileValues& values){return values.monitorId==id;}),profile.displayProfiles.end());
+    };
+    for(auto& profile:gSettings.desktopProfiles)eraseFrom(profile,monitorId);
+    for(auto& profile:gSettings.profiles)eraseFrom(profile,monitorId);
+    Save();
+}
+
+void PopulateManageDisplaysList(ManageDisplaysDialogData* data){
+    if(!data||!data->list)return;
+    data->displays=GetSavedDisplays();
+    ListView_DeleteAllItems(data->list);
+    for(size_t i=0;i<data->displays.size();++i){
+        const auto& display=data->displays[i];
+        LVITEMW item{};item.mask=LVIF_TEXT|LVIF_PARAM;item.iItem=(int)i;item.lParam=(LPARAM)i;item.pszText=(LPWSTR)display.name.c_str();
+        int row=ListView_InsertItem(data->list,&item);
+        ListView_SetItemText(data->list,row,1,(LPWSTR)(display.connected?L"Connected":L"Disconnected"));
+    }
+    ShowWindow(data->emptyMessage,data->displays.empty()?SW_SHOW:SW_HIDE);
+    ShowWindow(data->list,data->displays.empty()?SW_HIDE:SW_SHOW);
+    HWND remove=GetDlgItem(GetParent(data->list),IDC_MANAGE_REMOVE);
+    if(remove)EnableWindow(remove,FALSE);
+}
+
+LRESULT CALLBACK ManageDisplaysDialogProc(HWND w,UINT m,WPARAM wp,LPARAM lp){
+    auto* data=(ManageDisplaysDialogData*)GetWindowLongPtrW(w,GWLP_USERDATA);
+    switch(m){
+    case WM_CREATE:{
+        data=(ManageDisplaysDialogData*)((CREATESTRUCTW*)lp)->lpCreateParams;
+        SetWindowLongPtrW(w,GWLP_USERDATA,(LONG_PTR)data);
+        RECT client{};GetClientRect(w,&client);
+        const int margin=18,headerH=32,buttonH=36,buttonW=110,gap=10;
+        const int buttonY=client.bottom-margin-buttonH;
+        CreateWindowExW(0,L"STATIC",L"",WS_CHILD|WS_VISIBLE|SS_OWNERDRAW,margin,margin,client.right-margin*2,headerH,w,(HMENU)IDC_MANAGE_HEADER,gInst,nullptr);
+        data->list=CreateWindowExW(0,WC_LISTVIEWW,L"",WS_CHILD|WS_VISIBLE|WS_TABSTOP|LVS_REPORT|LVS_SINGLESEL|LVS_SHOWSELALWAYS|LVS_NOCOLUMNHEADER,
+            margin,margin+headerH,client.right-margin*2,buttonY-margin-(margin+headerH),w,(HMENU)IDC_MANAGE_LIST,gInst,nullptr);
+        SetWindowTheme(data->list,L"",L"");
+        SendMessageW(data->list,WM_SETFONT,(WPARAM)gFont,TRUE);
+        ListView_SetExtendedListViewStyle(data->list,LVS_EX_FULLROWSELECT|LVS_EX_DOUBLEBUFFER);
+        ListView_SetBkColor(data->list,C_FIELD);ListView_SetTextBkColor(data->list,C_FIELD);ListView_SetTextColor(data->list,C_TEXT);
+        LVCOLUMNW col{LVCF_WIDTH};col.cx=310;ListView_InsertColumn(data->list,0,&col);col.cx=125;ListView_InsertColumn(data->list,1,&col);
+        data->emptyMessage=CreateWindowExW(0,L"STATIC",L"No saved displays found.",WS_CHILD|SS_CENTER|SS_CENTERIMAGE,
+            margin+1,margin+headerH+1,client.right-margin*2-2,buttonY-margin-(margin+headerH)-2,w,(HMENU)IDC_MANAGE_EMPTY,gInst,nullptr);
+        SendMessageW(data->emptyMessage,WM_SETFONT,(WPARAM)gFont,TRUE);
+        HWND remove=CreateWindowExW(0,L"BUTTON",L"Remove",WS_CHILD|WS_VISIBLE|WS_TABSTOP|BS_OWNERDRAW,margin,buttonY,buttonW,buttonH,w,(HMENU)IDC_MANAGE_REMOVE,gInst,nullptr);
+        HWND close=CreateWindowExW(0,L"BUTTON",L"Close",WS_CHILD|WS_VISIBLE|WS_TABSTOP|BS_OWNERDRAW,client.right-margin-buttonW,buttonY,buttonW,buttonH,w,(HMENU)IDC_MANAGE_CLOSE,gInst,nullptr);
+        for(HWND b:{remove,close}){SendMessageW(b,WM_SETFONT,(WPARAM)gFontBold,TRUE);StyleMainButton(b);}
+        PopulateManageDisplaysList(data);SetFocus(data->list);return 0;
+    }
+    case WM_NOTIFY:
+        if(((NMHDR*)lp)->idFrom==IDC_MANAGE_LIST&&((NMHDR*)lp)->code==LVN_ITEMCHANGED&&data){
+            int row=ListView_GetNextItem(data->list,-1,LVNI_SELECTED);
+            bool canRemove=row>=0&&row<(int)data->displays.size()&&!data->displays[(size_t)row].connected;
+            EnableWindow(GetDlgItem(w,IDC_MANAGE_REMOVE),canRemove);return 0;
+        }
+        break;
+    case WM_COMMAND:
+        if(LOWORD(wp)==IDC_MANAGE_CLOSE){DestroyWindow(w);return 0;}
+        if(LOWORD(wp)==IDC_MANAGE_REMOVE&&data){
+            int row=ListView_GetNextItem(data->list,-1,LVNI_SELECTED);
+            if(row>=0&&row<(int)data->displays.size()&&!data->displays[(size_t)row].connected){
+                const auto display=data->displays[(size_t)row];
+                std::wstring msg=L"Remove this display?\n\n"+display.name+L"\n\nIts saved settings will be permanently removed from all profiles.";
+                if(MessageBoxW(w,msg.c_str(),L"Remove display",MB_YESNO|MB_ICONWARNING|MB_DEFBUTTON2)==IDYES){
+                    RemoveSavedDisplay(display.monitorId);PopulateManageDisplaysList(data);
+                }
+            }
+            return 0;
+        }
+        break;
+    case WM_DRAWITEM:{
+        auto* draw=(DRAWITEMSTRUCT*)lp;
+        if(draw->CtlID==IDC_MANAGE_HEADER){
+            RECT r=draw->rcItem;FillRect(draw->hDC,&r,gPanel2Brush);SetBkMode(draw->hDC,TRANSPARENT);SetTextColor(draw->hDC,C_TEXT);
+            HFONT old=(HFONT)SelectObject(draw->hDC,gFontBold);RECT a{r.left+10,r.top,r.left+310,r.bottom};RECT b{r.left+320,r.top,r.right-8,r.bottom};
+            DrawTextW(draw->hDC,L"Display",-1,&a,DT_LEFT|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);DrawTextW(draw->hDC,L"Status",-1,&b,DT_LEFT|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);
+            Fill(draw->hDC,310,r.top+6,1,r.bottom-r.top-12,C_BORDER);Fill(draw->hDC,r.left,r.bottom-1,r.right-r.left,1,C_BORDER);SelectObject(draw->hDC,old);return TRUE;
+        }
+        if(draw->CtlID==IDC_MANAGE_REMOVE||draw->CtlID==IDC_MANAGE_CLOSE){DrawOwnerButton(draw);return TRUE;}
+        break;
+    }
+    case WM_CTLCOLORSTATIC:{HDC dc=(HDC)wp;SetTextColor(dc,C_MUTED);SetBkMode(dc,TRANSPARENT);return (LRESULT)gBackBrush;}
+    case WM_PAINT:{PAINTSTRUCT ps{};HDC dc=BeginPaint(w,&ps);RECT client{};GetClientRect(w,&client);RECT border{18,18,client.right-18,client.bottom-72};HBRUSH b=CreateSolidBrush(C_BORDER);FrameRect(dc,&border,b);DeleteObject(b);EndPaint(w,&ps);return 0;}
+    case WM_CLOSE:DestroyWindow(w);return 0;
+    }
+    return DefWindowProcW(w,m,wp,lp);
+}
+
+void ShowManageDisplaysDialog(HWND owner){
+    static bool registered=false;
+    if(!registered){WNDCLASSEXW wc{sizeof(wc)};wc.lpfnWndProc=ManageDisplaysDialogProc;wc.hInstance=gInst;wc.hIcon=gIcon;wc.hIconSm=gIcon;wc.hCursor=LoadCursor(nullptr,IDC_ARROW);wc.hbrBackground=gBackBrush;wc.lpszClassName=L"NvProfileSwitcherManageDisplays";if(!RegisterClassExW(&wc)&&GetLastError()!=ERROR_CLASS_ALREADY_EXISTS)return;registered=true;}
+    ManageDisplaysDialogData data{};HWND previousFocus=GetFocus();const bool disableOwner=owner&&IsWindowEnabled(owner);if(disableOwner)EnableWindow(owner,FALSE);
+    HWND dialog=CreateWindowExW(WS_EX_DLGMODALFRAME,L"NvProfileSwitcherManageDisplays",L"Manage displays",WS_OVERLAPPED|WS_CAPTION|WS_SYSMENU,
+        CW_USEDEFAULT,CW_USEDEFAULT,510,390,owner,nullptr,gInst,&data);
+    if(!dialog){if(disableOwner)EnableWindow(owner,TRUE);return;}
+    BOOL darkTitle=TRUE;DwmSetWindowAttribute(dialog,20,&darkTitle,sizeof(darkTitle));RECT wr{},target{};GetWindowRect(dialog,&wr);GetWindowRect(owner,&target);
+    int ww=wr.right-wr.left,wh=wr.bottom-wr.top;SetWindowPos(dialog,HWND_TOP,target.left+((target.right-target.left)-ww)/2,target.top+((target.bottom-target.top)-wh)/2,0,0,SWP_NOSIZE|SWP_SHOWWINDOW);
+    MSG msg{};while(IsWindow(dialog)&&GetMessageW(&msg,nullptr,0,0)>0){if(!IsDialogMessageW(dialog,&msg)){TranslateMessage(&msg);DispatchMessageW(&msg);}}
+    if(disableOwner){EnableWindow(owner,TRUE);if(previousFocus&&IsWindow(previousFocus))SetFocus(previousFocus);else SetFocus(owner);SetForegroundWindow(owner);}
+}
+
 LRESULT CALLBACK RunningAppsDialogProc(HWND w,UINT m,WPARAM wp,LPARAM lp){
     auto* data=(RunningAppsDialogData*)GetWindowLongPtrW(w,GWLP_USERDATA);
     switch(m){
@@ -4766,7 +4918,7 @@ case WM_CTLCOLORSTATIC:{HDC dc=(HDC)wp;
     if(d->CtlID==IDC_ADD||d->CtlID==IDC_REMOVE||d->CtlID==IDC_PROFILE_UP||d->CtlID==IDC_PROFILE_DOWN){
         DrawProfileHeaderButton(d);return TRUE;
     }
-    if(d->CtlID==IDC_SAVE||d->CtlID==IDC_DEFAULTS||d->CtlID==IDC_BROWSE||d->CtlID==IDC_RUNNING_APPS||d->CtlID==IDC_HOTKEY_SHOW_CLEAR||d->CtlID==IDC_HOTKEY_OVERRIDE_CLEAR||d->CtlID==IDC_HOTKEY_RESUME_CLEAR||d->CtlID==IDC_PROFILE_HOTKEY_CLEAR||d->CtlID==IDC_IMPORT_PROFILES||d->CtlID==IDC_EXPORT_PROFILES){
+    if(d->CtlID==IDC_SAVE||d->CtlID==IDC_DEFAULTS||d->CtlID==IDC_BROWSE||d->CtlID==IDC_RUNNING_APPS||d->CtlID==IDC_HOTKEY_SHOW_CLEAR||d->CtlID==IDC_HOTKEY_OVERRIDE_CLEAR||d->CtlID==IDC_HOTKEY_RESUME_CLEAR||d->CtlID==IDC_PROFILE_HOTKEY_CLEAR||d->CtlID==IDC_IMPORT_PROFILES||d->CtlID==IDC_EXPORT_PROFILES||d->CtlID==IDC_MANAGE_DISPLAYS){
         DrawOwnerButton(d);return TRUE;
     }
     if(d->CtlID==IDC_FOOT_GITHUB||d->CtlID==IDC_FOOT_SUPPORT||d->CtlID==IDC_FOOT_ABOUT){
@@ -4907,7 +5059,7 @@ case WM_TIMER:
     }
 #endif
     return 0;
-case WM_COMMAND:{int id=LOWORD(wp);if(id==IDC_PROFILE_UP){MoveSelectedProfile(-1);return 0;}if(id==IDC_PROFILE_DOWN){MoveSelectedProfile(1);return 0;}if(id==IDC_HOTKEY_SHOW&&HIWORD(wp)==EN_CHANGE){UpdateConfiguredHotkey(IDC_HOTKEY_SHOW,gSettings.showHideHotkey);return 0;}if(id==IDC_HOTKEY_OVERRIDE&&HIWORD(wp)==EN_CHANGE){UpdateConfiguredHotkey(IDC_HOTKEY_OVERRIDE,gSettings.windowsOverrideHotkey);return 0;}if(id==IDC_HOTKEY_RESUME&&HIWORD(wp)==EN_CHANGE){UpdateConfiguredHotkey(IDC_HOTKEY_RESUME,gSettings.resumeAutomaticHotkey);return 0;}if(id==IDC_PROFILE_HOTKEY&&HIWORD(wp)==EN_CHANGE&&!IsDesktopSelected()){if(auto*p=SelectedProfile()){UpdateConfiguredHotkey(IDC_PROFILE_HOTKEY,p->hotkey);InvalidateRect(H(IDC_LIST),nullptr,TRUE);}return 0;}if(id==IDC_LIST&&HIWORD(wp)==LBN_SELCHANGE){HideExecutableTooltip();DiscardPreview();LoadSelected();return 0;}if(id==IDC_DISPLAY&&HIWORD(wp)==CBN_SELCHANGE){DiscardPreview();int ds=(int)SendMessageW(H(IDC_DISPLAY),CB_GETCURSEL,0,0);if(ds>=0&&ds<(int)gDisplays.size()){if(IsDesktopSelected()){auto*p=EnsureDesktopProfile(gDisplays[ds].gdiName,gDisplays[ds].monitorId);LoadValuesToSliders(ValuesFromFlatProfile(*p));}else{auto*p=SelectedProfile();if(p){LoadValuesToSliders(*EnsureApplicationValuesForDisplay(*p,gDisplays[ds].gdiName,gDisplays[ds].monitorId));}}}return 0;}if(id==IDC_RUNNING_APPS){std::wstring path;if(SelectRunningApplication(w,path)){Txt(IDC_EXE,path);InvalidateRect(H(IDC_EXE),nullptr,TRUE);auto* p=SelectedProfile();if(p&&!IsDesktopSelected()){p->exePath=path;InvalidateRect(H(IDC_LIST),nullptr,TRUE);}}return 0;}switch(id){case IDC_HOTKEY_SHOW_CLEAR:ClearConfiguredHotkey(IDC_HOTKEY_SHOW,gSettings.showHideHotkey);break;case IDC_HOTKEY_OVERRIDE_CLEAR:ClearConfiguredHotkey(IDC_HOTKEY_OVERRIDE,gSettings.windowsOverrideHotkey);break;case IDC_HOTKEY_RESUME_CLEAR:ClearConfiguredHotkey(IDC_HOTKEY_RESUME,gSettings.resumeAutomaticHotkey);break;case IDC_PROFILE_HOTKEY_CLEAR:if(!IsDesktopSelected()){if(auto*p=SelectedProfile()){ClearConfiguredHotkey(IDC_PROFILE_HOTKEY,p->hotkey);InvalidateRect(H(IDC_LIST),nullptr,TRUE);}}break;case IDC_BROWSE:{OPENFILENAMEW o{sizeof(o)};wchar_t f[MAX_PATH]{};o.hwndOwner=w;o.lpstrFilter=L"Executables (*.exe)\0*.exe\0All files\0*.*\0";o.lpstrFile=f;o.nMaxFile=MAX_PATH;o.Flags=OFN_FILEMUSTEXIST;if(GetOpenFileNameW(&o)){Txt(IDC_EXE,f);InvalidateRect(H(IDC_EXE),nullptr,TRUE);auto* p=SelectedProfile();if(p&&!IsDesktopSelected()){p->exePath=f;InvalidateRect(H(IDC_LIST),nullptr,TRUE);}}break;}case IDC_IMPORT_PROFILES:ImportConfiguration(w);break;case IDC_EXPORT_PROFILES:ExportConfiguration(w);break;case IDC_DEFAULTS:ResetSlidersToDefaults();break;case IDC_SAVE:SaveSelected();break;case IDC_ADD:{ApplicationProfile np{};if(!gDisplays.empty()){for(const auto&d:gDisplays)np.displayProfiles.push_back(ApplicationDefaultsForDisplay(d.gdiName,d.monitorId));}gSettings.profiles.push_back(np);gSelected=(int)gSettings.profiles.size();Save();RefreshList();LoadSelected();break;}case IDC_REMOVE:if(gSelected>0&&gSelected<=(int)gSettings.profiles.size()){size_t removed=(size_t)(gSelected-1);UnregisterConfiguredHotkeys();if(gOverrideMode==OverrideMode::Profile){if(gOverrideProfileIndex==removed)gOverrideMode=OverrideMode::Automatic;else if(gOverrideProfileIndex>removed)--gOverrideProfileIndex;}gSettings.profiles.erase(gSettings.profiles.begin()+removed);RegisterConfiguredHotkeys();gSelected=gSettings.profiles.empty()?0:std::min(gSelected,(int)gSettings.profiles.size());Save();RefreshList();LoadSelected();gActive.clear();CheckProcesses();}break;case IDC_STARTWIN:gSettings.startWindows=SendMessageW(H(IDC_STARTWIN),BM_GETCHECK,0,0)==BST_CHECKED;SetStartup(gSettings.startWindows);Save();break;case IDC_STARTMIN:gSettings.startMinimized=SendMessageW(H(IDC_STARTMIN),BM_GETCHECK,0,0)==BST_CHECKED;Save();break;case IDC_MINTRAY:
+case WM_COMMAND:{int id=LOWORD(wp);if(id==IDC_PROFILE_UP){MoveSelectedProfile(-1);return 0;}if(id==IDC_PROFILE_DOWN){MoveSelectedProfile(1);return 0;}if(id==IDC_HOTKEY_SHOW&&HIWORD(wp)==EN_CHANGE){UpdateConfiguredHotkey(IDC_HOTKEY_SHOW,gSettings.showHideHotkey);return 0;}if(id==IDC_HOTKEY_OVERRIDE&&HIWORD(wp)==EN_CHANGE){UpdateConfiguredHotkey(IDC_HOTKEY_OVERRIDE,gSettings.windowsOverrideHotkey);return 0;}if(id==IDC_HOTKEY_RESUME&&HIWORD(wp)==EN_CHANGE){UpdateConfiguredHotkey(IDC_HOTKEY_RESUME,gSettings.resumeAutomaticHotkey);return 0;}if(id==IDC_PROFILE_HOTKEY&&HIWORD(wp)==EN_CHANGE&&!IsDesktopSelected()){if(auto*p=SelectedProfile()){UpdateConfiguredHotkey(IDC_PROFILE_HOTKEY,p->hotkey);InvalidateRect(H(IDC_LIST),nullptr,TRUE);}return 0;}if(id==IDC_LIST&&HIWORD(wp)==LBN_SELCHANGE){HideExecutableTooltip();DiscardPreview();LoadSelected();return 0;}if(id==IDC_DISPLAY&&HIWORD(wp)==CBN_SELCHANGE){DiscardPreview();int ds=(int)SendMessageW(H(IDC_DISPLAY),CB_GETCURSEL,0,0);if(ds>=0&&ds<(int)gDisplays.size()){if(IsDesktopSelected()){auto*p=EnsureDesktopProfile(gDisplays[ds].gdiName,gDisplays[ds].monitorId);LoadValuesToSliders(ValuesFromFlatProfile(*p));}else{auto*p=SelectedProfile();if(p){LoadValuesToSliders(*EnsureApplicationValuesForDisplay(*p,gDisplays[ds].gdiName,gDisplays[ds].monitorId));}}}return 0;}if(id==IDC_RUNNING_APPS){std::wstring path;if(SelectRunningApplication(w,path)){Txt(IDC_EXE,path);InvalidateRect(H(IDC_EXE),nullptr,TRUE);auto* p=SelectedProfile();if(p&&!IsDesktopSelected()){p->exePath=path;InvalidateRect(H(IDC_LIST),nullptr,TRUE);}}return 0;}switch(id){case IDC_HOTKEY_SHOW_CLEAR:ClearConfiguredHotkey(IDC_HOTKEY_SHOW,gSettings.showHideHotkey);break;case IDC_HOTKEY_OVERRIDE_CLEAR:ClearConfiguredHotkey(IDC_HOTKEY_OVERRIDE,gSettings.windowsOverrideHotkey);break;case IDC_HOTKEY_RESUME_CLEAR:ClearConfiguredHotkey(IDC_HOTKEY_RESUME,gSettings.resumeAutomaticHotkey);break;case IDC_PROFILE_HOTKEY_CLEAR:if(!IsDesktopSelected()){if(auto*p=SelectedProfile()){ClearConfiguredHotkey(IDC_PROFILE_HOTKEY,p->hotkey);InvalidateRect(H(IDC_LIST),nullptr,TRUE);}}break;case IDC_BROWSE:{OPENFILENAMEW o{sizeof(o)};wchar_t f[MAX_PATH]{};o.hwndOwner=w;o.lpstrFilter=L"Executables (*.exe)\0*.exe\0All files\0*.*\0";o.lpstrFile=f;o.nMaxFile=MAX_PATH;o.Flags=OFN_FILEMUSTEXIST;if(GetOpenFileNameW(&o)){Txt(IDC_EXE,f);InvalidateRect(H(IDC_EXE),nullptr,TRUE);auto* p=SelectedProfile();if(p&&!IsDesktopSelected()){p->exePath=f;InvalidateRect(H(IDC_LIST),nullptr,TRUE);}}break;}case IDC_MANAGE_DISPLAYS:ShowManageDisplaysDialog(w);break;case IDC_IMPORT_PROFILES:ImportConfiguration(w);break;case IDC_EXPORT_PROFILES:ExportConfiguration(w);break;case IDC_DEFAULTS:ResetSlidersToDefaults();break;case IDC_SAVE:SaveSelected();break;case IDC_ADD:{ApplicationProfile np{};if(!gDisplays.empty()){for(const auto&d:gDisplays)np.displayProfiles.push_back(ApplicationDefaultsForDisplay(d.gdiName,d.monitorId));}gSettings.profiles.push_back(np);gSelected=(int)gSettings.profiles.size();Save();RefreshList();LoadSelected();break;}case IDC_REMOVE:if(gSelected>0&&gSelected<=(int)gSettings.profiles.size()){size_t removed=(size_t)(gSelected-1);UnregisterConfiguredHotkeys();if(gOverrideMode==OverrideMode::Profile){if(gOverrideProfileIndex==removed)gOverrideMode=OverrideMode::Automatic;else if(gOverrideProfileIndex>removed)--gOverrideProfileIndex;}gSettings.profiles.erase(gSettings.profiles.begin()+removed);RegisterConfiguredHotkeys();gSelected=gSettings.profiles.empty()?0:std::min(gSelected,(int)gSettings.profiles.size());Save();RefreshList();LoadSelected();gActive.clear();CheckProcesses();}break;case IDC_STARTWIN:gSettings.startWindows=SendMessageW(H(IDC_STARTWIN),BM_GETCHECK,0,0)==BST_CHECKED;SetStartup(gSettings.startWindows);Save();break;case IDC_STARTMIN:gSettings.startMinimized=SendMessageW(H(IDC_STARTMIN),BM_GETCHECK,0,0)==BST_CHECKED;Save();break;case IDC_MINTRAY:
     gSettings.minimizeToTray=SendMessageW(H(IDC_MINTRAY),BM_GETCHECK,0,0)==BST_CHECKED;
     if(!gSettings.minimizeToTray)
         SetTrayIconVisible(false);
