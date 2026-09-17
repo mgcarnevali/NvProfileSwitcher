@@ -4310,6 +4310,8 @@ struct RunningAppsDialogData{
     HWND emptyMessage{};
     HIMAGELIST images{};
     ResponsiveDialogState responsive{};
+    int sortColumn=-1;
+    bool sortAscending=true;
 };
 
 std::wstring FileNameFromPath(const std::wstring& path){
@@ -4361,12 +4363,25 @@ std::vector<RunningAppEntry> EnumerateRunningApps(){
     return apps;
 }
 
+void SortRunningApps(RunningAppsDialogData* data){
+    if(!data||data->sortColumn<0||data->sortColumn>2)return;
+    const int column=data->sortColumn;
+    const bool ascending=data->sortAscending;
+    std::stable_sort(data->apps.begin(),data->apps.end(),[column,ascending](const RunningAppEntry& a,const RunningAppEntry& b){
+        const std::wstring* left=&a.name; const std::wstring* right=&b.name;
+        if(column==1){left=&a.executable;right=&b.executable;} else if(column==2){left=&a.path;right=&b.path;}
+        const int cmp=CompareStringOrdinal(left->c_str(),-1,right->c_str(),-1,TRUE);
+        return ascending?cmp==CSTR_LESS_THAN:cmp==CSTR_GREATER_THAN;
+    });
+}
+
 void PopulateRunningAppsList(RunningAppsDialogData* data){
     if(!data||!data->list)return;
     ListView_DeleteAllItems(data->list);
     for(auto& app:data->apps)if(app.icon)DestroyIcon(app.icon);
     if(data->images)ImageList_RemoveAll(data->images);
     data->apps=EnumerateRunningApps();
+    SortRunningApps(data);
     if(data->emptyMessage)ShowWindow(data->emptyMessage,data->apps.empty()?SW_SHOW:SW_HIDE);
 
     for(size_t i=0;i<data->apps.size();++i){
@@ -4704,6 +4719,8 @@ struct ManageDisplaysDialogData {
     HWND emptyMessage{};
     ResponsiveDialogState responsive{};
     std::vector<SavedDisplayInfo> displays;
+    int sortColumn=-1;
+    bool sortAscending=true;
 };
 
 constexpr int MANAGE_BASE_CLIENT_WIDTH=524;
@@ -4807,9 +4824,21 @@ void RemoveSavedDisplay(const std::wstring& monitorId){
     Save();
 }
 
+void SortManageDisplays(ManageDisplaysDialogData* data){
+    if(!data||data->sortColumn<0||data->sortColumn>1)return;
+    const int column=data->sortColumn; const bool ascending=data->sortAscending;
+    std::stable_sort(data->displays.begin(),data->displays.end(),[column,ascending](const SavedDisplayInfo& a,const SavedDisplayInfo& b){
+        int cmp=0;
+        if(column==0)cmp=CompareStringOrdinal(a.name.c_str(),-1,b.name.c_str(),-1,TRUE);
+        else{const wchar_t* left=a.connected?L"Connected":L"Disconnected"; const wchar_t* right=b.connected?L"Connected":L"Disconnected"; cmp=CompareStringOrdinal(left,-1,right,-1,TRUE);}
+        return ascending?cmp==CSTR_LESS_THAN:cmp==CSTR_GREATER_THAN;
+    });
+}
+
 void PopulateManageDisplaysList(ManageDisplaysDialogData* data){
     if(!data||!data->list)return;
     data->displays=GetSavedDisplays();
+    SortManageDisplays(data);
     ListView_DeleteAllItems(data->list);
     for(size_t i=0;i<data->displays.size();++i){
         const auto& display=data->displays[i];
@@ -4903,7 +4932,7 @@ LRESULT CALLBACK ManageDisplaysDialogProc(HWND w,UINT m,WPARAM wp,LPARAM lp){
         data->responsive.uiScale=AdaptiveUiScaleForDpi(GetDpiForWindow(w));
         RecreateResponsiveDialogFonts(&data->responsive);
 
-        CreateWindowExW(0,L"STATIC",L"",WS_CHILD|WS_VISIBLE|SS_OWNERDRAW,0,0,1,1,w,(HMENU)IDC_MANAGE_HEADER,gInst,nullptr);
+        CreateWindowExW(0,L"STATIC",L"",WS_CHILD|WS_VISIBLE|SS_OWNERDRAW|SS_NOTIFY,0,0,1,1,w,(HMENU)IDC_MANAGE_HEADER,gInst,nullptr);
         data->list=CreateWindowExW(0,WC_LISTVIEWW,L"",WS_CHILD|WS_VISIBLE|WS_TABSTOP|LVS_REPORT|LVS_SINGLESEL|LVS_SHOWSELALWAYS|LVS_NOCOLUMNHEADER|LVS_OWNERDRAWFIXED,
             0,0,1,1,w,(HMENU)IDC_MANAGE_LIST,gInst,nullptr);
         SetWindowTheme(data->list,L"",L"");
@@ -4953,6 +4982,14 @@ LRESULT CALLBACK ManageDisplaysDialogProc(HWND w,UINT m,WPARAM wp,LPARAM lp){
         }
         break;
     case WM_COMMAND:
+        if(LOWORD(wp)==IDC_MANAGE_HEADER&&HIWORD(wp)==STN_CLICKED&&data){
+            HWND header=GetDlgItem(w,IDC_MANAGE_HEADER); POINT pt{};GetCursorPos(&pt);ScreenToClient(header,&pt); RECT r{};GetClientRect(header,&r);
+            const int column=pt.x<((r.right-r.left)*70)/100?0:1;
+            if(data->sortColumn==column)data->sortAscending=!data->sortAscending; else{data->sortColumn=column;data->sortAscending=true;}
+            SortManageDisplays(data); ListView_DeleteAllItems(data->list);
+            for(size_t i=0;i<data->displays.size();++i){auto& display=data->displays[i];LVITEMW item{};item.mask=LVIF_TEXT|LVIF_PARAM;item.iItem=(int)i;item.lParam=(LPARAM)i;item.pszText=(LPWSTR)display.name.c_str();const int row=ListView_InsertItem(data->list,&item);ListView_SetItemText(data->list,row,1,(LPWSTR)(display.connected?L"Connected":L"Disconnected"));}
+            EnableWindow(GetDlgItem(w,IDC_MANAGE_REMOVE),FALSE);SetFocus(data->list);return 0;
+        }
         if(LOWORD(wp)==IDC_MANAGE_CLOSE){DestroyWindow(w);return 0;}
         if(LOWORD(wp)==IDC_MANAGE_REMOVE&&data){
             int row=ListView_GetNextItem(data->list,-1,LVNI_SELECTED);
@@ -5157,7 +5194,7 @@ LRESULT CALLBACK RunningAppsDialogProc(HWND w,UINT m,WPARAM wp,LPARAM lp){
         data->responsive.uiScale=AdaptiveUiScaleForDpi(GetDpiForWindow(w));
         RecreateResponsiveDialogFonts(&data->responsive);
 
-        CreateWindowExW(0,L"STATIC",L"",WS_CHILD|WS_VISIBLE|SS_OWNERDRAW,
+        CreateWindowExW(0,L"STATIC",L"",WS_CHILD|WS_VISIBLE|SS_OWNERDRAW|SS_NOTIFY,
             0,0,1,1,w,(HMENU)IDC_RUNNING_HEADER,gInst,nullptr);
         data->list=CreateWindowExW(0,WC_LISTVIEWW,L"",
             WS_CHILD|WS_VISIBLE|WS_TABSTOP|LVS_REPORT|LVS_SINGLESEL|LVS_SHOWSELALWAYS|LVS_NOCOLUMNHEADER|LVS_OWNERDRAWFIXED,
@@ -5209,6 +5246,12 @@ LRESULT CALLBACK RunningAppsDialogProc(HWND w,UINT m,WPARAM wp,LPARAM lp){
         }
         break;
     case WM_COMMAND:
+        if(LOWORD(wp)==IDC_RUNNING_HEADER&&HIWORD(wp)==STN_CLICKED&&data){
+            HWND header=GetDlgItem(w,IDC_RUNNING_HEADER);POINT pt{};GetCursorPos(&pt);ScreenToClient(header,&pt);
+            const int firstDivider=DialogUi(data,230);const int secondDivider=DialogUi(data,375);const int column=pt.x<firstDivider?0:(pt.x<secondDivider?1:2);
+            if(data->sortColumn==column)data->sortAscending=!data->sortAscending;else{data->sortColumn=column;data->sortAscending=true;}
+            SortRunningApps(data);InsertRunningAppsRows(data);SetFocus(data->list);return 0;
+        }
         if(LOWORD(wp)==IDC_RUNNING_REFRESH){PopulateRunningAppsList(data);return 0;}
         if(LOWORD(wp)==IDC_RUNNING_SELECT){
             int row=ListView_GetNextItem(data->list,-1,LVNI_SELECTED);
