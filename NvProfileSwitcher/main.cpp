@@ -3156,6 +3156,21 @@ void DrawSliderIconPhysical(HDC dc,Gdiplus::Image* image,int x,int y,int iconBox
 
 void DrawLabel(HDC dc,const wchar_t*t,int x,int y,COLORREF c,HFONT f=nullptr){ SetBkMode(dc,TRANSPARENT);SetTextColor(dc,c);SelectObject(dc,f?f:gFont);TextOutW(dc,x,y,t,(int)wcslen(t)); }
 void Fill(HDC dc,int x,int y,int w,int h,COLORREF c){HBRUSH b=CreateSolidBrush(c);RECT r{x,y,x+w,y+h};FillRect(dc,&r,b);DeleteObject(b);} 
+void DrawSortIndicator(HDC dc,int x,int centerY,int unit,COLORREF color,bool active,bool ascending){
+    const int lineH=std::max(1,unit);
+    const int gap=std::max(1,unit*2);
+    const int w1=unit*10,w2=unit*7,w3=unit*4;
+    if(active&&ascending){
+        Fill(dc,x+(w1-w3)/2,centerY-gap-lineH,w3,lineH,color);
+        Fill(dc,x+(w1-w2)/2,centerY-lineH/2,w2,lineH,color);
+        Fill(dc,x,centerY+gap,w1,lineH,color);
+    }else{
+        Fill(dc,x,centerY-gap-lineH,w1,lineH,color);
+        Fill(dc,x+(w1-w2)/2,centerY-lineH/2,w2,lineH,color);
+        Fill(dc,x+(w1-w3)/2,centerY+gap,w3,lineH,color);
+    }
+}
+
 
 
 void DrawProfilesPrototypeIcon(HDC dc,int x,int y){
@@ -4310,6 +4325,8 @@ struct RunningAppsDialogData{
     HWND emptyMessage{};
     HIMAGELIST images{};
     ResponsiveDialogState responsive{};
+    int sortColumn=0;
+    bool sortAscending=true;
 };
 
 std::wstring FileNameFromPath(const std::wstring& path){
@@ -4361,12 +4378,25 @@ std::vector<RunningAppEntry> EnumerateRunningApps(){
     return apps;
 }
 
+void SortRunningApps(RunningAppsDialogData* data){
+    if(!data||data->sortColumn<0||data->sortColumn>2)return;
+    const int column=data->sortColumn;
+    const bool ascending=data->sortAscending;
+    std::stable_sort(data->apps.begin(),data->apps.end(),[column,ascending](const RunningAppEntry& a,const RunningAppEntry& b){
+        const std::wstring* left=&a.name; const std::wstring* right=&b.name;
+        if(column==1){left=&a.executable;right=&b.executable;} else if(column==2){left=&a.path;right=&b.path;}
+        const int cmp=CompareStringOrdinal(left->c_str(),-1,right->c_str(),-1,TRUE);
+        return ascending?cmp==CSTR_LESS_THAN:cmp==CSTR_GREATER_THAN;
+    });
+}
+
 void PopulateRunningAppsList(RunningAppsDialogData* data){
     if(!data||!data->list)return;
     ListView_DeleteAllItems(data->list);
     for(auto& app:data->apps)if(app.icon)DestroyIcon(app.icon);
     if(data->images)ImageList_RemoveAll(data->images);
     data->apps=EnumerateRunningApps();
+    SortRunningApps(data);
     if(data->emptyMessage)ShowWindow(data->emptyMessage,data->apps.empty()?SW_SHOW:SW_HIDE);
 
     for(size_t i=0;i<data->apps.size();++i){
@@ -4704,6 +4734,8 @@ struct ManageDisplaysDialogData {
     HWND emptyMessage{};
     ResponsiveDialogState responsive{};
     std::vector<SavedDisplayInfo> displays;
+    int sortColumn=-1;
+    bool sortAscending=true;
 };
 
 constexpr int MANAGE_BASE_CLIENT_WIDTH=524;
@@ -4807,9 +4839,21 @@ void RemoveSavedDisplay(const std::wstring& monitorId){
     Save();
 }
 
+void SortManageDisplays(ManageDisplaysDialogData* data){
+    if(!data||data->sortColumn<0||data->sortColumn>1)return;
+    const int column=data->sortColumn; const bool ascending=data->sortAscending;
+    std::stable_sort(data->displays.begin(),data->displays.end(),[column,ascending](const SavedDisplayInfo& a,const SavedDisplayInfo& b){
+        int cmp=0;
+        if(column==0)cmp=CompareStringOrdinal(a.name.c_str(),-1,b.name.c_str(),-1,TRUE);
+        else{const wchar_t* left=a.connected?L"Connected":L"Disconnected"; const wchar_t* right=b.connected?L"Connected":L"Disconnected"; cmp=CompareStringOrdinal(left,-1,right,-1,TRUE);}
+        return ascending?cmp==CSTR_LESS_THAN:cmp==CSTR_GREATER_THAN;
+    });
+}
+
 void PopulateManageDisplaysList(ManageDisplaysDialogData* data){
     if(!data||!data->list)return;
     data->displays=GetSavedDisplays();
+    SortManageDisplays(data);
     ListView_DeleteAllItems(data->list);
     for(size_t i=0;i<data->displays.size();++i){
         const auto& display=data->displays[i];
@@ -4903,7 +4947,7 @@ LRESULT CALLBACK ManageDisplaysDialogProc(HWND w,UINT m,WPARAM wp,LPARAM lp){
         data->responsive.uiScale=AdaptiveUiScaleForDpi(GetDpiForWindow(w));
         RecreateResponsiveDialogFonts(&data->responsive);
 
-        CreateWindowExW(0,L"STATIC",L"",WS_CHILD|WS_VISIBLE|SS_OWNERDRAW,0,0,1,1,w,(HMENU)IDC_MANAGE_HEADER,gInst,nullptr);
+        CreateWindowExW(0,L"STATIC",L"",WS_CHILD|WS_VISIBLE|SS_OWNERDRAW|SS_NOTIFY,0,0,1,1,w,(HMENU)IDC_MANAGE_HEADER,gInst,nullptr);
         data->list=CreateWindowExW(0,WC_LISTVIEWW,L"",WS_CHILD|WS_VISIBLE|WS_TABSTOP|LVS_REPORT|LVS_SINGLESEL|LVS_SHOWSELALWAYS|LVS_NOCOLUMNHEADER|LVS_OWNERDRAWFIXED,
             0,0,1,1,w,(HMENU)IDC_MANAGE_LIST,gInst,nullptr);
         SetWindowTheme(data->list,L"",L"");
@@ -4953,6 +4997,14 @@ LRESULT CALLBACK ManageDisplaysDialogProc(HWND w,UINT m,WPARAM wp,LPARAM lp){
         }
         break;
     case WM_COMMAND:
+        if(LOWORD(wp)==IDC_MANAGE_HEADER&&HIWORD(wp)==STN_CLICKED&&data){
+            HWND header=GetDlgItem(w,IDC_MANAGE_HEADER); POINT pt{};GetCursorPos(&pt);ScreenToClient(header,&pt); RECT r{};GetClientRect(header,&r);
+            const int column=pt.x<((r.right-r.left)*70)/100?0:1;
+            if(data->sortColumn==column)data->sortAscending=!data->sortAscending; else{data->sortColumn=column;data->sortAscending=true;}
+            SortManageDisplays(data); InvalidateRect(header,nullptr,TRUE); ListView_DeleteAllItems(data->list);
+            for(size_t i=0;i<data->displays.size();++i){auto& display=data->displays[i];LVITEMW item{};item.mask=LVIF_TEXT|LVIF_PARAM;item.iItem=(int)i;item.lParam=(LPARAM)i;item.pszText=(LPWSTR)display.name.c_str();const int row=ListView_InsertItem(data->list,&item);ListView_SetItemText(data->list,row,1,(LPWSTR)(display.connected?L"Connected":L"Disconnected"));}
+            EnableWindow(GetDlgItem(w,IDC_MANAGE_REMOVE),FALSE);SetFocus(data->list);return 0;
+        }
         if(LOWORD(wp)==IDC_MANAGE_CLOSE){DestroyWindow(w);return 0;}
         if(LOWORD(wp)==IDC_MANAGE_REMOVE&&data){
             int row=ListView_GetNextItem(data->list,-1,LVNI_SELECTED);
@@ -4993,6 +5045,13 @@ LRESULT CALLBACK ManageDisplaysDialogProc(HWND w,UINT m,WPARAM wp,LPARAM lp){
             const int innerGap=DialogUi(data,8);
             RECT a{r.left+pad,r.top,divider-innerGap,r.bottom};RECT b{divider+pad,r.top,r.right-innerGap,r.bottom};
             DrawTextW(draw->hDC,L"Display",-1,&a,DT_LEFT|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);DrawTextW(draw->hDC,L"Status",-1,&b,DT_LEFT|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);
+            SIZE displayText{};GetTextExtentPoint32W(draw->hDC,L"Display",7,&displayText);
+            SIZE statusText{};GetTextExtentPoint32W(draw->hDC,L"Status",6,&statusText);
+            const int glyphUnit=std::max(1,DialogUi(data,1));
+            const int glyphGap=DialogUi(data,7);
+            const int glyphY=(r.top+r.bottom)/2;
+            DrawSortIndicator(draw->hDC,a.left+displayText.cx+glyphGap,glyphY,glyphUnit,data->sortColumn==0?C_TEXT:C_MUTED,data->sortColumn==0,data->sortAscending);
+            DrawSortIndicator(draw->hDC,b.left+statusText.cx+glyphGap,glyphY,glyphUnit,data->sortColumn==1?C_TEXT:C_MUTED,data->sortColumn==1,data->sortAscending);
             Fill(draw->hDC,divider,(int)r.top+DialogUi(data,6),1,std::max(1,(int)(r.bottom-r.top)-DialogUi(data,12)),C_BORDER);
             Fill(draw->hDC,r.left,r.bottom-1,r.right-r.left,1,C_BORDER);SelectObject(draw->hDC,oldFont);return TRUE;
         }
@@ -5157,7 +5216,7 @@ LRESULT CALLBACK RunningAppsDialogProc(HWND w,UINT m,WPARAM wp,LPARAM lp){
         data->responsive.uiScale=AdaptiveUiScaleForDpi(GetDpiForWindow(w));
         RecreateResponsiveDialogFonts(&data->responsive);
 
-        CreateWindowExW(0,L"STATIC",L"",WS_CHILD|WS_VISIBLE|SS_OWNERDRAW,
+        CreateWindowExW(0,L"STATIC",L"",WS_CHILD|WS_VISIBLE|SS_OWNERDRAW|SS_NOTIFY,
             0,0,1,1,w,(HMENU)IDC_RUNNING_HEADER,gInst,nullptr);
         data->list=CreateWindowExW(0,WC_LISTVIEWW,L"",
             WS_CHILD|WS_VISIBLE|WS_TABSTOP|LVS_REPORT|LVS_SINGLESEL|LVS_SHOWSELALWAYS|LVS_NOCOLUMNHEADER|LVS_OWNERDRAWFIXED,
@@ -5209,6 +5268,12 @@ LRESULT CALLBACK RunningAppsDialogProc(HWND w,UINT m,WPARAM wp,LPARAM lp){
         }
         break;
     case WM_COMMAND:
+        if(LOWORD(wp)==IDC_RUNNING_HEADER&&HIWORD(wp)==STN_CLICKED&&data){
+            HWND header=GetDlgItem(w,IDC_RUNNING_HEADER);POINT pt{};GetCursorPos(&pt);ScreenToClient(header,&pt);
+            const int firstDivider=DialogUi(data,230);const int secondDivider=DialogUi(data,375);const int column=pt.x<firstDivider?0:(pt.x<secondDivider?1:2);
+            if(data->sortColumn==column)data->sortAscending=!data->sortAscending;else{data->sortColumn=column;data->sortAscending=true;}
+            SortRunningApps(data);InvalidateRect(header,nullptr,TRUE);InsertRunningAppsRows(data);SetFocus(data->list);return 0;
+        }
         if(LOWORD(wp)==IDC_RUNNING_REFRESH){PopulateRunningAppsList(data);return 0;}
         if(LOWORD(wp)==IDC_RUNNING_SELECT){
             int row=ListView_GetNextItem(data->list,-1,LVNI_SELECTED);
@@ -5258,6 +5323,15 @@ LRESULT CALLBACK RunningAppsDialogProc(HWND w,UINT m,WPARAM wp,LPARAM lp){
             DrawTextW(draw->hDC,L"Application",-1,&app,DT_LEFT|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);
             DrawTextW(draw->hDC,L"Executable",-1,&exe,DT_LEFT|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);
             DrawTextW(draw->hDC,L"Path",-1,&path,DT_LEFT|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);
+            SIZE appText{};GetTextExtentPoint32W(draw->hDC,L"Application",11,&appText);
+            SIZE exeText{};GetTextExtentPoint32W(draw->hDC,L"Executable",10,&exeText);
+            SIZE pathText{};GetTextExtentPoint32W(draw->hDC,L"Path",4,&pathText);
+            const int glyphUnit=std::max(1,DialogUi(data,1));
+            const int glyphGap=DialogUi(data,7);
+            const int glyphY=(r.top+r.bottom)/2;
+            DrawSortIndicator(draw->hDC,app.left+appText.cx+glyphGap,glyphY,glyphUnit,data->sortColumn==0?C_TEXT:C_MUTED,data->sortColumn==0,data->sortAscending);
+            DrawSortIndicator(draw->hDC,exe.left+exeText.cx+glyphGap,glyphY,glyphUnit,data->sortColumn==1?C_TEXT:C_MUTED,data->sortColumn==1,data->sortAscending);
+            DrawSortIndicator(draw->hDC,path.left+pathText.cx+glyphGap,glyphY,glyphUnit,data->sortColumn==2?C_TEXT:C_MUTED,data->sortColumn==2,data->sortAscending);
             const int dividerH=std::max(1,static_cast<int>(r.bottom-r.top)-DialogUi(data,12));
             Fill(draw->hDC,r.left+DialogUi(data,230),r.top+DialogUi(data,6),1,dividerH,C_BORDER);
             Fill(draw->hDC,r.left+DialogUi(data,375),r.top+DialogUi(data,6),1,dividerH,C_BORDER);
