@@ -3157,17 +3157,23 @@ void DrawSliderIconPhysical(HDC dc,Gdiplus::Image* image,int x,int y,int iconBox
 void DrawLabel(HDC dc,const wchar_t*t,int x,int y,COLORREF c,HFONT f=nullptr){ SetBkMode(dc,TRANSPARENT);SetTextColor(dc,c);SelectObject(dc,f?f:gFont);TextOutW(dc,x,y,t,(int)wcslen(t)); }
 void Fill(HDC dc,int x,int y,int w,int h,COLORREF c){HBRUSH b=CreateSolidBrush(c);RECT r{x,y,x+w,y+h};FillRect(dc,&r,b);DeleteObject(b);} 
 void DrawSortIndicator(HDC dc,int x,int centerY,int unit,COLORREF color,bool active,bool ascending){
-    const int lineH=std::max(1,unit);
-    const int gap=std::max(1,unit*2);
-    const int w1=unit*10,w2=unit*7,w3=unit*4;
+    // Three centered horizontal bars, matching the compact sort/filter-style glyph
+    // used by GitHub. Keep every bar on the same horizontal center line.
+    const int lineH=std::max(2,unit*2);
+    const int step=std::max(5,unit*5);
+    const int w1=unit*14,w2=unit*10,w3=unit*4;
+    const int topY=centerY-step-lineH/2;
+    const int midY=centerY-lineH/2;
+    const int bottomY=centerY+step-lineH/2;
+
     if(active&&ascending){
-        Fill(dc,x+(w1-w3)/2,centerY-gap-lineH,w3,lineH,color);
-        Fill(dc,x+(w1-w2)/2,centerY-lineH/2,w2,lineH,color);
-        Fill(dc,x,centerY+gap,w1,lineH,color);
+        Fill(dc,x+(w1-w3)/2,topY,w3,lineH,color);
+        Fill(dc,x+(w1-w2)/2,midY,w2,lineH,color);
+        Fill(dc,x,bottomY,w1,lineH,color);
     }else{
-        Fill(dc,x,centerY-gap-lineH,w1,lineH,color);
-        Fill(dc,x+(w1-w2)/2,centerY-lineH/2,w2,lineH,color);
-        Fill(dc,x+(w1-w3)/2,centerY+gap,w3,lineH,color);
+        Fill(dc,x,topY,w1,lineH,color);
+        Fill(dc,x+(w1-w2)/2,midY,w2,lineH,color);
+        Fill(dc,x+(w1-w3)/2,bottomY,w3,lineH,color);
     }
 }
 
@@ -5045,13 +5051,12 @@ LRESULT CALLBACK ManageDisplaysDialogProc(HWND w,UINT m,WPARAM wp,LPARAM lp){
             const int innerGap=DialogUi(data,8);
             RECT a{r.left+pad,r.top,divider-innerGap,r.bottom};RECT b{divider+pad,r.top,r.right-innerGap,r.bottom};
             DrawTextW(draw->hDC,L"Display",-1,&a,DT_LEFT|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);DrawTextW(draw->hDC,L"Status",-1,&b,DT_LEFT|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);
-            SIZE displayText{};GetTextExtentPoint32W(draw->hDC,L"Display",7,&displayText);
-            SIZE statusText{};GetTextExtentPoint32W(draw->hDC,L"Status",6,&statusText);
             const int glyphUnit=std::max(1,DialogUi(data,1));
-            const int glyphGap=DialogUi(data,7);
+            const int glyphWidth=glyphUnit*14;
+            const int glyphRightPad=DialogUi(data,10);
             const int glyphY=(r.top+r.bottom)/2;
-            DrawSortIndicator(draw->hDC,a.left+displayText.cx+glyphGap,glyphY,glyphUnit,data->sortColumn==0?C_TEXT:C_MUTED,data->sortColumn==0,data->sortAscending);
-            DrawSortIndicator(draw->hDC,b.left+statusText.cx+glyphGap,glyphY,glyphUnit,data->sortColumn==1?C_TEXT:C_MUTED,data->sortColumn==1,data->sortAscending);
+            DrawSortIndicator(draw->hDC,divider-glyphRightPad-glyphWidth,glyphY,glyphUnit,data->sortColumn==0?C_TEXT:C_MUTED,data->sortColumn==0,data->sortAscending);
+            DrawSortIndicator(draw->hDC,r.right-glyphRightPad-glyphWidth,glyphY,glyphUnit,data->sortColumn==1?C_TEXT:C_MUTED,data->sortColumn==1,data->sortAscending);
             Fill(draw->hDC,divider,(int)r.top+DialogUi(data,6),1,std::max(1,(int)(r.bottom-r.top)-DialogUi(data,12)),C_BORDER);
             Fill(draw->hDC,r.left,r.bottom-1,r.right-r.left,1,C_BORDER);SelectObject(draw->hDC,oldFont);return TRUE;
         }
@@ -5323,15 +5328,15 @@ LRESULT CALLBACK RunningAppsDialogProc(HWND w,UINT m,WPARAM wp,LPARAM lp){
             DrawTextW(draw->hDC,L"Application",-1,&app,DT_LEFT|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);
             DrawTextW(draw->hDC,L"Executable",-1,&exe,DT_LEFT|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);
             DrawTextW(draw->hDC,L"Path",-1,&path,DT_LEFT|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);
-            SIZE appText{};GetTextExtentPoint32W(draw->hDC,L"Application",11,&appText);
-            SIZE exeText{};GetTextExtentPoint32W(draw->hDC,L"Executable",10,&exeText);
-            SIZE pathText{};GetTextExtentPoint32W(draw->hDC,L"Path",4,&pathText);
             const int glyphUnit=std::max(1,DialogUi(data,1));
-            const int glyphGap=DialogUi(data,7);
+            const int glyphWidth=glyphUnit*14;
+            const int glyphRightPad=DialogUi(data,10);
             const int glyphY=(r.top+r.bottom)/2;
-            DrawSortIndicator(draw->hDC,app.left+appText.cx+glyphGap,glyphY,glyphUnit,data->sortColumn==0?C_TEXT:C_MUTED,data->sortColumn==0,data->sortAscending);
-            DrawSortIndicator(draw->hDC,exe.left+exeText.cx+glyphGap,glyphY,glyphUnit,data->sortColumn==1?C_TEXT:C_MUTED,data->sortColumn==1,data->sortAscending);
-            DrawSortIndicator(draw->hDC,path.left+pathText.cx+glyphGap,glyphY,glyphUnit,data->sortColumn==2?C_TEXT:C_MUTED,data->sortColumn==2,data->sortAscending);
+            const int appRight=r.left+DialogUi(data,230);
+            const int exeRight=r.left+DialogUi(data,375);
+            DrawSortIndicator(draw->hDC,appRight-glyphRightPad-glyphWidth,glyphY,glyphUnit,data->sortColumn==0?C_TEXT:C_MUTED,data->sortColumn==0,data->sortAscending);
+            DrawSortIndicator(draw->hDC,exeRight-glyphRightPad-glyphWidth,glyphY,glyphUnit,data->sortColumn==1?C_TEXT:C_MUTED,data->sortColumn==1,data->sortAscending);
+            DrawSortIndicator(draw->hDC,r.right-glyphRightPad-glyphWidth,glyphY,glyphUnit,data->sortColumn==2?C_TEXT:C_MUTED,data->sortColumn==2,data->sortAscending);
             const int dividerH=std::max(1,static_cast<int>(r.bottom-r.top)-DialogUi(data,12));
             Fill(draw->hDC,r.left+DialogUi(data,230),r.top+DialogUi(data,6),1,dividerH,C_BORDER);
             Fill(draw->hDC,r.left+DialogUi(data,375),r.top+DialogUi(data,6),1,dividerH,C_BORDER);
