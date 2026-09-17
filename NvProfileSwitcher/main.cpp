@@ -4750,30 +4750,50 @@ void ApplyManageDisplaysResponsiveLayout(HWND w,ManageDisplaysDialogData* data,U
 }
 
 std::vector<SavedDisplayInfo> GetSavedDisplays(){
-    std::vector<SavedDisplayInfo> result;
+    std::vector<SavedDisplayInfo> savedDisplays;
     auto add=[&](const DisplayProfileValues& values){
         if(values.monitorId.empty())return;
-        auto it=std::find_if(result.begin(),result.end(),[&](const SavedDisplayInfo& d){return d.monitorId==values.monitorId;});
-        if(it==result.end()){
+        auto it=std::find_if(savedDisplays.begin(),savedDisplays.end(),
+            [&](const SavedDisplayInfo& d){return SameMonitorId(d.monitorId,values.monitorId);});
+        if(it==savedDisplays.end()){
             SavedDisplayInfo info{};
             info.monitorId=values.monitorId;
             info.name=values.displayName;
-            result.push_back(std::move(info));
-        }else if(it->name==it->monitorId&&!values.displayName.empty())it->name=values.displayName;
-    };
-    for(const auto& profile:gSettings.desktopProfiles)for(const auto& values:profile.displayProfiles)add(values);
-    for(const auto& profile:gSettings.profiles)for(const auto& values:profile.displayProfiles)add(values);
-    for(auto& saved:result){
-        auto active=std::find_if(gDisplays.begin(),gDisplays.end(),[&](const DisplayTarget& d){return d.monitorId==saved.monitorId;});
-        if(active!=gDisplays.end()){
-            saved.connected=true;
-            if(!active->label.empty())saved.name=active->label;
+            savedDisplays.push_back(std::move(info));
+        }else if(it->name==it->monitorId&&!values.displayName.empty()){
+            it->name=values.displayName;
         }
+    };
+
+    for(const auto& profile:gSettings.desktopProfiles)
+        for(const auto& values:profile.displayProfiles)add(values);
+    for(const auto& profile:gSettings.profiles)
+        for(const auto& values:profile.displayProfiles)add(values);
+
+    std::vector<SavedDisplayInfo> result;
+    result.reserve(savedDisplays.size());
+
+    // Connected displays follow the exact same order as the display combo,
+    // because the combo is populated directly from gDisplays.
+    for(const auto& active:gDisplays){
+        auto it=std::find_if(savedDisplays.begin(),savedDisplays.end(),
+            [&](const SavedDisplayInfo& d){return SameMonitorId(d.monitorId,active.monitorId);});
+        if(it==savedDisplays.end())continue;
+
+        SavedDisplayInfo info=*it;
+        info.connected=true;
+        if(!active.label.empty())info.name=active.label;
+        result.push_back(std::move(info));
     }
-    std::stable_sort(result.begin(),result.end(),[](const SavedDisplayInfo& a,const SavedDisplayInfo& b){
-        if(a.connected!=b.connected)return a.connected>b.connected;
-        return a.name<b.name;
-    });
+
+    // Saved displays that are no longer connected are appended afterwards,
+    // preserving their existing saved order.
+    for(const auto& saved:savedDisplays){
+        bool alreadyAdded=std::any_of(result.begin(),result.end(),
+            [&](const SavedDisplayInfo& d){return SameMonitorId(d.monitorId,saved.monitorId);});
+        if(!alreadyAdded)result.push_back(saved);
+    }
+
     return result;
 }
 
