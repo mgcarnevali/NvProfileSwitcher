@@ -95,7 +95,7 @@ constexpr int DIALOG_SECTION_GAP=16;
 constexpr int DIALOG_BUTTON_GAP=12;
 constexpr int DIALOG_BUTTON_WIDTH=100;
 constexpr int DIALOG_BUTTON_HEIGHT=36;
-enum {IDC_LIST=1001,IDC_NAME,IDC_EXE,IDC_BROWSE,IDC_ENABLED,IDC_DISPLAY,IDC_LBL_DISPLAY,IDC_VIB,IDC_HUE,IDC_BRI,IDC_CON,IDC_GAM,IDC_SAVE,IDC_ADD=1015,IDC_REMOVE,IDC_STARTWIN=1018,IDC_STARTMIN,IDC_VALVIB,IDC_VALHUE,IDC_VALBRI,IDC_VALCON,IDC_VALGAM,IDC_LBL_NAME,IDC_LBL_EXE,IDC_LBL_ENABLED,IDC_LBL_VIB,IDC_LBL_HUE,IDC_LBL_BRI,IDC_LBL_CON,IDC_LBL_GAM,IDC_DEFAULTS,IDC_MINTRAY,IDC_CHECKUPDATES,IDC_FOOT_GITHUB,IDC_FOOT_SUPPORT,IDC_FOOT_ABOUT,IDC_APP_SETTINGS_TITLE,IDC_HOTKEY_SHOW_LABEL,IDC_HOTKEY_SHOW,IDC_HOTKEY_SHOW_CLEAR,IDC_HOTKEY_OVERRIDE_LABEL,IDC_HOTKEY_OVERRIDE,IDC_HOTKEY_OVERRIDE_CLEAR,IDC_PROFILE_HOTKEY_LABEL,IDC_PROFILE_HOTKEY,IDC_PROFILE_HOTKEY_CLEAR,IDC_HOTKEY_RESUME_LABEL,IDC_HOTKEY_RESUME,IDC_HOTKEY_RESUME_CLEAR,IDC_CHECKUPDATES_LABEL,IDC_RUNNING_APPS,IDC_PROFILE_UP,IDC_PROFILE_DOWN,IDC_IMPORT_PROFILES,IDC_EXPORT_PROFILES,IDC_DISPLAYS_TITLE,IDC_MANAGE_DISPLAYS};
+enum {IDC_LIST=1001,IDC_NAME,IDC_EXE,IDC_BROWSE,IDC_ENABLED,IDC_DISPLAY,IDC_LBL_DISPLAY,IDC_VIB,IDC_HUE,IDC_BRI,IDC_CON,IDC_GAM,IDC_SAVE,IDC_ADD=1015,IDC_REMOVE,IDC_STARTWIN=1018,IDC_STARTMIN,IDC_VALVIB,IDC_VALHUE,IDC_VALBRI,IDC_VALCON,IDC_VALGAM,IDC_LBL_NAME,IDC_LBL_EXE,IDC_LBL_ENABLED,IDC_LBL_VIB,IDC_LBL_HUE,IDC_LBL_BRI,IDC_LBL_CON,IDC_LBL_GAM,IDC_DEFAULTS,IDC_MINTRAY,IDC_CHECKUPDATES,IDC_FOOT_GITHUB,IDC_FOOT_SUPPORT,IDC_FOOT_ABOUT,IDC_APP_SETTINGS_TITLE,IDC_HOTKEY_SHOW_LABEL,IDC_HOTKEY_SHOW,IDC_HOTKEY_SHOW_CLEAR,IDC_HOTKEY_OVERRIDE_LABEL,IDC_HOTKEY_OVERRIDE,IDC_HOTKEY_OVERRIDE_CLEAR,IDC_PROFILE_HOTKEY_LABEL,IDC_PROFILE_HOTKEY,IDC_PROFILE_HOTKEY_CLEAR,IDC_HOTKEY_RESUME_LABEL,IDC_HOTKEY_RESUME,IDC_HOTKEY_RESUME_CLEAR,IDC_CHECKUPDATES_LABEL,IDC_RUNNING_APPS,IDC_PROFILE_UP,IDC_PROFILE_DOWN,IDC_IMPORT_PROFILES,IDC_EXPORT_PROFILES,IDC_MANAGE_DISPLAYS};
 enum {ID_TRAY_OPEN=2001,ID_TRAY_CHECK_UPDATE,ID_TRAY_ABOUT,ID_TRAY_EXIT};
 enum {ID_HOTKEY_SHOW_HIDE=3001,ID_HOTKEY_WINDOWS_OVERRIDE,ID_HOTKEY_RESUME_AUTOMATIC,ID_HOTKEY_TEST};
 enum {IDC_RUNNING_LIST=5101,IDC_RUNNING_REFRESH,IDC_RUNNING_SELECT,IDC_RUNNING_HEADER,IDC_RUNNING_EMPTY};
@@ -123,10 +123,19 @@ void MoveUi(HWND hwnd,int x,int y,int width,int height,BOOL repaint=TRUE){
     if(hwnd) MoveWindow(hwnd,Ui(x),Ui(y),Ui(width),Ui(height),repaint);
 }
 
+struct ResponsiveDialogState {
+    double uiScale=1.0;
+    HFONT font{};
+    HFONT fontBold{};
+};
+
 struct AppMessageData {
     std::wstring title;
     std::wstring text;
     bool deleteOnClose=false;
+    bool confirm=false;
+    bool result=false;
+    ResponsiveDialogState responsive{};
 };
 
 HINSTANCE gInst{}; HWND gWnd{}; HFONT gFont{},gFontBold{},gFontPanelTitle{},gFontTitle{},gFontSmall{},gFontHeaderButton{},gIconFont{}; HFONT gBaseFont{},gBaseFontBold{},gBaseFontPanelTitle{},gBaseFontTitle{},gBaseFontSmall{},gBaseFontHeaderButton{},gBaseIconFont{}; HBRUSH gBackBrush{},gPanelBrush{},gPanel2Brush{},gFieldBrush{}; HICON gIcon{};
@@ -201,6 +210,7 @@ using NvGetDisplayIdByName=int (__cdecl*)(const char*,unsigned int*);
 
 struct DisplayTarget {
     std::wstring gdiName;
+    std::wstring displayName;
     std::wstring label;
     void* handle{};
     unsigned int displayId{};
@@ -418,8 +428,15 @@ void Save(){
         const ApplicationProfile& p=gSettings.desktopProfiles[i];
         if(p.displayProfiles.empty()) continue;
         const auto& v=p.displayProfiles.front();
+        std::wstring windowsProfileName=L"Display";
+        for(const auto& d:gDisplays){
+            if(SameMonitorId(d.monitorId,v.monitorId)){
+                windowsProfileName=WindowsProfileJsonName(d.gdiName);
+                break;
+            }
+        }
         f<<"    {\n"
-         <<"      \"Name\": \""<<Escape(WindowsProfileJsonName(v.displayName))<<"\",\n"
+         <<"      \"Name\": \""<<Escape(windowsProfileName)<<"\",\n"
          <<"      \"DisplayName\": \""<<Escape(v.displayName)<<"\",\n"
          <<"      \"MonitorId\": \""<<Escape(v.monitorId)<<"\",\n"
          <<"      \"Brightness\": "<<v.brightness<<",\n"
@@ -634,11 +651,11 @@ void EnumerateNvDisplays(){
         std::wstring label=friendly;
         if(primary) label+=L" (Primary)";
 
-        gDisplays.push_back({gdi,label,handle,id,primary,StableMonitorIdForGdi(gdi)});
+        gDisplays.push_back({gdi,friendly,label,handle,id,primary,StableMonitorIdForGdi(gdi)});
     }
 
     if(gDisplays.empty() && gDisplay && gDisplayId){
-        gDisplays.push_back({L"",L"Primary NVIDIA display",gDisplay,gDisplayId,true,L""});
+        gDisplays.push_back({L"",L"Primary NVIDIA display",L"Primary NVIDIA display",gDisplay,gDisplayId,true,L""});
     }
 
     // Keep the Windows primary display at the top of the combo box while
@@ -667,7 +684,7 @@ ApplicationProfile* CurrentDesktopProfile(){
     if(gDisplays.empty())return &gSettings.desktop;
     int ds=(int)SendMessageW(GetDlgItem(gWnd,IDC_DISPLAY),CB_GETCURSEL,0,0);
     if(ds<0||ds>=(int)gDisplays.size()){for(size_t i=0;i<gDisplays.size();++i)if(gDisplays[i].primary){ds=(int)i;break;}if(ds<0)ds=0;}
-    return EnsureDesktopProfile(gDisplays[ds].gdiName,gDisplays[ds].monitorId);
+    return EnsureDesktopProfile(gDisplays[ds].displayName,gDisplays[ds].monitorId);
 }
 void RestoreAllDesktopProfiles(){
     for(const auto&d:gDisplays){
@@ -679,7 +696,7 @@ void EnsureAllApplicationDisplayProfiles(){
     if(gDisplays.empty())return;
     for(auto&p:gSettings.profiles)
         for(const auto&d:gDisplays)
-            EnsureApplicationValuesForDisplay(p,d.gdiName,d.monitorId);
+            EnsureApplicationValuesForDisplay(p,d.displayName,d.monitorId);
 }
 
 void ApplyApplicationProfile(const ApplicationProfile& p){
@@ -935,7 +952,7 @@ void RefreshDisplayTopology(){
     // Persist every currently connected physical monitor immediately.
     // Stable MonitorId remains the identity; DISPLAYx is only the current route.
     for(const auto& d:gDisplays)
-        EnsureDesktopProfile(d.gdiName,d.monitorId);
+        EnsureDesktopProfile(d.displayName,d.monitorId);
 
     // Add the newly connected monitor to every existing application profile as well.
     // Disconnected monitor profiles are intentionally kept in the JSON.
@@ -1061,6 +1078,96 @@ void StyleMainButton(HWND hwnd){
     if(hwnd) SetWindowSubclass(hwnd,MainButtonHoverSubclassProc,2,0);
 }
 
+double AdaptiveUiScaleForDpi(UINT dpi);
+int DialogUi(const ResponsiveDialogState* state,int value);
+void RecreateResponsiveDialogFonts(ResponsiveDialogState* state);
+void DestroyResponsiveDialogFonts(ResponsiveDialogState* state);
+void ApplyResponsiveDialogWindow(HWND w,ResponsiveDialogState* state,UINT dpi,
+    int baseClientWidth,int baseClientHeight,const RECT* suggested);
+
+constexpr int APP_MESSAGE_BASE_CLIENT_WIDTH=472;
+constexpr int APP_MESSAGE_BASE_CLIENT_HEIGHT=140;
+constexpr int APP_MESSAGE_TEXT_WIDTH=374;
+
+int DialogUi(const AppMessageData* data,int value){
+    return DialogUi(data?&data->responsive:nullptr,value);
+}
+
+void LayoutAppMessageDialog(HWND w,AppMessageData* data){
+    if(!w||!data)return;
+    RECT client{};GetClientRect(w,&client);
+
+    const int margin=DialogUi(data,DIALOG_MARGIN);
+    const int iconSize=DialogUi(data,40);
+    const int iconGap=DialogUi(data,14);
+    const int messageX=margin+iconSize+iconGap;
+    const int messageW=std::max(1,static_cast<int>(client.right)-messageX-margin);
+    const int buttonW=DialogUi(data,DIALOG_BUTTON_WIDTH);
+    const int buttonH=DialogUi(data,DIALOG_BUTTON_HEIGHT);
+    const int buttonGap=DialogUi(data,DIALOG_BUTTON_GAP);
+    const int buttonY=client.bottom-margin-buttonH;
+
+    HWND icon=GetDlgItem(w,5401);
+    HWND message=GetDlgItem(w,5402);
+    MoveWindow(icon,margin,margin,iconSize,iconSize,TRUE);
+    MoveWindow(message,messageX,margin,messageW,
+        std::max(1,buttonY-margin-DialogUi(data,20)),TRUE);
+
+    if(data->confirm){
+        const int noX=client.right-margin-buttonW;
+        const int yesX=noX-buttonGap-buttonW;
+        MoveWindow(GetDlgItem(w,IDYES),yesX,buttonY,buttonW,buttonH,TRUE);
+        MoveWindow(GetDlgItem(w,IDNO),noX,buttonY,buttonW,buttonH,TRUE);
+    }else{
+        MoveWindow(GetDlgItem(w,IDOK),client.right-margin-buttonW,buttonY,
+            buttonW,buttonH,TRUE);
+    }
+
+    SendMessageW(message,WM_SETFONT,(WPARAM)data->responsive.font,TRUE);
+    if(HWND yes=GetDlgItem(w,IDYES))SendMessageW(yes,WM_SETFONT,(WPARAM)data->responsive.fontBold,TRUE);
+    if(HWND no=GetDlgItem(w,IDNO))SendMessageW(no,WM_SETFONT,(WPARAM)data->responsive.fontBold,TRUE);
+    if(HWND ok=GetDlgItem(w,IDOK))SendMessageW(ok,WM_SETFONT,(WPARAM)data->responsive.fontBold,TRUE);
+}
+
+void AutosizeAppMessageDialog(HWND w,AppMessageData* data){
+    if(!w||!data)return;
+    const int margin=DialogUi(data,DIALOG_MARGIN);
+    const int iconSize=DialogUi(data,40);
+    const int iconGap=DialogUi(data,14);
+    const int messageX=margin+iconSize+iconGap;
+    const int messageW=std::max(1,static_cast<int>(std::lround(APP_MESSAGE_TEXT_WIDTH*data->responsive.uiScale)));
+
+    HDC dc=GetDC(w);
+    RECT measured{0,0,messageW,0};
+    HFONT old=(HFONT)SelectObject(dc,data->responsive.font);
+    DrawTextW(dc,data->text.c_str(),-1,&measured,DT_CALCRECT|DT_WORDBREAK|DT_NOPREFIX);
+    SelectObject(dc,old);
+    ReleaseDC(w,dc);
+
+    const int contentH=std::max(iconSize,std::max(1,static_cast<int>(measured.bottom-measured.top)));
+    const int desiredClientH=margin+contentH+DialogUi(data,20)+
+        DialogUi(data,DIALOG_BUTTON_HEIGHT)+margin;
+
+    RECT client{};GetClientRect(w,&client);
+    const int currentClientH=client.bottom-client.top;
+    if(currentClientH==desiredClientH)return;
+
+    RECT wr{};GetWindowRect(w,&wr);
+    SetWindowPos(w,nullptr,0,0,wr.right-wr.left,
+        (wr.bottom-wr.top)+(desiredClientH-currentClientH),
+        SWP_NOMOVE|SWP_NOZORDER|SWP_NOACTIVATE);
+}
+
+void ApplyAppMessageResponsiveLayout(HWND w,AppMessageData* data,UINT dpi,const RECT* suggested=nullptr){
+    if(!w||!data)return;
+    ApplyResponsiveDialogWindow(w,&data->responsive,dpi,
+        APP_MESSAGE_BASE_CLIENT_WIDTH,APP_MESSAGE_BASE_CLIENT_HEIGHT,suggested);
+    LayoutAppMessageDialog(w,data);
+    AutosizeAppMessageDialog(w,data);
+    LayoutAppMessageDialog(w,data);
+    InvalidateRect(w,nullptr,TRUE);
+}
+
 LRESULT CALLBACK AppMessageProc(HWND w,UINT m,WPARAM wp,LPARAM lp){
     auto* data=(AppMessageData*)GetWindowLongPtrW(w,GWLP_USERDATA);
     switch(m){
@@ -1068,29 +1175,43 @@ LRESULT CALLBACK AppMessageProc(HWND w,UINT m,WPARAM wp,LPARAM lp){
         auto* cs=(CREATESTRUCTW*)lp;
         data=(AppMessageData*)cs->lpCreateParams;
         SetWindowLongPtrW(w,GWLP_USERDATA,(LONG_PTR)data);
+        if(!data)return -1;
+
+        data->responsive.uiScale=AdaptiveUiScaleForDpi(GetDpiForWindow(w));
+        RecreateResponsiveDialogFonts(&data->responsive);
 
         HWND icon=CreateWindowExW(0,L"STATIC",nullptr,WS_CHILD|WS_VISIBLE|SS_ICON,
-            DIALOG_MARGIN,DIALOG_MARGIN,40,40,w,nullptr,gInst,nullptr);
+            0,0,1,1,w,(HMENU)5401,gInst,nullptr);
         SendMessageW(icon,STM_SETICON,(WPARAM)gIcon,0);
+        CreateWindowExW(0,L"STATIC",data->text.c_str(),WS_CHILD|WS_VISIBLE|SS_LEFT,
+            0,0,1,1,w,(HMENU)5402,gInst,nullptr);
 
-        RECT client{};
-        GetClientRect(w,&client);
-        const int buttonY=client.bottom-DIALOG_MARGIN-DIALOG_BUTTON_HEIGHT;
-        const int messageX=DIALOG_MARGIN+54;
-        HWND message=CreateWindowExW(0,L"STATIC",data?data->text.c_str():L"",
-            WS_CHILD|WS_VISIBLE|SS_LEFT,messageX,DIALOG_MARGIN,
-            client.right-messageX-DIALOG_MARGIN,
-            buttonY-DIALOG_MARGIN-20,w,nullptr,gInst,nullptr);
-        SendMessageW(message,WM_SETFONT,(WPARAM)gFont,TRUE);
-
-        HWND ok=CreateWindowExW(0,L"BUTTON",L"OK",
-            WS_CHILD|WS_VISIBLE|WS_TABSTOP|BS_OWNERDRAW,
-            client.right-DIALOG_MARGIN-DIALOG_BUTTON_WIDTH,buttonY,
-            DIALOG_BUTTON_WIDTH,DIALOG_BUTTON_HEIGHT,w,(HMENU)IDOK,gInst,nullptr);
-        SendMessageW(ok,WM_SETFONT,(WPARAM)gFontBold,TRUE);
-        SetFocus(ok);
+        if(data->confirm){
+            HWND yes=CreateWindowExW(0,L"BUTTON",L"Yes",WS_CHILD|WS_VISIBLE|WS_TABSTOP|BS_OWNERDRAW,
+                0,0,1,1,w,(HMENU)IDYES,gInst,nullptr);
+            HWND no=CreateWindowExW(0,L"BUTTON",L"No",WS_CHILD|WS_VISIBLE|WS_TABSTOP|BS_OWNERDRAW,
+                0,0,1,1,w,(HMENU)IDNO,gInst,nullptr);
+            StyleMainButton(yes);StyleMainButton(no);
+            SetFocus(no);
+        }else{
+            HWND ok=CreateWindowExW(0,L"BUTTON",L"OK",WS_CHILD|WS_VISIBLE|WS_TABSTOP|BS_OWNERDRAW,
+                0,0,1,1,w,(HMENU)IDOK,gInst,nullptr);
+            StyleMainButton(ok);
+            SetFocus(ok);
+        }
+        ApplyAppMessageResponsiveLayout(w,data,GetDpiForWindow(w));
         return 0;
     }
+    case WM_SIZE:
+        if(data)LayoutAppMessageDialog(w,data);
+        return 0;
+    case WM_DPICHANGED:
+        if(data){
+            const UINT dpi=HIWORD(wp)?HIWORD(wp):GetDpiForWindow(w);
+            const RECT* suggested=reinterpret_cast<const RECT*>(lp);
+            ApplyAppMessageResponsiveLayout(w,data,dpi,suggested);
+        }
+        return 0;
     case WM_CTLCOLORSTATIC:{
         HDC dc=(HDC)wp;
         SetTextColor(dc,C_TEXT);
@@ -1100,29 +1221,31 @@ LRESULT CALLBACK AppMessageProc(HWND w,UINT m,WPARAM wp,LPARAM lp){
     }
     case WM_DRAWITEM:{
         auto* d=(DRAWITEMSTRUCT*)lp;
-        if(d->CtlID==IDOK){
+        if(d->CtlID==IDOK||d->CtlID==IDYES||d->CtlID==IDNO){
             const bool down=(d->itemState&ODS_SELECTED)!=0;
             RECT r=d->rcItem;
             FillRound(d->hDC,r,down?C_ACCENT_DARK:C_PANEL2,C_BORDER,7);
             SetBkMode(d->hDC,TRANSPARENT);
             SetTextColor(d->hDC,C_TEXT);
-            HFONT old=(HFONT)SelectObject(d->hDC,gFontBold);
-            DrawTextW(d->hDC,L"OK",-1,&r,DT_CENTER|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);
+            HFONT old=(HFONT)SelectObject(d->hDC,data&&data->responsive.fontBold?data->responsive.fontBold:gFontBold);
+            const wchar_t* label=d->CtlID==IDYES?L"Yes":d->CtlID==IDNO?L"No":L"OK";
+            DrawTextW(d->hDC,label,-1,&r,DT_CENTER|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);
             SelectObject(d->hDC,old);
             return TRUE;
         }
         break;
     }
     case WM_COMMAND:
-        if(LOWORD(wp)==IDOK||LOWORD(wp)==IDCANCEL){
-            DestroyWindow(w);
-            return 0;
-        }
+        if(LOWORD(wp)==IDYES&&data&&data->confirm){data->result=true;DestroyWindow(w);return 0;}
+        if(LOWORD(wp)==IDNO&&data&&data->confirm){data->result=false;DestroyWindow(w);return 0;}
+        if(LOWORD(wp)==IDOK||LOWORD(wp)==IDCANCEL){DestroyWindow(w);return 0;}
         break;
     case WM_CLOSE:
+        if(data&&data->confirm)data->result=false;
         DestroyWindow(w);
         return 0;
     case WM_DESTROY:
+        if(data)DestroyResponsiveDialogFonts(&data->responsive);
         if(data&&data->deleteOnClose) delete data;
         SetWindowLongPtrW(w,GWLP_USERDATA,0);
         return 0;
@@ -1146,52 +1269,53 @@ HWND CreateAppMessageWindow(AppMessageData* data,HWND owner){
         registered=true;
     }
 
-    const int messageX=DIALOG_MARGIN+54;
-    const int messageWidth=374;
+    HMONITOR monitor=owner&&IsWindowVisible(owner)
+        ?MonitorFromWindow(owner,MONITOR_DEFAULTTONEAREST)
+        :MonitorFromPoint(POINT{0,0},MONITOR_DEFAULTTOPRIMARY);
+    UINT dpi=96;
+    if(owner&&IsWindowVisible(owner))dpi=GetDpiForWindow(owner);
+    else if(HDC dc=GetDC(nullptr)){
+        dpi=(UINT)GetDeviceCaps(dc,LOGPIXELSX);
+        ReleaseDC(nullptr,dc);
+    }
+    const double scale=AdaptiveUiScaleForDpi(dpi);
 
-    HDC measureDc=GetDC(nullptr);
-    RECT measure{0,0,messageWidth,0};
-    HFONT oldFont=(HFONT)SelectObject(measureDc,gFont);
-    DrawTextW(measureDc,data->text.c_str(),-1,&measure,
-        DT_CALCRECT|DT_WORDBREAK|DT_NOPREFIX);
-    SelectObject(measureDc,oldFont);
-    ReleaseDC(nullptr,measureDc);
+    RECT windowRect{0,0,
+        static_cast<LONG>(std::lround(APP_MESSAGE_BASE_CLIENT_WIDTH*scale)),
+        static_cast<LONG>(std::lround(APP_MESSAGE_BASE_CLIENT_HEIGHT*scale))};
+    if(!AdjustWindowRectExForDpi(&windowRect,WS_CAPTION|WS_SYSMENU,FALSE,WS_EX_DLGMODALFRAME,dpi))
+        AdjustWindowRectEx(&windowRect,WS_CAPTION|WS_SYSMENU,FALSE,WS_EX_DLGMODALFRAME);
+    const int ww=windowRect.right-windowRect.left;
+    const int wh=windowRect.bottom-windowRect.top;
 
-    const int contentHeight=std::max(40,static_cast<int>(measure.bottom));
-    const int clientWidth=messageX+messageWidth+DIALOG_MARGIN;
-    const int clientHeight=DIALOG_MARGIN+contentHeight+20+
-        DIALOG_BUTTON_HEIGHT+DIALOG_MARGIN;
-
-    RECT windowRect{0,0,clientWidth,clientHeight};
-    AdjustWindowRectEx(&windowRect,WS_CAPTION|WS_SYSMENU,FALSE,WS_EX_DLGMODALFRAME);
+    MONITORINFO mi{sizeof(mi)};
+    GetMonitorInfoW(monitor,&mi);
+    RECT target=mi.rcWork;
+    if(owner&&IsWindowVisible(owner))GetWindowRect(owner,&target);
+    const int x=target.left+((target.right-target.left)-ww)/2;
+    const int y=target.top+((target.bottom-target.top)-wh)/2;
 
     HWND dialog=CreateWindowExW(WS_EX_DLGMODALFRAME,
         L"NvProfileSwitcherMessage",data->title.c_str(),WS_CAPTION|WS_SYSMENU,
-        0,0,windowRect.right-windowRect.left,windowRect.bottom-windowRect.top,
-        owner,nullptr,gInst,data);
+        x,y,ww,wh,owner,nullptr,gInst,data);
     if(!dialog)return nullptr;
 
     BOOL darkTitle=TRUE;
     DwmSetWindowAttribute(dialog,20,&darkTitle,sizeof(darkTitle));
 
-    RECT wr{},target{};
-    GetWindowRect(dialog,&wr);
-    if(!owner||!IsWindowVisible(owner)){
-        SystemParametersInfoW(SPI_GETWORKAREA,0,&target,0);
-    }else{
-        GetWindowRect(owner,&target);
-    }
-    const int ww=wr.right-wr.left,wh=wr.bottom-wr.top;
-    const int x=target.left+((target.right-target.left)-ww)/2;
-    const int y=target.top+((target.bottom-target.top)-wh)/2;
-    SetWindowPos(dialog,HWND_TOP,x,y,0,0,SWP_NOSIZE|SWP_SHOWWINDOW);
+    // WM_CREATE autosizes the final height. Re-center once using that final size.
+    RECT wr{};GetWindowRect(dialog,&wr);
+    const int finalW=wr.right-wr.left,finalH=wr.bottom-wr.top;
+    const int finalX=target.left+((target.right-target.left)-finalW)/2;
+    const int finalY=target.top+((target.bottom-target.top)-finalH)/2;
+    SetWindowPos(dialog,HWND_TOP,finalX,finalY,0,0,SWP_NOSIZE|SWP_SHOWWINDOW);
     UpdateWindow(dialog);
     SetForegroundWindow(dialog);
     return dialog;
 }
 
 void ShowAppMessage(const std::wstring& title,const std::wstring& text){
-    AppMessageData data{title,text,false};
+    AppMessageData data{title,text,false,false,false};
     HWND owner=gWnd;
     HWND previousFocus=GetFocus();
     const bool disableOwner=owner&&IsWindowEnabled(owner);
@@ -1222,8 +1346,28 @@ void ShowAppMessage(const std::wstring& title,const std::wstring& text){
     }
 }
 
+
+bool ShowAppConfirm(HWND owner,const std::wstring& title,const std::wstring& text){
+    AppMessageData data{title,text,false,true,false};
+    HWND previousFocus=GetFocus();
+    const bool disableOwner=owner&&IsWindowEnabled(owner);
+    if(disableOwner)EnableWindow(owner,FALSE);
+    HWND dialog=CreateAppMessageWindow(&data,owner);
+    if(!dialog){if(disableOwner)EnableWindow(owner,TRUE);return false;}
+    MSG msg{};
+    while(IsWindow(dialog)&&GetMessageW(&msg,nullptr,0,0)>0){
+        if(!IsDialogMessageW(dialog,&msg)){TranslateMessage(&msg);DispatchMessageW(&msg);}
+    }
+    if(disableOwner){
+        EnableWindow(owner,TRUE);
+        if(previousFocus&&IsWindow(previousFocus))SetFocus(previousFocus);else SetFocus(owner);
+        SetForegroundWindow(owner);
+    }
+    return data.result;
+}
+
 void QueueAppMessage(const std::wstring& title,const std::wstring& text){
-    auto* data=new AppMessageData{title,text,true};
+    auto* data=new AppMessageData{title,text,true,false,false};
     if(!PostMessageW(gWnd,WM_SHOW_APP_MESSAGE,0,(LPARAM)data))delete data;
 }
 
@@ -2221,7 +2365,7 @@ DisplayProfileValues SliderValuesForSelectedDisplay(){
     DisplayProfileValues v;
     int ds=(int)SendMessageW(H(IDC_DISPLAY),CB_GETCURSEL,0,0);
     if(ds>=0&&ds<(int)gDisplays.size()){
-        v.displayName=gDisplays[ds].gdiName;
+        v.displayName=gDisplays[ds].displayName;
         v.monitorId=gDisplays[ds].monitorId;
     }
     v.vibrance=(int)SendMessageW(H(IDC_VIB),TBM_GETPOS,0,0);
@@ -2330,7 +2474,7 @@ void ResetSlidersToDefaults(){
     int ds=(int)SendMessageW(H(IDC_DISPLAY),CB_GETCURSEL,0,0);
     DisplayProfileValues v;
     if(ds>=0&&ds<(int)gDisplays.size()){
-        v.displayName=gDisplays[ds].gdiName;
+        v.displayName=gDisplays[ds].displayName;
         v.monitorId=gDisplays[ds].monitorId;
     }
     LoadValuesToSliders(v);
@@ -2414,8 +2558,6 @@ void SetDesktopUi(bool desktop){
     MoveUi(H(IDC_HOTKEY_RESUME_LABEL),appX,318,286,22,TRUE);
     MoveUi(H(IDC_HOTKEY_RESUME),appX+2,350,206,22,TRUE);
     MoveUi(H(IDC_HOTKEY_RESUME_CLEAR),appX+218,344,68,34,TRUE);
-    MoveUi(H(IDC_DISPLAYS_TITLE),appX,441,286,24,TRUE);
-    MoveUi(H(IDC_MANAGE_DISPLAYS),appX,479,160,38,TRUE);
     MoveUi(H(IDC_APP_SETTINGS_TITLE),appX,579,250,24,TRUE);
     MoveUi(H(IDC_STARTWIN),appX,617,22,22,TRUE);
     MoveUi(GetWindow(H(IDC_STARTWIN),GW_HWNDNEXT),appX+27,617,220,22,TRUE);
@@ -2425,7 +2567,7 @@ void SetDesktopUi(bool desktop){
     MoveUi(GetWindow(H(IDC_MINTRAY),GW_HWNDNEXT),appX+27,673,220,22,TRUE);
     MoveUi(H(IDC_CHECKUPDATES),appX,701,22,22,TRUE);
     MoveUi(GetWindow(H(IDC_CHECKUPDATES),GW_HWNDNEXT),appX+27,701,220,22,TRUE);
-    MoveUi(H(IDC_IMPORT_PROFILES),appX,ySave,138,38,TRUE);
+    MoveUi(H(IDC_MANAGE_DISPLAYS),appX,ySave,138,38,TRUE);
     MoveUi(H(IDC_EXPORT_PROFILES),appX+148,ySave,138,38,TRUE);
 
     InvalidateRect(gWnd,nullptr,TRUE);
@@ -2447,7 +2589,7 @@ void LoadSelected(){
         if(primary<0 && !gDisplays.empty()) primary=0;
 
         if(primary>=0){
-            p=EnsureDesktopProfile(gDisplays[primary].gdiName,gDisplays[primary].monitorId);
+            p=EnsureDesktopProfile(gDisplays[primary].displayName,gDisplays[primary].monitorId);
             RefreshDisplayCombo(*p);
             SendMessageW(H(IDC_DISPLAY),CB_SETCURSEL,primary,0);
         }else{
@@ -2482,7 +2624,7 @@ void LoadSelected(){
     SetHotkeyControl(IDC_PROFILE_HOTKEY,p->hotkey);
 
     if(ds>=0&&ds<(int)gDisplays.size())
-        LoadValuesToSliders(*EnsureApplicationValuesForDisplay(*p,gDisplays[ds].gdiName,gDisplays[ds].monitorId));
+        LoadValuesToSliders(*EnsureApplicationValuesForDisplay(*p,gDisplays[ds].displayName,gDisplays[ds].monitorId));
     else
         LoadValuesToSliders(ValuesFromFlatProfile(*p));
 }
@@ -2501,7 +2643,7 @@ void SaveSelected(){
         p->name=L"Windows";
         if(p->displayProfiles.empty())return;
         auto& v=p->displayProfiles.front();
-        if(ds>=0&&ds<(int)gDisplays.size()){v.displayName=gDisplays[ds].gdiName;v.monitorId=gDisplays[ds].monitorId;}
+        if(ds>=0&&ds<(int)gDisplays.size()){v.displayName=gDisplays[ds].displayName;v.monitorId=gDisplays[ds].monitorId;}
         v.vibrance=(int)SendMessageW(H(IDC_VIB),TBM_GETPOS,0,0);
         v.hue=(int)SendMessageW(H(IDC_HUE),TBM_GETPOS,0,0);
         v.brightness=(double)(int)SendMessageW(H(IDC_BRI),TBM_GETPOS,0,0);
@@ -2530,7 +2672,7 @@ void SaveSelected(){
     }
 
     if(ds>=0&&ds<(int)gDisplays.size()){
-        auto* v=EnsureApplicationValuesForDisplay(*p,gDisplays[ds].gdiName,gDisplays[ds].monitorId);
+        auto* v=EnsureApplicationValuesForDisplay(*p,gDisplays[ds].displayName,gDisplays[ds].monitorId);
         v->vibrance=(int)SendMessageW(H(IDC_VIB),TBM_GETPOS,0,0);
         v->hue=(int)SendMessageW(H(IDC_HUE),TBM_GETPOS,0,0);
         v->brightness=(double)(int)SendMessageW(H(IDC_BRI),TBM_GETPOS,0,0);
@@ -3245,8 +3387,7 @@ void Paint(HWND w){
     FL(left.left+1,separatorY,leftW-2,1,C_BORDER);
     FL(center.left+1,separatorY,centerW-2,1,C_BORDER);
     FL(settings.left+1,separatorY,settingsW-2,1,C_BORDER);
-    FL(settings.left+22,397,settingsW-44,1,C_BORDER);
-    FL(settings.left+22,560,settingsW-44,1,C_BORDER);
+    FL(settings.left+22,565,settingsW-44,1,C_BORDER);
 
     // Match the application text fields: the app paints the complete rounded
     // frame and the native hotkey control sits borderless inside it.
@@ -3491,11 +3632,6 @@ void BuildControls(){
     HWND clearResume=Add(L"BUTTON",L"Clear",BS_OWNERDRAW,appX+218,344,68,34,IDC_HOTKEY_RESUME_CLEAR);
     StyleMainButton(clearResume);
 
-    HWND displaysTitle=Add(L"STATIC",L"Displays",0,appX,441,286,24,IDC_DISPLAYS_TITLE);
-    SendMessageW(displaysTitle,WM_SETFONT,(WPARAM)gFontBold,TRUE);
-    HWND manageDisplays=Add(L"BUTTON",L"Manage displays...",BS_OWNERDRAW,appX,479,160,38,IDC_MANAGE_DISPLAYS);
-    StyleMainButton(manageDisplays);
-
     HWND appSettingsTitle=Add(L"STATIC",L"Application Settings",0,appX,579,250,24,IDC_APP_SETTINGS_TITLE);
     SendMessageW(appSettingsTitle,WM_SETFONT,(WPARAM)gFontBold,TRUE);
     { HWND cb=Add(L"BUTTON",L"",BS_AUTOCHECKBOX,appX,617,22,22,IDC_STARTWIN); StyleFlatCheckbox(cb); }
@@ -3506,19 +3642,12 @@ void BuildControls(){
     Add(L"STATIC",L"Minimize to tray",SS_CENTERIMAGE,appX+27,673,220,22,0);
     { HWND cb=Add(L"BUTTON",L"",BS_AUTOCHECKBOX,appX,701,22,22,IDC_CHECKUPDATES); StyleFlatCheckbox(cb); }
     Add(L"STATIC",L"Check for updates",SS_CENTERIMAGE,appX+27,701,220,22,IDC_CHECKUPDATES_LABEL);
-    HWND importProfiles=Add(L"BUTTON",L"Import...",BS_OWNERDRAW,appX,bottomButtonY,138,38,IDC_IMPORT_PROFILES);
-    StyleMainButton(importProfiles);
-    HWND exportProfiles=Add(L"BUTTON",L"Export...",BS_OWNERDRAW,appX+148,bottomButtonY,138,38,IDC_EXPORT_PROFILES);
+    HWND manageDisplays=Add(L"BUTTON",L"Manage displays...",BS_OWNERDRAW,appX,bottomButtonY,138,38,IDC_MANAGE_DISPLAYS);
+    StyleMainButton(manageDisplays);
+    HWND exportProfiles=Add(L"BUTTON",L"Configuration...",BS_OWNERDRAW,appX+148,bottomButtonY,138,38,IDC_EXPORT_PROFILES);
     StyleMainButton(exportProfiles);
-    gImportTooltip=CreateWindowExW(WS_EX_TOOLWINDOW|WS_EX_TOPMOST,L"STATIC",
-        L"Import a complete NvProfileSwitcher configuration from a JSON file.",WS_POPUP,0,0,0,0,gWnd,nullptr,gInst,nullptr);
-    if(gImportTooltip){
-        SendMessageW(gImportTooltip,WM_SETFONT,(WPARAM)gFont,FALSE);
-        SetWindowSubclass(gImportTooltip,ProfileTooltipSubclassProc,5,0);
-        SetWindowSubclass(importProfiles,ConfigurationButtonTooltipSubclassProc,1,1);
-    }
     gExportTooltip=CreateWindowExW(WS_EX_TOOLWINDOW|WS_EX_TOPMOST,L"STATIC",
-        L"Export the complete NvProfileSwitcher configuration to a JSON file.",WS_POPUP,0,0,0,0,gWnd,nullptr,gInst,nullptr);
+        L"Import or export the complete NvProfileSwitcher configuration.",WS_POPUP,0,0,0,0,gWnd,nullptr,gInst,nullptr);
     if(gExportTooltip){
         SendMessageW(gExportTooltip,WM_SETFONT,(WPARAM)gFont,FALSE);
         SetWindowSubclass(gExportTooltip,ProfileTooltipSubclassProc,6,0);
@@ -3750,6 +3879,8 @@ void ApplyResponsiveLayout(HWND hwnd,HMONITOR monitor,const RECT* suggested=null
 struct UpdateInfo{
     std::wstring version;
     std::wstring url;
+    ResponsiveDialogState responsive{};
+    HFONT titleFont{};
 };
 
 std::wstring Utf8ToWide(const std::string& text){
@@ -3916,6 +4047,84 @@ DWORD WINAPI UpdateCheckThread(LPVOID param){
 #endif
 }
 
+constexpr int UPDATE_BASE_CLIENT_WIDTH=470;
+constexpr int UPDATE_BASE_CLIENT_HEIGHT=175;
+enum {IDC_UPDATE_TITLE=5501,IDC_UPDATE_CURRENT,IDC_UPDATE_BODY,IDC_UPDATE_DOWNLOAD=3101};
+
+int DialogUi(const UpdateInfo* info,int value){
+    return DialogUi(info?&info->responsive:nullptr,value);
+}
+
+void RecreateUpdateTitleFont(UpdateInfo* info){
+    if(!info)return;
+    if(info->titleFont)DeleteObject(info->titleFont);
+    info->titleFont=CreateFontW(-DialogUi(info,20),0,0,0,FW_SEMIBOLD,0,0,0,
+        DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,DEFAULT_PITCH,L"Segoe UI");
+}
+
+void LayoutUpdateDialog(HWND w,UpdateInfo* info){
+    if(!w||!info)return;
+    RECT client{};GetClientRect(w,&client);
+
+    const int margin=DialogUi(info,DIALOG_MARGIN);
+    const int lineGap=DialogUi(info,DIALOG_LINE_GAP);
+    const int sectionGap=DialogUi(info,DIALOG_SECTION_GAP);
+    const int buttonGap=DialogUi(info,DIALOG_BUTTON_GAP);
+    const int buttonW=DialogUi(info,DIALOG_BUTTON_WIDTH);
+    const int buttonH=DialogUi(info,DIALOG_BUTTON_HEIGHT);
+    const int contentW=std::max(1,static_cast<int>(client.right)-margin*2);
+
+    std::wstring heading=L"NvProfileSwitcher ";
+    heading+=info->version;
+    heading+=L" is available";
+    std::wstring current=L"You are currently running version ";
+    current+=APP_VERSION;
+    current+=L".";
+    const std::wstring body=L"A newer version is available on GitHub.";
+
+    auto measureHeight=[&](const std::wstring& text,HFONT font){
+        HDC dc=GetDC(w);
+        RECT r{0,0,contentW,0};
+        HFONT old=(HFONT)SelectObject(dc,font);
+        DrawTextW(dc,text.c_str(),-1,&r,DT_CALCRECT|DT_WORDBREAK|DT_NOPREFIX);
+        SelectObject(dc,old);
+        ReleaseDC(w,dc);
+        return std::max(1,static_cast<int>(r.bottom-r.top));
+    };
+
+    const int titleH=measureHeight(heading,info->titleFont);
+    const int currentH=measureHeight(current,info->responsive.font);
+    const int bodyH=measureHeight(body,info->responsive.font);
+    const int titleY=margin;
+    const int currentY=titleY+titleH+lineGap;
+    const int bodyY=currentY+currentH+DialogUi(info,6);
+    const int buttonY=bodyY+bodyH+sectionGap;
+
+    MoveWindow(GetDlgItem(w,IDC_UPDATE_TITLE),margin,titleY,contentW,titleH,TRUE);
+    MoveWindow(GetDlgItem(w,IDC_UPDATE_CURRENT),margin,currentY,contentW,currentH,TRUE);
+    MoveWindow(GetDlgItem(w,IDC_UPDATE_BODY),margin,bodyY,contentW,bodyH,TRUE);
+
+    const int buttonsWidth=buttonW*2+buttonGap;
+    const int buttonsX=client.right-margin-buttonsWidth;
+    MoveWindow(GetDlgItem(w,IDC_UPDATE_DOWNLOAD),buttonsX,buttonY,buttonW,buttonH,TRUE);
+    MoveWindow(GetDlgItem(w,IDCANCEL),buttonsX+buttonW+buttonGap,buttonY,buttonW,buttonH,TRUE);
+
+    SendMessageW(GetDlgItem(w,IDC_UPDATE_TITLE),WM_SETFONT,(WPARAM)info->titleFont,TRUE);
+    SendMessageW(GetDlgItem(w,IDC_UPDATE_CURRENT),WM_SETFONT,(WPARAM)info->responsive.font,TRUE);
+    SendMessageW(GetDlgItem(w,IDC_UPDATE_BODY),WM_SETFONT,(WPARAM)info->responsive.font,TRUE);
+    SendMessageW(GetDlgItem(w,IDC_UPDATE_DOWNLOAD),WM_SETFONT,(WPARAM)info->responsive.fontBold,TRUE);
+    SendMessageW(GetDlgItem(w,IDCANCEL),WM_SETFONT,(WPARAM)info->responsive.fontBold,TRUE);
+}
+
+void ApplyUpdateResponsiveLayout(HWND w,UpdateInfo* info,UINT dpi,const RECT* suggested=nullptr){
+    if(!w||!info)return;
+    ApplyResponsiveDialogWindow(w,&info->responsive,dpi,
+        UPDATE_BASE_CLIENT_WIDTH,UPDATE_BASE_CLIENT_HEIGHT,suggested);
+    RecreateUpdateTitleFont(info);
+    LayoutUpdateDialog(w,info);
+    InvalidateRect(w,nullptr,TRUE);
+}
+
 LRESULT CALLBACK UpdateProc(HWND w,UINT m,WPARAM wp,LPARAM lp){
     auto* info=(UpdateInfo*)GetWindowLongPtrW(w,GWLP_USERDATA);
     switch(m){
@@ -3924,77 +4133,40 @@ LRESULT CALLBACK UpdateProc(HWND w,UINT m,WPARAM wp,LPARAM lp){
         info=(UpdateInfo*)cs->lpCreateParams;
         SetWindowLongPtrW(w,GWLP_USERDATA,(LONG_PTR)info);
 
-        HFONT title=CreateFontW(-20,0,0,0,FW_SEMIBOLD,0,0,0,DEFAULT_CHARSET,0,0,
-            CLEARTYPE_QUALITY,DEFAULT_PITCH,L"Segoe UI");
-        SetPropW(w,L"UpdateTitleFont",title);
+        info->responsive.uiScale=AdaptiveUiScaleForDpi(GetDpiForWindow(w));
+        RecreateResponsiveDialogFonts(&info->responsive);
+        RecreateUpdateTitleFont(info);
 
         std::wstring heading=L"NvProfileSwitcher ";
         heading+=info->version;
         heading+=L" is available";
-
-        RECT initialClient{};
-        GetClientRect(w,&initialClient);
-        const int clientWidth=initialClient.right-initialClient.left;
-        const int contentWidth=clientWidth-(DIALOG_MARGIN*2);
-        HDC measureDc=GetDC(w);
-        auto measureHeight=[&](const std::wstring& text,HFONT font){
-            RECT measured{0,0,contentWidth,0};
-            HFONT old=(HFONT)SelectObject(measureDc,font);
-            DrawTextW(measureDc,text.c_str(),-1,&measured,
-                DT_CALCRECT|DT_WORDBREAK|DT_NOPREFIX);
-            SelectObject(measureDc,old);
-            return std::max(1,static_cast<int>(measured.bottom-measured.top));
-        };
-
         std::wstring current=L"You are currently running version ";
         current+=APP_VERSION;
         current+=L".";
-        const std::wstring body=L"A newer version is available on GitHub.";
-        const int titleHeight=measureHeight(heading,title);
-        const int currentHeight=measureHeight(current,gFont);
-        const int bodyHeight=measureHeight(body,gFont);
-        ReleaseDC(w,measureDc);
 
-        const int titleY=DIALOG_MARGIN;
-        const int currentY=titleY+titleHeight+DIALOG_LINE_GAP;
-        const int bodyY=currentY+currentHeight+6;
-        const int buttonY=bodyY+bodyHeight+DIALOG_SECTION_GAP;
-        const int desiredClientHeight=buttonY+DIALOG_BUTTON_HEIGHT+DIALOG_MARGIN;
+        CreateWindowExW(0,L"STATIC",heading.c_str(),WS_CHILD|WS_VISIBLE,
+            0,0,1,1,w,(HMENU)IDC_UPDATE_TITLE,gInst,nullptr);
+        CreateWindowExW(0,L"STATIC",current.c_str(),WS_CHILD|WS_VISIBLE,
+            0,0,1,1,w,(HMENU)IDC_UPDATE_CURRENT,gInst,nullptr);
+        CreateWindowExW(0,L"STATIC",L"A newer version is available on GitHub.",WS_CHILD|WS_VISIBLE,
+            0,0,1,1,w,(HMENU)IDC_UPDATE_BODY,gInst,nullptr);
+        CreateWindowExW(0,L"BUTTON",L"Download",WS_CHILD|WS_VISIBLE|WS_TABSTOP|BS_OWNERDRAW,
+            0,0,1,1,w,(HMENU)IDC_UPDATE_DOWNLOAD,gInst,nullptr);
+        HWND later=CreateWindowExW(0,L"BUTTON",L"Later",WS_CHILD|WS_VISIBLE|WS_TABSTOP|BS_OWNERDRAW,
+            0,0,1,1,w,(HMENU)IDCANCEL,gInst,nullptr);
 
-        RECT desiredWindow{0,0,clientWidth,desiredClientHeight};
-        const DWORD style=(DWORD)GetWindowLongPtrW(w,GWL_STYLE);
-        const DWORD exStyle=(DWORD)GetWindowLongPtrW(w,GWL_EXSTYLE);
-        AdjustWindowRectEx(&desiredWindow,style,FALSE,exStyle);
-        SetWindowPos(w,nullptr,0,0,
-            desiredWindow.right-desiredWindow.left,
-            desiredWindow.bottom-desiredWindow.top,
-            SWP_NOMOVE|SWP_NOZORDER|SWP_NOACTIVATE);
-
-        HWND hTitle=CreateWindowExW(0,L"STATIC",heading.c_str(),WS_CHILD|WS_VISIBLE,
-            DIALOG_MARGIN,titleY,contentWidth,titleHeight,w,nullptr,gInst,nullptr);
-        SendMessageW(hTitle,WM_SETFONT,(WPARAM)title,TRUE);
-
-        HWND hCurrent=CreateWindowExW(0,L"STATIC",current.c_str(),WS_CHILD|WS_VISIBLE,
-            DIALOG_MARGIN,currentY,contentWidth,currentHeight,w,nullptr,gInst,nullptr);
-        SendMessageW(hCurrent,WM_SETFONT,(WPARAM)gFont,TRUE);
-
-        HWND hText=CreateWindowExW(0,L"STATIC",body.c_str(),
-            WS_CHILD|WS_VISIBLE,DIALOG_MARGIN,bodyY,contentWidth,bodyHeight,
-            w,nullptr,gInst,nullptr);
-        SendMessageW(hText,WM_SETFONT,(WPARAM)gFont,TRUE);
-
-        const int buttonsWidth=DIALOG_BUTTON_WIDTH*2+DIALOG_BUTTON_GAP;
-        const int buttonsX=clientWidth-DIALOG_MARGIN-buttonsWidth;
-        HWND download=CreateWindowExW(0,L"BUTTON",L"Download",WS_CHILD|WS_VISIBLE|BS_OWNERDRAW,
-            buttonsX,buttonY,DIALOG_BUTTON_WIDTH,DIALOG_BUTTON_HEIGHT,
-            w,(HMENU)3101,gInst,nullptr);
-        SendMessageW(download,WM_SETFONT,(WPARAM)gFontBold,TRUE);
-
-        HWND later=CreateWindowExW(0,L"BUTTON",L"Later",WS_CHILD|WS_VISIBLE|BS_OWNERDRAW,
-            buttonsX+DIALOG_BUTTON_WIDTH+DIALOG_BUTTON_GAP,buttonY,
-            DIALOG_BUTTON_WIDTH,DIALOG_BUTTON_HEIGHT,w,(HMENU)IDCANCEL,gInst,nullptr);
-        SendMessageW(later,WM_SETFONT,(WPARAM)gFontBold,TRUE);
+        ApplyUpdateResponsiveLayout(w,info,GetDpiForWindow(w));
         SetFocus(later);
+        return 0;
+    }
+    case WM_SIZE:
+        if(info)LayoutUpdateDialog(w,info);
+        return 0;
+    case WM_DPICHANGED:{
+        if(!info)break;
+        const UINT dpi=HIWORD(wp)?HIWORD(wp):GetDpiForWindow(w);
+        const RECT* suggested=reinterpret_cast<const RECT*>(lp);
+        ApplyUpdateResponsiveLayout(w,info,dpi,suggested);
         return 0;
     }
     case WM_CTLCOLORSTATIC:{
@@ -4006,24 +4178,23 @@ LRESULT CALLBACK UpdateProc(HWND w,UINT m,WPARAM wp,LPARAM lp){
     }
     case WM_DRAWITEM:{
         auto* d=(DRAWITEMSTRUCT*)lp;
-        if(d->CtlID==3101||d->CtlID==IDCANCEL){
-            bool down=(d->itemState&ODS_SELECTED)!=0;
+        if(d->CtlID==IDC_UPDATE_DOWNLOAD||d->CtlID==IDCANCEL){
+            const bool down=(d->itemState&ODS_SELECTED)!=0;
             RECT r=d->rcItem;
-            COLORREF fill=d->CtlID==3101?(down?C_ACCENT2:C_ACCENT):(down?C_ACCENT_DARK:C_PANEL2);
-            COLORREF border=d->CtlID==3101?C_ACCENT:C_BORDER;
-            FillRound(d->hDC,r,fill,border,7);
-            const wchar_t* text=d->CtlID==3101?L"Download":L"Later";
+            FillRound(d->hDC,r,down?C_ACCENT_DARK:C_PANEL2,C_BORDER,7);
+            const wchar_t* text=d->CtlID==IDC_UPDATE_DOWNLOAD?L"Download":L"Later";
+            HFONT font=info&&info->responsive.fontBold?info->responsive.fontBold:gFontBold;
             SIZE z{};
-            SelectObject(d->hDC,gFontBold);
+            SelectObject(d->hDC,font);
             GetTextExtentPoint32W(d->hDC,text,(int)wcslen(text),&z);
             DrawLabel(d->hDC,text,r.left+(r.right-r.left-z.cx)/2,
-                r.top+(r.bottom-r.top-z.cy)/2,d->CtlID==3101?RGB(8,15,8):C_TEXT,gFontBold);
+                r.top+(r.bottom-r.top-z.cy)/2,C_TEXT,font);
             return TRUE;
         }
         break;
     }
     case WM_COMMAND:
-        if(LOWORD(wp)==3101){
+        if(LOWORD(wp)==IDC_UPDATE_DOWNLOAD){
             if(info&&!info->url.empty())
                 ShellExecuteW(w,L"open",info->url.c_str(),nullptr,nullptr,SW_SHOWNORMAL);
             DestroyWindow(w);
@@ -4037,13 +4208,16 @@ LRESULT CALLBACK UpdateProc(HWND w,UINT m,WPARAM wp,LPARAM lp){
     case WM_CLOSE:
         DestroyWindow(w);
         return 0;
-    case WM_DESTROY:{
-        HFONT f=(HFONT)RemovePropW(w,L"UpdateTitleFont");
-        if(f)DeleteObject(f);
-        delete info;
+    case WM_DESTROY:
+        if(info){
+            if(info->titleFont)DeleteObject(info->titleFont);
+            info->titleFont=nullptr;
+            DestroyResponsiveDialogFonts(&info->responsive);
+            delete info;
+        }
         SetWindowLongPtrW(w,GWLP_USERDATA,0);
         return 0;
-    }}
+    }
     return DefWindowProcW(w,m,wp,lp);
 }
 
@@ -4067,9 +4241,27 @@ void ShowUpdateAvailable(UpdateInfo* info){
     const bool disableOwner=owner&&IsWindowEnabled(owner);
     if(disableOwner)EnableWindow(owner,FALSE);
 
-    HWND a=CreateWindowExW(WS_EX_DLGMODALFRAME,L"NvProfileSwitcherUpdate",
-        L"NvProfileSwitcher Update",WS_CAPTION|WS_SYSMENU,
-        0,0,488,214,owner,nullptr,gInst,info);
+    HMONITOR monitor=MonitorFromWindow(owner?owner:gWnd,MONITOR_DEFAULTTONEAREST);
+    MONITORINFO mi{sizeof(mi)};
+    GetMonitorInfoW(monitor,&mi);
+    const UINT dpi=GetDpiForWindow(owner?owner:gWnd);
+    const double scale=AdaptiveUiScaleForDpi(dpi);
+
+    RECT outer{0,0,
+        static_cast<LONG>(std::lround(UPDATE_BASE_CLIENT_WIDTH*scale)),
+        static_cast<LONG>(std::lround(UPDATE_BASE_CLIENT_HEIGHT*scale))};
+    const DWORD style=WS_CAPTION|WS_SYSMENU;
+    const DWORD exStyle=WS_EX_DLGMODALFRAME;
+    if(!AdjustWindowRectExForDpi(&outer,style,FALSE,exStyle,dpi))
+        AdjustWindowRectEx(&outer,style,FALSE,exStyle);
+    const int ww=outer.right-outer.left;
+    const int wh=outer.bottom-outer.top;
+    const int x=mi.rcWork.left+(mi.rcWork.right-mi.rcWork.left-ww)/2;
+    const int y=mi.rcWork.top+(mi.rcWork.bottom-mi.rcWork.top-wh)/2;
+
+    HWND a=CreateWindowExW(exStyle,L"NvProfileSwitcherUpdate",
+        L"NvProfileSwitcher Update",style,
+        x,y,ww,wh,owner,nullptr,gInst,info);
     if(!a){
         delete info;
         if(disableOwner)EnableWindow(owner,TRUE);
@@ -4079,18 +4271,7 @@ void ShowUpdateAvailable(UpdateInfo* info){
     BOOL darkTitle=TRUE;
     DwmSetWindowAttribute(a,20,&darkTitle,sizeof(darkTitle));
 
-    RECT wr{},target{};
-    GetWindowRect(a,&wr);
-    if(!owner||!IsWindowVisible(owner))
-        SystemParametersInfoW(SPI_GETWORKAREA,0,&target,0);
-    else
-        GetWindowRect(owner,&target);
-    int ww=wr.right-wr.left, wh=wr.bottom-wr.top;
-    int x=target.left+((target.right-target.left)-ww)/2;
-    int y=target.top+((target.bottom-target.top)-wh)/2;
-
     ShowWindow(a,SW_SHOW);
-    SetWindowPos(a,HWND_TOP,x,y,0,0,SWP_NOSIZE|SWP_SHOWWINDOW);
     UpdateWindow(a);
     SetForegroundWindow(a);
 
@@ -4114,203 +4295,6 @@ void ShowUpdateAvailable(UpdateInfo* info){
     }
 }
 
-LRESULT CALLBACK AboutProc(HWND w,UINT m,WPARAM wp,LPARAM lp){
-    switch(m){
-    case WM_CREATE:{
-        HFONT title=CreateFontW(-21,0,0,0,FW_SEMIBOLD,0,0,0,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,DEFAULT_PITCH,L"Segoe UI");
-        SetPropW(w,L"AboutTitleFont",title);
-
-        const wchar_t* appName=L"NvProfileSwitcher";
-        const wchar_t* description=L"Automatic per-application NVIDIA display color profiles for Windows";
-        const wchar_t* copyrightText=L"Copyright \x00A9 2026 Maximiliano Carnevali";
-        std::wstring versionText=L"Version ";
-        versionText+=APP_VERSION;
-
-        constexpr int iconSize=40;
-        constexpr int iconGap=14;
-
-        RECT initialClient{};
-        GetClientRect(w,&initialClient);
-        const int clientWidth=initialClient.right-initialClient.left;
-        const int contentWidth=clientWidth-(DIALOG_MARGIN*2);
-
-        HDC measureDc=GetDC(w);
-        auto measureHeight=[&](const std::wstring& text,HFONT font,int width){
-            RECT measured{0,0,width,0};
-            HFONT old=(HFONT)SelectObject(measureDc,font);
-            DrawTextW(measureDc,text.c_str(),-1,&measured,
-                DT_CALCRECT|DT_WORDBREAK|DT_NOPREFIX);
-            SelectObject(measureDc,old);
-            return std::max(1,static_cast<int>(measured.bottom-measured.top));
-        };
-
-        const int nameHeight=measureHeight(appName,title,contentWidth-iconSize-iconGap);
-        const int versionHeight=measureHeight(versionText,gFont,contentWidth-iconSize-iconGap);
-        const int headerHeight=std::max(iconSize,nameHeight+2+versionHeight);
-        const int descriptionHeight=measureHeight(description,gFont,contentWidth);
-        const int copyrightHeight=measureHeight(copyrightText,gFont,contentWidth);
-        ReleaseDC(w,measureDc);
-
-        const int descriptionY=DIALOG_MARGIN+headerHeight+DIALOG_SECTION_GAP;
-        const int copyrightY=descriptionY+descriptionHeight+DIALOG_LINE_GAP;
-        const int buttonY=copyrightY+copyrightHeight+DIALOG_SECTION_GAP;
-        const int desiredClientHeight=buttonY+DIALOG_BUTTON_HEIGHT+DIALOG_MARGIN;
-
-        RECT desiredWindow{0,0,clientWidth,desiredClientHeight};
-        const DWORD style=(DWORD)GetWindowLongPtrW(w,GWL_STYLE);
-        const DWORD exStyle=(DWORD)GetWindowLongPtrW(w,GWL_EXSTYLE);
-        AdjustWindowRectEx(&desiredWindow,style,FALSE,exStyle);
-        SetWindowPos(w,nullptr,0,0,
-            desiredWindow.right-desiredWindow.left,
-            desiredWindow.bottom-desiredWindow.top,
-            SWP_NOMOVE|SWP_NOZORDER|SWP_NOACTIVATE);
-
-        HWND icon=CreateWindowExW(0,L"STATIC",nullptr,WS_CHILD|WS_VISIBLE|SS_ICON,
-            DIALOG_MARGIN,DIALOG_MARGIN,iconSize,iconSize,w,nullptr,gInst,nullptr);
-        SendMessageW(icon,STM_SETICON,(WPARAM)gIcon,0);
-
-        const int headerTextX=DIALOG_MARGIN+iconSize+iconGap;
-        const int headerTextWidth=contentWidth-iconSize-iconGap;
-        HWND name=CreateWindowExW(0,L"STATIC",appName,WS_CHILD|WS_VISIBLE,
-            headerTextX,DIALOG_MARGIN,headerTextWidth,nameHeight,w,nullptr,gInst,nullptr);
-        SendMessageW(name,WM_SETFONT,(WPARAM)title,TRUE);
-
-        HWND version=CreateWindowExW(0,L"STATIC",versionText.c_str(),WS_CHILD|WS_VISIBLE,
-            headerTextX,DIALOG_MARGIN+nameHeight+2,headerTextWidth,versionHeight,w,nullptr,gInst,nullptr);
-        SendMessageW(version,WM_SETFONT,(WPARAM)gFont,TRUE);
-
-        HWND desc=CreateWindowExW(0,L"STATIC",description,WS_CHILD|WS_VISIBLE,
-            DIALOG_MARGIN,descriptionY,contentWidth,descriptionHeight,w,nullptr,gInst,nullptr);
-        SendMessageW(desc,WM_SETFONT,(WPARAM)gFont,TRUE);
-
-        HWND copy=CreateWindowExW(0,L"STATIC",copyrightText,WS_CHILD|WS_VISIBLE,
-            DIALOG_MARGIN,copyrightY,contentWidth,copyrightHeight,w,nullptr,gInst,nullptr);
-        SendMessageW(copy,WM_SETFONT,(WPARAM)gFont,TRUE);
-
-        const int buttonsWidth=DIALOG_BUTTON_WIDTH*3+DIALOG_BUTTON_GAP*2;
-        const int buttonsX=clientWidth-DIALOG_MARGIN-buttonsWidth;
-        HWND github=CreateWindowExW(0,L"BUTTON",L"GitHub",WS_CHILD|WS_VISIBLE|BS_OWNERDRAW,
-            buttonsX,buttonY,DIALOG_BUTTON_WIDTH,DIALOG_BUTTON_HEIGHT,w,(HMENU)3001,gInst,nullptr);
-        SendMessageW(github,WM_SETFONT,(WPARAM)gFontBold,TRUE);
-        HWND support=CreateWindowExW(0,L"BUTTON",L"Support",WS_CHILD|WS_VISIBLE|BS_OWNERDRAW,
-            buttonsX+DIALOG_BUTTON_WIDTH+DIALOG_BUTTON_GAP,buttonY,
-            DIALOG_BUTTON_WIDTH,DIALOG_BUTTON_HEIGHT,w,(HMENU)3002,gInst,nullptr);
-        SendMessageW(support,WM_SETFONT,(WPARAM)gFontBold,TRUE);
-        HWND close=CreateWindowExW(0,L"BUTTON",L"Close",WS_CHILD|WS_VISIBLE|BS_OWNERDRAW,
-            buttonsX+(DIALOG_BUTTON_WIDTH+DIALOG_BUTTON_GAP)*2,buttonY,
-            DIALOG_BUTTON_WIDTH,DIALOG_BUTTON_HEIGHT,w,(HMENU)IDCANCEL,gInst,nullptr);
-        SendMessageW(close,WM_SETFONT,(WPARAM)gFontBold,TRUE);
-        return 0;
-    }
-    case WM_CTLCOLORSTATIC:{
-        HDC dc=(HDC)wp;
-        SetTextColor(dc,C_TEXT);
-        SetBkColor(dc,C_BACK);
-        SetBkMode(dc,TRANSPARENT);
-        return (LRESULT)gBackBrush;
-    }
-    case WM_DRAWITEM:{
-        auto* d=(DRAWITEMSTRUCT*)lp;
-        if(d->CtlID==3001 || d->CtlID==3002 || d->CtlID==IDCANCEL){
-            bool down=(d->itemState&ODS_SELECTED)!=0;
-            RECT r=d->rcItem;
-            FillRound(d->hDC,r,down?C_ACCENT_DARK:C_PANEL2,C_BORDER,7);
-            const wchar_t* text=d->CtlID==3001?L"GitHub":(d->CtlID==3002?L"Support":L"Close");
-            SIZE z{};
-            SelectObject(d->hDC,gFontBold);
-            GetTextExtentPoint32W(d->hDC,text,(int)wcslen(text),&z);
-            DrawLabel(d->hDC,text,r.left+(r.right-r.left-z.cx)/2,r.top+(r.bottom-r.top-z.cy)/2,C_TEXT,gFontBold);
-            return TRUE;
-        }
-        break;
-    }
-    case WM_COMMAND:
-        if(LOWORD(wp)==3001){
-            ShellExecuteW(w,L"open",APP_URL,nullptr,nullptr,SW_SHOWNORMAL);
-            return 0;
-        }
-        if(LOWORD(wp)==3002){
-            ShellExecuteW(w,L"open",SUPPORT_URL,nullptr,nullptr,SW_SHOWNORMAL);
-            return 0;
-        }
-        if(LOWORD(wp)==IDCANCEL){
-            DestroyWindow(w);
-            return 0;
-        }
-        break;
-    case WM_CLOSE:
-        DestroyWindow(w);
-        return 0;
-    case WM_DESTROY:{
-        HFONT f=(HFONT)RemovePropW(w,L"AboutTitleFont");
-        if(f)DeleteObject(f);
-        return 0;
-    }}
-    return DefWindowProcW(w,m,wp,lp);
-}
-
-void ShowAbout(){
-    static bool registered=false;
-    if(!registered){
-        WNDCLASSEXW wc{sizeof(wc)};
-        wc.lpfnWndProc=AboutProc;
-        wc.hInstance=gInst;
-        wc.hIcon=gIcon;
-        wc.hIconSm=gIcon;
-        wc.hCursor=LoadCursor(nullptr,IDC_ARROW);
-        wc.hbrBackground=gBackBrush;
-        wc.lpszClassName=L"NvProfileSwitcherAbout";
-        RegisterClassExW(&wc);
-        registered=true;
-    }
-
-    HWND existing=FindWindowW(L"NvProfileSwitcherAbout",nullptr);
-    if(existing){
-        SetForegroundWindow(existing);
-        return;
-    }
-
-    HWND owner=gWnd;
-    HWND previousFocus=GetFocus();
-    const bool disableOwner=owner&&IsWindowEnabled(owner);
-    if(disableOwner)EnableWindow(owner,FALSE);
-
-    HWND a=CreateWindowExW(WS_EX_DLGMODALFRAME,L"NvProfileSwitcherAbout",L"About NvProfileSwitcher",
-        WS_CAPTION|WS_SYSMENU,0,0,488,242,owner,nullptr,gInst,nullptr);
-    if(!a){
-        if(disableOwner)EnableWindow(owner,TRUE);
-        return;
-    }
-
-    BOOL darkTitle=TRUE;
-    DwmSetWindowAttribute(a,20,&darkTitle,sizeof(darkTitle));
-
-    RECT wr{},work{};
-    GetWindowRect(a,&wr);
-    SystemParametersInfoW(SPI_GETWORKAREA,0,&work,0);
-    int ww=wr.right-wr.left, wh=wr.bottom-wr.top;
-    int x=work.left+((work.right-work.left)-ww)/2;
-    int y=work.top+((work.bottom-work.top)-wh)/2;
-
-    ShowWindow(a,SW_SHOW);
-    SetWindowPos(a,HWND_TOP,x,y,0,0,SWP_NOSIZE|SWP_SHOWWINDOW);
-    UpdateWindow(a);
-    SetForegroundWindow(a);
-
-    MSG msg{};
-    while(IsWindow(a)&&GetMessageW(&msg,nullptr,0,0)>0){
-        if(!IsDialogMessageW(a,&msg)){
-            TranslateMessage(&msg);
-            DispatchMessageW(&msg);
-        }
-    }
-    if(disableOwner){
-        EnableWindow(owner,TRUE);
-        if(previousFocus&&IsWindow(previousFocus))SetFocus(previousFocus);
-        else SetFocus(owner);
-        SetForegroundWindow(owner);
-    }
-}
 
 struct RunningAppEntry{
     std::wstring name;
@@ -4325,6 +4309,7 @@ struct RunningAppsDialogData{
     HWND list{};
     HWND emptyMessage{};
     HIMAGELIST images{};
+    ResponsiveDialogState responsive{};
 };
 
 std::wstring FileNameFromPath(const std::wstring& path){
@@ -4405,11 +4390,364 @@ struct SavedDisplayInfo {
     std::wstring name;
     bool connected=false;
 };
+double AdaptiveUiScaleForDpi(UINT dpi){
+    if(dpi==0) dpi=96;
+    const double dpiScale=static_cast<double>(dpi)/96.0;
+    const double adaptiveScale=dpiScale<=2.0
+        ? 1.0+(dpiScale-1.0)*0.20
+        : 1.20+(dpiScale-2.0)*0.10;
+    return std::clamp(adaptiveScale,1.0,1.30);
+}
+
+int DialogUi(const ResponsiveDialogState* state,int value){
+    const double scale=state?state->uiScale:1.0;
+    return static_cast<int>(std::lround(static_cast<double>(value)*scale));
+}
+
+void RecreateResponsiveDialogFonts(ResponsiveDialogState* state){
+    if(!state)return;
+    if(state->font&&state->font!=gBaseFont)DeleteObject(state->font);
+    if(state->fontBold&&state->fontBold!=gBaseFontBold)DeleteObject(state->fontBold);
+    state->font=ScaledFontFromBase(gBaseFont,state->uiScale);
+    state->fontBold=ScaledFontFromBase(gBaseFontBold,state->uiScale);
+}
+
+void DestroyResponsiveDialogFonts(ResponsiveDialogState* state){
+    if(!state)return;
+    if(state->font&&state->font!=gBaseFont)DeleteObject(state->font);
+    if(state->fontBold&&state->fontBold!=gBaseFontBold)DeleteObject(state->fontBold);
+    state->font=nullptr;
+    state->fontBold=nullptr;
+}
+
+void ApplyResponsiveDialogWindow(HWND w,ResponsiveDialogState* state,UINT dpi,
+    int baseClientWidth,int baseClientHeight,const RECT* suggested=nullptr){
+    if(!w||!state)return;
+    state->uiScale=AdaptiveUiScaleForDpi(dpi);
+    RecreateResponsiveDialogFonts(state);
+
+    const DWORD style=(DWORD)GetWindowLongPtrW(w,GWL_STYLE);
+    const DWORD exStyle=(DWORD)GetWindowLongPtrW(w,GWL_EXSTYLE);
+    RECT outer{0,0,
+        static_cast<LONG>(std::lround(baseClientWidth*state->uiScale)),
+        static_cast<LONG>(std::lround(baseClientHeight*state->uiScale))};
+    if(!AdjustWindowRectExForDpi(&outer,style,FALSE,exStyle,dpi))
+        AdjustWindowRectEx(&outer,style,FALSE,exStyle);
+
+    RECT current{};GetWindowRect(w,&current);
+    const int x=suggested?suggested->left:current.left;
+    const int y=suggested?suggested->top:current.top;
+    SetWindowPos(w,nullptr,x,y,outer.right-outer.left,outer.bottom-outer.top,
+        SWP_NOZORDER|SWP_NOACTIVATE);
+}
+
+
+struct AboutDialogData {
+    ResponsiveDialogState responsive{};
+    HFONT titleFont{};
+};
+
+constexpr int ABOUT_BASE_CLIENT_WIDTH=470;
+constexpr int ABOUT_BASE_CLIENT_HEIGHT=215;
+enum {IDC_ABOUT_ICON=5301,IDC_ABOUT_NAME,IDC_ABOUT_VERSION,IDC_ABOUT_DESCRIPTION,IDC_ABOUT_COPYRIGHT};
+
+int DialogUi(const AboutDialogData* data,int value){
+    return DialogUi(data?&data->responsive:nullptr,value);
+}
+
+void RecreateAboutTitleFont(AboutDialogData* data){
+    if(!data)return;
+    if(data->titleFont)DeleteObject(data->titleFont);
+    data->titleFont=CreateFontW(-DialogUi(data,21),0,0,0,FW_SEMIBOLD,0,0,0,
+        DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,DEFAULT_PITCH,L"Segoe UI");
+}
+
+void LayoutAboutDialog(HWND w,AboutDialogData* data){
+    if(!w||!data)return;
+    RECT client{};GetClientRect(w,&client);
+
+    const int margin=DialogUi(data,DIALOG_MARGIN);
+    const int iconSize=DialogUi(data,40);
+    const int iconGap=DialogUi(data,14);
+    const int lineGap=DialogUi(data,DIALOG_LINE_GAP);
+    const int sectionGap=DialogUi(data,DIALOG_SECTION_GAP);
+    const int buttonGap=DialogUi(data,DIALOG_BUTTON_GAP);
+    const int buttonW=DialogUi(data,DIALOG_BUTTON_WIDTH);
+    const int buttonH=DialogUi(data,DIALOG_BUTTON_HEIGHT);
+    const int contentW=std::max(1,static_cast<int>(client.right)-margin*2);
+    const int headerTextX=margin+iconSize+iconGap;
+    const int headerTextW=std::max(1,contentW-iconSize-iconGap);
+
+    HDC dc=GetDC(w);
+    auto measureHeight=[&](HWND control,HFONT font,int width){
+        wchar_t text[512]{};GetWindowTextW(control,text,512);
+        RECT measured{0,0,width,0};
+        HFONT old=(HFONT)SelectObject(dc,font);
+        DrawTextW(dc,text,-1,&measured,DT_CALCRECT|DT_WORDBREAK|DT_NOPREFIX);
+        SelectObject(dc,old);
+        return std::max(1,static_cast<int>(measured.bottom-measured.top));
+    };
+
+    const int nameH=measureHeight(GetDlgItem(w,IDC_ABOUT_NAME),data->titleFont,headerTextW);
+    const int versionH=measureHeight(GetDlgItem(w,IDC_ABOUT_VERSION),data->responsive.font,headerTextW);
+    const int headerH=std::max(iconSize,nameH+DialogUi(data,2)+versionH);
+    const int descriptionH=measureHeight(GetDlgItem(w,IDC_ABOUT_DESCRIPTION),data->responsive.font,contentW);
+    const int copyrightH=measureHeight(GetDlgItem(w,IDC_ABOUT_COPYRIGHT),data->responsive.font,contentW);
+    ReleaseDC(w,dc);
+
+    const int descriptionY=margin+headerH+sectionGap;
+    const int copyrightY=descriptionY+descriptionH+lineGap;
+    const int buttonY=client.bottom-margin-buttonH;
+    const int buttonsWidth=buttonW*3+buttonGap*2;
+    const int buttonsX=client.right-margin-buttonsWidth;
+
+    MoveWindow(GetDlgItem(w,IDC_ABOUT_ICON),margin,margin,iconSize,iconSize,TRUE);
+    MoveWindow(GetDlgItem(w,IDC_ABOUT_NAME),headerTextX,margin,headerTextW,nameH,TRUE);
+    MoveWindow(GetDlgItem(w,IDC_ABOUT_VERSION),headerTextX,margin+nameH+DialogUi(data,2),headerTextW,versionH,TRUE);
+    MoveWindow(GetDlgItem(w,IDC_ABOUT_DESCRIPTION),margin,descriptionY,contentW,descriptionH,TRUE);
+    MoveWindow(GetDlgItem(w,IDC_ABOUT_COPYRIGHT),margin,copyrightY,contentW,copyrightH,TRUE);
+    MoveWindow(GetDlgItem(w,3001),buttonsX,buttonY,buttonW,buttonH,TRUE);
+    MoveWindow(GetDlgItem(w,3002),buttonsX+buttonW+buttonGap,buttonY,buttonW,buttonH,TRUE);
+    MoveWindow(GetDlgItem(w,IDCANCEL),buttonsX+(buttonW+buttonGap)*2,buttonY,buttonW,buttonH,TRUE);
+
+    SendMessageW(GetDlgItem(w,IDC_ABOUT_NAME),WM_SETFONT,(WPARAM)data->titleFont,TRUE);
+    SendMessageW(GetDlgItem(w,IDC_ABOUT_VERSION),WM_SETFONT,(WPARAM)data->responsive.font,TRUE);
+    SendMessageW(GetDlgItem(w,IDC_ABOUT_DESCRIPTION),WM_SETFONT,(WPARAM)data->responsive.font,TRUE);
+    SendMessageW(GetDlgItem(w,IDC_ABOUT_COPYRIGHT),WM_SETFONT,(WPARAM)data->responsive.font,TRUE);
+    SendMessageW(GetDlgItem(w,3001),WM_SETFONT,(WPARAM)data->responsive.fontBold,TRUE);
+    SendMessageW(GetDlgItem(w,3002),WM_SETFONT,(WPARAM)data->responsive.fontBold,TRUE);
+    SendMessageW(GetDlgItem(w,IDCANCEL),WM_SETFONT,(WPARAM)data->responsive.fontBold,TRUE);
+    InvalidateRect(w,nullptr,TRUE);
+}
+
+int MeasureAboutContentBottom(HWND w,AboutDialogData* data){
+    if(!w||!data)return 0;
+    RECT r{};
+    HWND copyrightControl=GetDlgItem(w,IDC_ABOUT_COPYRIGHT);
+    if(!copyrightControl||!GetWindowRect(copyrightControl,&r))return 0;
+    POINT bottomLeft{r.left,r.bottom};
+    ScreenToClient(w,&bottomLeft);
+    return bottomLeft.y;
+}
+
+void AutosizeAboutDialog(HWND w,AboutDialogData* data){
+    if(!w||!data)return;
+
+    const int margin=DialogUi(data,DIALOG_MARGIN);
+    const int contentButtonGap=DialogUi(data,20);
+    const int buttonH=DialogUi(data,DIALOG_BUTTON_HEIGHT);
+    const int contentBottom=MeasureAboutContentBottom(w,data);
+    if(contentBottom<=0)return;
+
+    // Same vertical rule used by AppMessageProc:
+    // content -> 20 logical px -> buttons -> 22 logical px bottom margin.
+    const int desiredClientH=contentBottom+contentButtonGap+buttonH+margin;
+
+    RECT client{};GetClientRect(w,&client);
+    const int currentClientH=client.bottom-client.top;
+    if(currentClientH==desiredClientH)return;
+
+    RECT wr{};GetWindowRect(w,&wr);
+    const int outerW=wr.right-wr.left;
+    const int outerH=(wr.bottom-wr.top)+(desiredClientH-currentClientH);
+    SetWindowPos(w,nullptr,0,0,outerW,outerH,
+        SWP_NOMOVE|SWP_NOZORDER|SWP_NOACTIVATE);
+}
+
+void ApplyAboutResponsiveLayout(HWND w,AboutDialogData* data,UINT dpi,const RECT* suggested=nullptr){
+    if(!w||!data)return;
+    ApplyResponsiveDialogWindow(w,&data->responsive,dpi,
+        ABOUT_BASE_CLIENT_WIDTH,ABOUT_BASE_CLIENT_HEIGHT,suggested);
+    RecreateAboutTitleFont(data);
+    LayoutAboutDialog(w,data);
+    AutosizeAboutDialog(w,data);
+    LayoutAboutDialog(w,data);
+}
+
+LRESULT CALLBACK AboutProc(HWND w,UINT m,WPARAM wp,LPARAM lp){
+    auto* data=(AboutDialogData*)GetWindowLongPtrW(w,GWLP_USERDATA);
+    switch(m){
+    case WM_CREATE:{
+        data=(AboutDialogData*)((CREATESTRUCTW*)lp)->lpCreateParams;
+        SetWindowLongPtrW(w,GWLP_USERDATA,(LONG_PTR)data);
+        data->responsive.uiScale=AdaptiveUiScaleForDpi(GetDpiForWindow(w));
+        RecreateResponsiveDialogFonts(&data->responsive);
+        RecreateAboutTitleFont(data);
+
+        const wchar_t* appName=L"NvProfileSwitcher";
+        const wchar_t* description=L"Automatic per-application NVIDIA display color profiles for Windows";
+        const wchar_t* copyrightText=L"Copyright \x00A9 2026 Maximiliano Carnevali";
+        std::wstring versionText=L"Version ";versionText+=APP_VERSION;
+
+        HWND icon=CreateWindowExW(0,L"STATIC",nullptr,WS_CHILD|WS_VISIBLE|SS_ICON,
+            0,0,1,1,w,(HMENU)IDC_ABOUT_ICON,gInst,nullptr);
+        SendMessageW(icon,STM_SETICON,(WPARAM)gIcon,0);
+        CreateWindowExW(0,L"STATIC",appName,WS_CHILD|WS_VISIBLE,
+            0,0,1,1,w,(HMENU)IDC_ABOUT_NAME,gInst,nullptr);
+        CreateWindowExW(0,L"STATIC",versionText.c_str(),WS_CHILD|WS_VISIBLE,
+            0,0,1,1,w,(HMENU)IDC_ABOUT_VERSION,gInst,nullptr);
+        CreateWindowExW(0,L"STATIC",description,WS_CHILD|WS_VISIBLE,
+            0,0,1,1,w,(HMENU)IDC_ABOUT_DESCRIPTION,gInst,nullptr);
+        CreateWindowExW(0,L"STATIC",copyrightText,WS_CHILD|WS_VISIBLE,
+            0,0,1,1,w,(HMENU)IDC_ABOUT_COPYRIGHT,gInst,nullptr);
+
+        HWND github=CreateWindowExW(0,L"BUTTON",L"GitHub",WS_CHILD|WS_VISIBLE|WS_TABSTOP|BS_OWNERDRAW,
+            0,0,1,1,w,(HMENU)3001,gInst,nullptr);
+        HWND support=CreateWindowExW(0,L"BUTTON",L"Support",WS_CHILD|WS_VISIBLE|WS_TABSTOP|BS_OWNERDRAW,
+            0,0,1,1,w,(HMENU)3002,gInst,nullptr);
+        HWND close=CreateWindowExW(0,L"BUTTON",L"Close",WS_CHILD|WS_VISIBLE|WS_TABSTOP|BS_OWNERDRAW,
+            0,0,1,1,w,(HMENU)IDCANCEL,gInst,nullptr);
+        StyleMainButton(github);StyleMainButton(support);StyleMainButton(close);
+        LayoutAboutDialog(w,data);
+        AutosizeAboutDialog(w,data);
+        LayoutAboutDialog(w,data);
+        return 0;
+    }
+    case WM_SIZE:
+        if(data)LayoutAboutDialog(w,data);
+        return 0;
+    case WM_DPICHANGED:{
+        if(!data)return 0;
+        const UINT dpi=HIWORD(wp)?HIWORD(wp):GetDpiForWindow(w);
+        const RECT* suggested=reinterpret_cast<const RECT*>(lp);
+        ApplyAboutResponsiveLayout(w,data,dpi,suggested);
+        return 0;
+    }
+    case WM_CTLCOLORSTATIC:{
+        HDC dc=(HDC)wp;SetTextColor(dc,C_TEXT);SetBkColor(dc,C_BACK);SetBkMode(dc,TRANSPARENT);
+        return (LRESULT)gBackBrush;
+    }
+    case WM_DRAWITEM:{
+        auto* d=(DRAWITEMSTRUCT*)lp;
+        if(d->CtlID==3001||d->CtlID==3002||d->CtlID==IDCANCEL){
+            const bool down=(d->itemState&ODS_SELECTED)!=0;
+            RECT r=d->rcItem;
+            FillRound(d->hDC,r,down?C_ACCENT_DARK:C_PANEL2,C_BORDER,7);
+            const wchar_t* text=d->CtlID==3001?L"GitHub":(d->CtlID==3002?L"Support":L"Close");
+            HFONT font=(data&&data->responsive.fontBold)?data->responsive.fontBold:gFontBold;
+            HFONT old=(HFONT)SelectObject(d->hDC,font);
+            SetBkMode(d->hDC,TRANSPARENT);SetTextColor(d->hDC,C_TEXT);
+            DrawTextW(d->hDC,text,-1,&r,DT_CENTER|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);
+            SelectObject(d->hDC,old);
+            return TRUE;
+        }
+        break;
+    }
+    case WM_COMMAND:
+        if(LOWORD(wp)==3001){ShellExecuteW(w,L"open",APP_URL,nullptr,nullptr,SW_SHOWNORMAL);return 0;}
+        if(LOWORD(wp)==3002){ShellExecuteW(w,L"open",SUPPORT_URL,nullptr,nullptr,SW_SHOWNORMAL);return 0;}
+        if(LOWORD(wp)==IDCANCEL){DestroyWindow(w);return 0;}
+        break;
+    case WM_CLOSE:DestroyWindow(w);return 0;
+    case WM_DESTROY:
+        if(data&&data->titleFont){DeleteObject(data->titleFont);data->titleFont=nullptr;}
+        if(data)DestroyResponsiveDialogFonts(&data->responsive);
+        return 0;
+    }
+    return DefWindowProcW(w,m,wp,lp);
+}
+
+void ShowAbout(){
+    static bool registered=false;
+    if(!registered){
+        WNDCLASSEXW wc{sizeof(wc)};wc.lpfnWndProc=AboutProc;wc.hInstance=gInst;
+        wc.hIcon=gIcon;wc.hIconSm=gIcon;wc.hCursor=LoadCursor(nullptr,IDC_ARROW);
+        wc.hbrBackground=gBackBrush;wc.lpszClassName=L"NvProfileSwitcherAbout";
+        if(!RegisterClassExW(&wc)&&GetLastError()!=ERROR_CLASS_ALREADY_EXISTS)return;
+        registered=true;
+    }
+
+    HWND existing=FindWindowW(L"NvProfileSwitcherAbout",nullptr);
+    if(existing){SetForegroundWindow(existing);return;}
+
+    HWND owner=gWnd;
+    HWND previousFocus=GetFocus();
+    const bool disableOwner=owner&&IsWindowEnabled(owner);
+    if(disableOwner)EnableWindow(owner,FALSE);
+
+    RECT ownerRect{};
+    if(owner&&IsWindowVisible(owner))GetWindowRect(owner,&ownerRect);
+    else SystemParametersInfoW(SPI_GETWORKAREA,0,&ownerRect,0);
+    HMONITOR ownerMonitor=owner?MonitorFromWindow(owner,MONITOR_DEFAULTTONEAREST):MonitorFromRect(&ownerRect,MONITOR_DEFAULTTONEAREST);
+    MONITORINFO mi{sizeof(mi)};GetMonitorInfoW(ownerMonitor,&mi);
+
+    AboutDialogData data{};
+    const int initialX=ownerRect.left+(ownerRect.right-ownerRect.left-488)/2;
+    const int initialY=ownerRect.top+(ownerRect.bottom-ownerRect.top-254)/2;
+    HWND a=CreateWindowExW(WS_EX_DLGMODALFRAME,L"NvProfileSwitcherAbout",L"About NvProfileSwitcher",
+        WS_CAPTION|WS_SYSMENU,initialX,initialY,488,254,owner,nullptr,gInst,&data);
+    if(!a){if(disableOwner)EnableWindow(owner,TRUE);return;}
+
+    BOOL darkTitle=TRUE;DwmSetWindowAttribute(a,20,&darkTitle,sizeof(darkTitle));
+    ApplyAboutResponsiveLayout(a,&data,GetDpiForWindow(a),nullptr);
+
+    RECT wr{};GetWindowRect(a,&wr);
+    const int ww=wr.right-wr.left,wh=wr.bottom-wr.top;
+    const int x=mi.rcWork.left+(mi.rcWork.right-mi.rcWork.left-ww)/2;
+    const int y=mi.rcWork.top+(mi.rcWork.bottom-mi.rcWork.top-wh)/2;
+    SetWindowPos(a,HWND_TOP,x,y,0,0,SWP_NOSIZE|SWP_SHOWWINDOW);
+    SetForegroundWindow(a);
+
+    MSG msg{};
+    while(IsWindow(a)&&GetMessageW(&msg,nullptr,0,0)>0){
+        if(!IsDialogMessageW(a,&msg)){TranslateMessage(&msg);DispatchMessageW(&msg);}
+    }
+    if(disableOwner){
+        EnableWindow(owner,TRUE);
+        if(previousFocus&&IsWindow(previousFocus))SetFocus(previousFocus);else SetFocus(owner);
+        SetForegroundWindow(owner);
+    }
+}
+
 struct ManageDisplaysDialogData {
     HWND list{};
     HWND emptyMessage{};
+    ResponsiveDialogState responsive{};
     std::vector<SavedDisplayInfo> displays;
 };
+
+constexpr int MANAGE_BASE_CLIENT_WIDTH=524;
+constexpr int MANAGE_BASE_CLIENT_HEIGHT=261;
+
+int DialogUi(const ManageDisplaysDialogData* data,int value){
+    return DialogUi(data?&data->responsive:nullptr,value);
+}
+
+void LayoutManageDisplaysDialog(HWND w,ManageDisplaysDialogData* data){
+    if(!w||!data)return;
+    RECT client{};GetClientRect(w,&client);
+    const int margin=DialogUi(data,DIALOG_MARGIN);
+    const int headerH=DialogUi(data,32);
+    const int buttonH=DialogUi(data,DIALOG_BUTTON_HEIGHT);
+    const int buttonW=DialogUi(data,DIALOG_BUTTON_WIDTH);
+    const int buttonY=client.bottom-margin-buttonH;
+    const int contentW=std::max(1,static_cast<int>(client.right)-margin*2);
+    const int listY=margin+headerH;
+    const int listH=std::max(1,buttonY-margin-listY);
+
+    MoveWindow(GetDlgItem(w,IDC_MANAGE_HEADER),margin,margin,contentW,headerH,TRUE);
+    MoveWindow(data->list,margin,listY,contentW,listH,TRUE);
+    MoveWindow(data->emptyMessage,margin+1,listY+1,std::max(1,contentW-2),std::max(1,listH-2),TRUE);
+    MoveWindow(GetDlgItem(w,IDC_MANAGE_REMOVE),margin,buttonY,buttonW,buttonH,TRUE);
+    MoveWindow(GetDlgItem(w,IDC_MANAGE_CLOSE),client.right-margin-buttonW,buttonY,buttonW,buttonH,TRUE);
+
+    const int displayColW=(contentW*70)/100;
+    ListView_SetColumnWidth(data->list,0,displayColW);
+    ListView_SetColumnWidth(data->list,1,contentW-displayColW);
+
+    SendMessageW(data->list,WM_SETFONT,(WPARAM)data->responsive.font,TRUE);
+    SendMessageW(data->emptyMessage,WM_SETFONT,(WPARAM)data->responsive.font,TRUE);
+    SendMessageW(GetDlgItem(w,IDC_MANAGE_REMOVE),WM_SETFONT,(WPARAM)data->responsive.fontBold,TRUE);
+    SendMessageW(GetDlgItem(w,IDC_MANAGE_CLOSE),WM_SETFONT,(WPARAM)data->responsive.fontBold,TRUE);
+    InvalidateRect(w,nullptr,TRUE);
+}
+
+void ApplyManageDisplaysResponsiveLayout(HWND w,ManageDisplaysDialogData* data,UINT dpi,const RECT* suggested=nullptr){
+    if(!w||!data)return;
+    ApplyResponsiveDialogWindow(w,&data->responsive,dpi,
+        MANAGE_BASE_CLIENT_WIDTH,MANAGE_BASE_CLIENT_HEIGHT,suggested);
+    LayoutManageDisplaysDialog(w,data);
+}
 
 std::vector<SavedDisplayInfo> GetSavedDisplays(){
     std::vector<SavedDisplayInfo> result;
@@ -4419,7 +4757,7 @@ std::vector<SavedDisplayInfo> GetSavedDisplays(){
         if(it==result.end()){
             SavedDisplayInfo info{};
             info.monitorId=values.monitorId;
-            info.name=values.displayName.empty()?values.monitorId:values.displayName;
+            info.name=values.displayName;
             result.push_back(std::move(info));
         }else if(it->name==it->monitorId&&!values.displayName.empty())it->name=values.displayName;
     };
@@ -4465,31 +4803,128 @@ void PopulateManageDisplaysList(ManageDisplaysDialogData* data){
     if(remove)EnableWindow(remove,FALSE);
 }
 
+void TrimManageDisplaysUnusedListSpace(HWND w,ManageDisplaysDialogData* data){
+    if(!w||!data||!data->list||data->displays.empty())return;
+
+    RECT listClient{};
+    GetClientRect(data->list,&listClient);
+
+    RECT lastRow{};
+    if(!ListView_GetItemRect(data->list,(int)data->displays.size()-1,&lastRow,LVIR_BOUNDS))
+        return;
+
+    const int bottomPadding=DialogUi(data,10);
+    const int wantedListH=lastRow.bottom+bottomPadding;
+    const int currentListH=listClient.bottom-listClient.top;
+    const int trim=currentListH-wantedListH;
+
+    // Only remove genuine unused space; never grow the list or alter row metrics.
+    if(trim<=0)return;
+
+    RECT wr{};
+    GetWindowRect(w,&wr);
+    SetWindowPos(w,nullptr,0,0,
+        wr.right-wr.left,
+        (wr.bottom-wr.top)-trim,
+        SWP_NOMOVE|SWP_NOZORDER|SWP_NOACTIVATE);
+
+    LayoutManageDisplaysDialog(w,data);
+}
+
+void RecreateManageDisplaysListForDpi(HWND w,ManageDisplaysDialogData* data){
+    if(!w||!data)return;
+
+    std::wstring selectedId;
+    if(data->list){
+        const int selected=ListView_GetNextItem(data->list,-1,LVNI_SELECTED);
+        if(selected>=0&&selected<(int)data->displays.size())
+            selectedId=data->displays[(size_t)selected].monitorId;
+        DestroyWindow(data->list);
+        data->list=nullptr;
+    }
+
+    data->list=CreateWindowExW(0,WC_LISTVIEWW,L"",
+        WS_CHILD|WS_VISIBLE|WS_TABSTOP|LVS_REPORT|LVS_SINGLESEL|LVS_SHOWSELALWAYS|LVS_NOCOLUMNHEADER|LVS_OWNERDRAWFIXED,
+        0,0,1,1,w,(HMENU)IDC_MANAGE_LIST,gInst,nullptr);
+    SetWindowTheme(data->list,L"",L"");
+    ListView_SetExtendedListViewStyle(data->list,LVS_EX_FULLROWSELECT|LVS_EX_DOUBLEBUFFER);
+    ListView_SetBkColor(data->list,C_FIELD);
+    ListView_SetTextBkColor(data->list,C_FIELD);
+    ListView_SetTextColor(data->list,C_TEXT);
+    SendMessageW(data->list,WM_SETFONT,(WPARAM)data->responsive.font,TRUE);
+
+    LVCOLUMNW col{LVCF_WIDTH};
+    col.cx=1;
+    ListView_InsertColumn(data->list,0,&col);
+    ListView_InsertColumn(data->list,1,&col);
+
+    PopulateManageDisplaysList(data);
+    LayoutManageDisplaysDialog(w,data);
+    TrimManageDisplaysUnusedListSpace(w,data);
+
+    if(!selectedId.empty()){
+        for(size_t i=0;i<data->displays.size();++i){
+            if(data->displays[i].monitorId==selectedId){
+                ListView_SetItemState(data->list,(int)i,LVIS_SELECTED|LVIS_FOCUSED,LVIS_SELECTED|LVIS_FOCUSED);
+                ListView_EnsureVisible(data->list,(int)i,FALSE);
+                break;
+            }
+        }
+    }
+    SetFocus(data->list);
+}
+
 LRESULT CALLBACK ManageDisplaysDialogProc(HWND w,UINT m,WPARAM wp,LPARAM lp){
     auto* data=(ManageDisplaysDialogData*)GetWindowLongPtrW(w,GWLP_USERDATA);
     switch(m){
     case WM_CREATE:{
         data=(ManageDisplaysDialogData*)((CREATESTRUCTW*)lp)->lpCreateParams;
         SetWindowLongPtrW(w,GWLP_USERDATA,(LONG_PTR)data);
-        RECT client{};GetClientRect(w,&client);
-        const int margin=18,headerH=32,buttonH=36,buttonW=110,gap=10;
-        const int buttonY=client.bottom-margin-buttonH;
-        CreateWindowExW(0,L"STATIC",L"",WS_CHILD|WS_VISIBLE|SS_OWNERDRAW,margin,margin,client.right-margin*2,headerH,w,(HMENU)IDC_MANAGE_HEADER,gInst,nullptr);
-        data->list=CreateWindowExW(0,WC_LISTVIEWW,L"",WS_CHILD|WS_VISIBLE|WS_TABSTOP|LVS_REPORT|LVS_SINGLESEL|LVS_SHOWSELALWAYS|LVS_NOCOLUMNHEADER,
-            margin,margin+headerH,client.right-margin*2,buttonY-margin-(margin+headerH),w,(HMENU)IDC_MANAGE_LIST,gInst,nullptr);
+        data->responsive.uiScale=AdaptiveUiScaleForDpi(GetDpiForWindow(w));
+        RecreateResponsiveDialogFonts(&data->responsive);
+
+        CreateWindowExW(0,L"STATIC",L"",WS_CHILD|WS_VISIBLE|SS_OWNERDRAW,0,0,1,1,w,(HMENU)IDC_MANAGE_HEADER,gInst,nullptr);
+        data->list=CreateWindowExW(0,WC_LISTVIEWW,L"",WS_CHILD|WS_VISIBLE|WS_TABSTOP|LVS_REPORT|LVS_SINGLESEL|LVS_SHOWSELALWAYS|LVS_NOCOLUMNHEADER|LVS_OWNERDRAWFIXED,
+            0,0,1,1,w,(HMENU)IDC_MANAGE_LIST,gInst,nullptr);
         SetWindowTheme(data->list,L"",L"");
-        SendMessageW(data->list,WM_SETFONT,(WPARAM)gFont,TRUE);
         ListView_SetExtendedListViewStyle(data->list,LVS_EX_FULLROWSELECT|LVS_EX_DOUBLEBUFFER);
         ListView_SetBkColor(data->list,C_FIELD);ListView_SetTextBkColor(data->list,C_FIELD);ListView_SetTextColor(data->list,C_TEXT);
-        LVCOLUMNW col{LVCF_WIDTH};col.cx=310;ListView_InsertColumn(data->list,0,&col);col.cx=125;ListView_InsertColumn(data->list,1,&col);
+        LVCOLUMNW col{LVCF_WIDTH};col.cx=1;ListView_InsertColumn(data->list,0,&col);ListView_InsertColumn(data->list,1,&col);
         data->emptyMessage=CreateWindowExW(0,L"STATIC",L"No saved displays found.",WS_CHILD|SS_CENTER|SS_CENTERIMAGE,
-            margin+1,margin+headerH+1,client.right-margin*2-2,buttonY-margin-(margin+headerH)-2,w,(HMENU)IDC_MANAGE_EMPTY,gInst,nullptr);
-        SendMessageW(data->emptyMessage,WM_SETFONT,(WPARAM)gFont,TRUE);
-        HWND remove=CreateWindowExW(0,L"BUTTON",L"Remove",WS_CHILD|WS_VISIBLE|WS_TABSTOP|BS_OWNERDRAW,margin,buttonY,buttonW,buttonH,w,(HMENU)IDC_MANAGE_REMOVE,gInst,nullptr);
-        HWND close=CreateWindowExW(0,L"BUTTON",L"Close",WS_CHILD|WS_VISIBLE|WS_TABSTOP|BS_OWNERDRAW,client.right-margin-buttonW,buttonY,buttonW,buttonH,w,(HMENU)IDC_MANAGE_CLOSE,gInst,nullptr);
-        for(HWND b:{remove,close}){SendMessageW(b,WM_SETFONT,(WPARAM)gFontBold,TRUE);StyleMainButton(b);}
-        PopulateManageDisplaysList(data);SetFocus(data->list);return 0;
+            0,0,1,1,w,(HMENU)IDC_MANAGE_EMPTY,gInst,nullptr);
+        HWND remove=CreateWindowExW(0,L"BUTTON",L"Remove",WS_CHILD|WS_VISIBLE|WS_TABSTOP|BS_OWNERDRAW,0,0,1,1,w,(HMENU)IDC_MANAGE_REMOVE,gInst,nullptr);
+        HWND close=CreateWindowExW(0,L"BUTTON",L"Close",WS_CHILD|WS_VISIBLE|WS_TABSTOP|BS_OWNERDRAW,0,0,1,1,w,(HMENU)IDC_MANAGE_CLOSE,gInst,nullptr);
+        StyleMainButton(remove);StyleMainButton(close);
+        LayoutManageDisplaysDialog(w,data);
+        PopulateManageDisplaysList(data);
+
+        // WM_CREATE happens before the initial WM_SIZE.
+        // Trim after that first layout so the direct-open path
+        // matches the already-correct DPI transition path.
+        PostMessageW(w,WM_APP+20,0,0);
+        SetFocus(data->list);return 0;
     }
+    case WM_APP+20:
+        if(data){
+            LayoutManageDisplaysDialog(w,data);
+            TrimManageDisplaysUnusedListSpace(w,data);
+        }
+        return 0;
+    case WM_DPICHANGED:{
+        const UINT dpi=HIWORD(wp)?HIWORD(wp):GetDpiForWindow(w);
+        const RECT* suggested=reinterpret_cast<const RECT*>(lp);
+        ApplyManageDisplaysResponsiveLayout(w,data,dpi,suggested);
+
+        // A report ListView with LVS_OWNERDRAWFIXED keeps internal row/scroll
+        // metrics from the DPI at which the control was created. Recreate only
+        // this child control so a DPI transition converges to the same layout
+        // as opening the dialog directly on that monitor.
+        RecreateManageDisplaysListForDpi(w,data);
+        return 0;
+    }
+    case WM_SIZE:
+        if(data)LayoutManageDisplaysDialog(w,data);
+        return 0;
     case WM_NOTIFY:
         if(((NMHDR*)lp)->idFrom==IDC_MANAGE_LIST&&((NMHDR*)lp)->code==LVN_ITEMCHANGED&&data){
             int row=ListView_GetNextItem(data->list,-1,LVNI_SELECTED);
@@ -4504,7 +4939,7 @@ LRESULT CALLBACK ManageDisplaysDialogProc(HWND w,UINT m,WPARAM wp,LPARAM lp){
             if(row>=0&&row<(int)data->displays.size()&&!data->displays[(size_t)row].connected){
                 const auto display=data->displays[(size_t)row];
                 std::wstring msg=L"Remove this display?\n\n"+display.name+L"\n\nIts saved settings will be permanently removed from all profiles.";
-                if(MessageBoxW(w,msg.c_str(),L"Remove display",MB_YESNO|MB_ICONWARNING|MB_DEFBUTTON2)==IDYES){
+                if(ShowAppConfirm(w,L"Remove display",msg)){
                     RemoveSavedDisplay(display.monitorId);PopulateManageDisplaysList(data);
                 }
             }
@@ -4513,17 +4948,53 @@ LRESULT CALLBACK ManageDisplaysDialogProc(HWND w,UINT m,WPARAM wp,LPARAM lp){
         break;
     case WM_DRAWITEM:{
         auto* draw=(DRAWITEMSTRUCT*)lp;
-        if(draw->CtlID==IDC_MANAGE_HEADER){
-            RECT r=draw->rcItem;FillRect(draw->hDC,&r,gPanel2Brush);SetBkMode(draw->hDC,TRANSPARENT);SetTextColor(draw->hDC,C_TEXT);
-            HFONT old=(HFONT)SelectObject(draw->hDC,gFontBold);RECT a{r.left+10,r.top,r.left+310,r.bottom};RECT b{r.left+320,r.top,r.right-8,r.bottom};
-            DrawTextW(draw->hDC,L"Display",-1,&a,DT_LEFT|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);DrawTextW(draw->hDC,L"Status",-1,&b,DT_LEFT|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);
-            Fill(draw->hDC,310,r.top+6,1,r.bottom-r.top-12,C_BORDER);Fill(draw->hDC,r.left,r.bottom-1,r.right-r.left,1,C_BORDER);SelectObject(draw->hDC,old);return TRUE;
+        if(draw->CtlID==IDC_MANAGE_LIST&&draw->itemID!=(UINT)-1&&data&&draw->itemID<data->displays.size()){
+            const auto& display=data->displays[draw->itemID];
+            RECT r=draw->rcItem;
+            if(draw->itemState&ODS_SELECTED){HBRUSH selectedBrush=CreateSolidBrush(C_ACCENT_DARK);FillRect(draw->hDC,&r,selectedBrush);DeleteObject(selectedBrush);}
+            else FillRect(draw->hDC,&r,gFieldBrush);
+            SetBkMode(draw->hDC,TRANSPARENT);SetTextColor(draw->hDC,C_TEXT);
+            HFONT oldFont=(HFONT)SelectObject(draw->hDC,data->responsive.font?data->responsive.font:gFont);
+            const int divider=r.left+((r.right-r.left)*70)/100;
+            const int pad=DialogUi(data,10);
+            const int innerGap=DialogUi(data,8);
+            RECT nameRect{r.left+pad,r.top,divider-innerGap,r.bottom};
+            RECT statusRect{divider+pad,r.top,r.right-innerGap,r.bottom};
+            DrawTextW(draw->hDC,display.name.c_str(),-1,&nameRect,DT_LEFT|DT_VCENTER|DT_SINGLELINE|DT_END_ELLIPSIS|DT_NOPREFIX);
+            const wchar_t* status=display.connected?L"Connected":L"Disconnected";
+            DrawTextW(draw->hDC,status,-1,&statusRect,DT_LEFT|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);
+            SelectObject(draw->hDC,oldFont);return TRUE;
         }
-        if(draw->CtlID==IDC_MANAGE_REMOVE||draw->CtlID==IDC_MANAGE_CLOSE){DrawOwnerButton(draw);return TRUE;}
+        if(draw->CtlID==IDC_MANAGE_HEADER&&data){
+            RECT r=draw->rcItem;FillRect(draw->hDC,&r,gPanel2Brush);SetBkMode(draw->hDC,TRANSPARENT);SetTextColor(draw->hDC,C_TEXT);
+            HFONT oldFont=(HFONT)SelectObject(draw->hDC,data->responsive.fontBold?data->responsive.fontBold:gFontBold);
+            const int divider=r.left+((r.right-r.left)*70)/100;
+            const int pad=DialogUi(data,10);
+            const int innerGap=DialogUi(data,8);
+            RECT a{r.left+pad,r.top,divider-innerGap,r.bottom};RECT b{divider+pad,r.top,r.right-innerGap,r.bottom};
+            DrawTextW(draw->hDC,L"Display",-1,&a,DT_LEFT|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);DrawTextW(draw->hDC,L"Status",-1,&b,DT_LEFT|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);
+            Fill(draw->hDC,divider,(int)r.top+DialogUi(data,6),1,std::max(1,(int)(r.bottom-r.top)-DialogUi(data,12)),C_BORDER);
+            Fill(draw->hDC,r.left,r.bottom-1,r.right-r.left,1,C_BORDER);SelectObject(draw->hDC,oldFont);return TRUE;
+        }
+        if((draw->CtlID==IDC_MANAGE_REMOVE||draw->CtlID==IDC_MANAGE_CLOSE)&&data){
+            const bool down=(draw->itemState&ODS_SELECTED)!=0;const bool disabled=(draw->itemState&ODS_DISABLED)!=0;RECT r=draw->rcItem;
+            FillRound(draw->hDC,r,down?C_ACCENT_DARK:C_PANEL2,C_BORDER,DialogUi(data,7));
+            SetBkMode(draw->hDC,TRANSPARENT);SetTextColor(draw->hDC,disabled?C_MUTED:C_TEXT);
+            HFONT oldFont=(HFONT)SelectObject(draw->hDC,data->responsive.fontBold?data->responsive.fontBold:gFontBold);
+            wchar_t label[128]{};GetWindowTextW(draw->hwndItem,label,128);DrawTextW(draw->hDC,label,-1,&r,DT_CENTER|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);
+            SelectObject(draw->hDC,oldFont);return TRUE;
+        }
         break;
     }
     case WM_CTLCOLORSTATIC:{HDC dc=(HDC)wp;SetTextColor(dc,C_MUTED);SetBkMode(dc,TRANSPARENT);return (LRESULT)gBackBrush;}
-    case WM_PAINT:{PAINTSTRUCT ps{};HDC dc=BeginPaint(w,&ps);RECT client{};GetClientRect(w,&client);RECT border{18,18,client.right-18,client.bottom-72};HBRUSH b=CreateSolidBrush(C_BORDER);FrameRect(dc,&border,b);DeleteObject(b);EndPaint(w,&ps);return 0;}
+    case WM_PAINT:{
+        PAINTSTRUCT ps{};HDC dc=BeginPaint(w,&ps);RECT client{};GetClientRect(w,&client);
+        const int margin=DialogUi(data,DIALOG_MARGIN);const int buttonY=client.bottom-margin-DialogUi(data,DIALOG_BUTTON_HEIGHT);
+        RECT border{margin,margin,client.right-margin,buttonY-margin};HBRUSH b=CreateSolidBrush(C_BORDER);FrameRect(dc,&border,b);DeleteObject(b);EndPaint(w,&ps);return 0;
+    }
+    case WM_DESTROY:
+        if(data)DestroyResponsiveDialogFonts(&data->responsive);
+        return 0;
     case WM_CLOSE:DestroyWindow(w);return 0;
     }
     return DefWindowProcW(w,m,wp,lp);
@@ -4533,13 +5004,128 @@ void ShowManageDisplaysDialog(HWND owner){
     static bool registered=false;
     if(!registered){WNDCLASSEXW wc{sizeof(wc)};wc.lpfnWndProc=ManageDisplaysDialogProc;wc.hInstance=gInst;wc.hIcon=gIcon;wc.hIconSm=gIcon;wc.hCursor=LoadCursor(nullptr,IDC_ARROW);wc.hbrBackground=gBackBrush;wc.lpszClassName=L"NvProfileSwitcherManageDisplays";if(!RegisterClassExW(&wc)&&GetLastError()!=ERROR_CLASS_ALREADY_EXISTS)return;registered=true;}
     ManageDisplaysDialogData data{};HWND previousFocus=GetFocus();const bool disableOwner=owner&&IsWindowEnabled(owner);if(disableOwner)EnableWindow(owner,FALSE);
+    RECT ownerRect{};GetWindowRect(owner,&ownerRect);
+    HMONITOR ownerMonitor=MonitorFromWindow(owner,MONITOR_DEFAULTTONEAREST);
+    MONITORINFO mi{sizeof(mi)};GetMonitorInfoW(ownerMonitor,&mi);
+    const int initialX=ownerRect.left+(ownerRect.right-ownerRect.left-540)/2;
+    const int initialY=ownerRect.top+(ownerRect.bottom-ownerRect.top-300)/2;
     HWND dialog=CreateWindowExW(WS_EX_DLGMODALFRAME,L"NvProfileSwitcherManageDisplays",L"Manage displays",WS_OVERLAPPED|WS_CAPTION|WS_SYSMENU,
-        CW_USEDEFAULT,CW_USEDEFAULT,510,390,owner,nullptr,gInst,&data);
+        initialX,initialY,540,300,owner,nullptr,gInst,&data);
     if(!dialog){if(disableOwner)EnableWindow(owner,TRUE);return;}
-    BOOL darkTitle=TRUE;DwmSetWindowAttribute(dialog,20,&darkTitle,sizeof(darkTitle));RECT wr{},target{};GetWindowRect(dialog,&wr);GetWindowRect(owner,&target);
-    int ww=wr.right-wr.left,wh=wr.bottom-wr.top;SetWindowPos(dialog,HWND_TOP,target.left+((target.right-target.left)-ww)/2,target.top+((target.bottom-target.top)-wh)/2,0,0,SWP_NOSIZE|SWP_SHOWWINDOW);
+    BOOL darkTitle=TRUE;DwmSetWindowAttribute(dialog,20,&darkTitle,sizeof(darkTitle));
+    ApplyManageDisplaysResponsiveLayout(dialog,&data,GetDpiForWindow(dialog),nullptr);
+    RECT wr{};GetWindowRect(dialog,&wr);
+    const int ww=wr.right-wr.left,wh=wr.bottom-wr.top;
+    const int x=mi.rcWork.left+(mi.rcWork.right-mi.rcWork.left-ww)/2;
+    const int y=mi.rcWork.top+(mi.rcWork.bottom-mi.rcWork.top-wh)/2;
+    SetWindowPos(dialog,HWND_TOP,x,y,0,0,SWP_NOSIZE|SWP_SHOWWINDOW);
     MSG msg{};while(IsWindow(dialog)&&GetMessageW(&msg,nullptr,0,0)>0){if(!IsDialogMessageW(dialog,&msg)){TranslateMessage(&msg);DispatchMessageW(&msg);}}
     if(disableOwner){EnableWindow(owner,TRUE);if(previousFocus&&IsWindow(previousFocus))SetFocus(previousFocus);else SetFocus(owner);SetForegroundWindow(owner);}
+}
+
+constexpr int RUNNING_BASE_CLIENT_WIDTH=704;
+constexpr int RUNNING_BASE_CLIENT_HEIGHT=351;
+
+int DialogUi(const RunningAppsDialogData* data,int value){
+    return DialogUi(data?&data->responsive:nullptr,value);
+}
+
+void InsertRunningAppsRows(RunningAppsDialogData* data){
+    if(!data||!data->list)return;
+    ListView_DeleteAllItems(data->list);
+    for(size_t i=0;i<data->apps.size();++i){
+        LVITEMW item{};
+        item.mask=LVIF_TEXT|LVIF_PARAM;
+        item.iItem=(int)i;
+        item.lParam=(LPARAM)i;
+        item.pszText=(LPWSTR)data->apps[i].name.c_str();
+        const int row=ListView_InsertItem(data->list,&item);
+        ListView_SetItemText(data->list,row,1,(LPWSTR)data->apps[i].executable.c_str());
+        ListView_SetItemText(data->list,row,2,(LPWSTR)data->apps[i].path.c_str());
+    }
+}
+
+void LayoutRunningAppsDialog(HWND w,RunningAppsDialogData* data){
+    if(!w||!data)return;
+    RECT client{};GetClientRect(w,&client);
+    const int margin=DialogUi(data,DIALOG_MARGIN);
+    const int headerH=DialogUi(data,32);
+    const int buttonH=DialogUi(data,DIALOG_BUTTON_HEIGHT);
+    const int buttonW=DialogUi(data,DIALOG_BUTTON_WIDTH);
+    const int buttonGap=DialogUi(data,DIALOG_BUTTON_GAP);
+    const int buttonY=client.bottom-margin-buttonH;
+    const int contentW=std::max(1,static_cast<int>(client.right)-margin*2);
+    const int listY=margin+headerH;
+    const int listH=std::max(1,buttonY-margin-listY);
+
+    MoveWindow(GetDlgItem(w,IDC_RUNNING_HEADER),margin,margin,contentW,headerH,TRUE);
+    MoveWindow(data->list,margin,listY,contentW,listH,TRUE);
+    MoveWindow(data->emptyMessage,margin+1,listY+1,std::max(1,contentW-2),std::max(1,listH-2),TRUE);
+    MoveWindow(GetDlgItem(w,IDC_RUNNING_REFRESH),margin,buttonY,buttonW,buttonH,TRUE);
+    MoveWindow(GetDlgItem(w,IDC_RUNNING_SELECT),client.right-margin-buttonW*2-buttonGap,buttonY,buttonW,buttonH,TRUE);
+    MoveWindow(GetDlgItem(w,IDCANCEL),client.right-margin-buttonW,buttonY,buttonW,buttonH,TRUE);
+
+    const int appCol=DialogUi(data,230);
+    const int exeCol=DialogUi(data,145);
+    ListView_SetColumnWidth(data->list,0,appCol);
+    ListView_SetColumnWidth(data->list,1,exeCol);
+    ListView_SetColumnWidth(data->list,2,std::max(1,contentW-appCol-exeCol));
+
+    SendMessageW(data->list,WM_SETFONT,(WPARAM)data->responsive.font,TRUE);
+    SendMessageW(data->emptyMessage,WM_SETFONT,(WPARAM)data->responsive.font,TRUE);
+    const int buttonIds[]={IDC_RUNNING_REFRESH,IDC_RUNNING_SELECT,IDCANCEL};
+    for(const int id:buttonIds)
+        SendMessageW(GetDlgItem(w,id),WM_SETFONT,(WPARAM)data->responsive.fontBold,TRUE);
+    InvalidateRect(w,nullptr,TRUE);
+}
+
+void ApplyRunningAppsResponsiveLayout(HWND w,RunningAppsDialogData* data,UINT dpi,const RECT* suggested=nullptr){
+    if(!w||!data)return;
+    ApplyResponsiveDialogWindow(w,&data->responsive,dpi,
+        RUNNING_BASE_CLIENT_WIDTH,RUNNING_BASE_CLIENT_HEIGHT,suggested);
+    LayoutRunningAppsDialog(w,data);
+}
+
+void RecreateRunningAppsListForDpi(HWND w,RunningAppsDialogData* data){
+    if(!w||!data)return;
+
+    std::wstring selectedPath;
+    if(data->list){
+        const int selected=ListView_GetNextItem(data->list,-1,LVNI_SELECTED);
+        if(selected>=0&&selected<(int)data->apps.size())
+            selectedPath=data->apps[(size_t)selected].path;
+        DestroyWindow(data->list);
+        data->list=nullptr;
+    }
+
+    data->list=CreateWindowExW(0,WC_LISTVIEWW,L"",
+        WS_CHILD|WS_VISIBLE|WS_TABSTOP|LVS_REPORT|LVS_SINGLESEL|LVS_SHOWSELALWAYS|LVS_NOCOLUMNHEADER|LVS_OWNERDRAWFIXED,
+        0,0,1,1,w,(HMENU)IDC_RUNNING_LIST,gInst,nullptr);
+    SetWindowTheme(data->list,L"",L"");
+    ListView_SetExtendedListViewStyle(data->list,LVS_EX_FULLROWSELECT|LVS_EX_DOUBLEBUFFER);
+    ListView_SetBkColor(data->list,C_FIELD);
+    ListView_SetTextBkColor(data->list,C_FIELD);
+    ListView_SetTextColor(data->list,C_TEXT);
+    SendMessageW(data->list,WM_SETFONT,(WPARAM)data->responsive.font,TRUE);
+
+    LVCOLUMNW column{LVCF_WIDTH|LVCF_SUBITEM};
+    column.cx=1;column.iSubItem=0;ListView_InsertColumn(data->list,0,&column);
+    column.iSubItem=1;ListView_InsertColumn(data->list,1,&column);
+    column.iSubItem=2;ListView_InsertColumn(data->list,2,&column);
+
+    InsertRunningAppsRows(data);
+    LayoutRunningAppsDialog(w,data);
+
+    if(!selectedPath.empty()){
+        for(size_t i=0;i<data->apps.size();++i){
+            if(EqualPathInsensitive(data->apps[i].path,selectedPath)){
+                ListView_SetItemState(data->list,(int)i,LVIS_SELECTED|LVIS_FOCUSED,LVIS_SELECTED|LVIS_FOCUSED);
+                ListView_EnsureVisible(data->list,(int)i,FALSE);
+                break;
+            }
+        }
+    }
+    SetFocus(data->list);
 }
 
 LRESULT CALLBACK RunningAppsDialogProc(HWND w,UINT m,WPARAM wp,LPARAM lp){
@@ -4548,52 +5134,53 @@ LRESULT CALLBACK RunningAppsDialogProc(HWND w,UINT m,WPARAM wp,LPARAM lp){
     case WM_CREATE:{
         data=(RunningAppsDialogData*)((CREATESTRUCTW*)lp)->lpCreateParams;
         SetWindowLongPtrW(w,GWLP_USERDATA,(LONG_PTR)data);
-        RECT client{};GetClientRect(w,&client);
-        const int buttonY=client.bottom-DIALOG_MARGIN-DIALOG_BUTTON_HEIGHT;
-        const int contentBottom=buttonY-DIALOG_MARGIN;
-        const int headerHeight=32;
-        const int listHeight=contentBottom-DIALOG_MARGIN-headerHeight;
+        data->responsive.uiScale=AdaptiveUiScaleForDpi(GetDpiForWindow(w));
+        RecreateResponsiveDialogFonts(&data->responsive);
+
         CreateWindowExW(0,L"STATIC",L"",WS_CHILD|WS_VISIBLE|SS_OWNERDRAW,
-            DIALOG_MARGIN,DIALOG_MARGIN,client.right-DIALOG_MARGIN*2,headerHeight,
-            w,(HMENU)IDC_RUNNING_HEADER,gInst,nullptr);
+            0,0,1,1,w,(HMENU)IDC_RUNNING_HEADER,gInst,nullptr);
         data->list=CreateWindowExW(0,WC_LISTVIEWW,L"",
             WS_CHILD|WS_VISIBLE|WS_TABSTOP|LVS_REPORT|LVS_SINGLESEL|LVS_SHOWSELALWAYS|LVS_NOCOLUMNHEADER|LVS_OWNERDRAWFIXED,
-            DIALOG_MARGIN,DIALOG_MARGIN+headerHeight,client.right-DIALOG_MARGIN*2,listHeight,
-            w,(HMENU)IDC_RUNNING_LIST,gInst,nullptr);
+            0,0,1,1,w,(HMENU)IDC_RUNNING_LIST,gInst,nullptr);
         SetWindowTheme(data->list,L"",L"");
-        SendMessageW(data->list,WM_SETFONT,(WPARAM)gFont,TRUE);
         ListView_SetExtendedListViewStyle(data->list,LVS_EX_FULLROWSELECT|LVS_EX_DOUBLEBUFFER);
         ListView_SetBkColor(data->list,C_FIELD);
         ListView_SetTextBkColor(data->list,C_FIELD);
         ListView_SetTextColor(data->list,C_TEXT);
+
         data->images=ImageList_Create(20,28,ILC_COLOR32|ILC_MASK,16,16);
         ListView_SetImageList(data->list,data->images,LVSIL_SMALL);
 
         data->emptyMessage=CreateWindowExW(0,L"STATIC",L"No running applications found.",
-            WS_CHILD|SS_CENTER|SS_CENTERIMAGE,DIALOG_MARGIN+1,DIALOG_MARGIN+headerHeight+1,
-            client.right-DIALOG_MARGIN*2-2,listHeight-2,w,(HMENU)IDC_RUNNING_EMPTY,gInst,nullptr);
-        SendMessageW(data->emptyMessage,WM_SETFONT,(WPARAM)gFont,TRUE);
+            WS_CHILD|SS_CENTER|SS_CENTERIMAGE,0,0,1,1,w,(HMENU)IDC_RUNNING_EMPTY,gInst,nullptr);
 
-        LVCOLUMNW column{LVCF_TEXT|LVCF_WIDTH|LVCF_SUBITEM};
-        column.pszText=(LPWSTR)L"Application";column.cx=230;column.iSubItem=0;
-        ListView_InsertColumn(data->list,0,&column);
-        column.pszText=(LPWSTR)L"Executable";column.cx=145;column.iSubItem=1;
-        ListView_InsertColumn(data->list,1,&column);
-        column.pszText=(LPWSTR)L"Path";column.cx=265;column.iSubItem=2;
-        ListView_InsertColumn(data->list,2,&column);
+        LVCOLUMNW column{LVCF_WIDTH|LVCF_SUBITEM};
+        column.cx=1;column.iSubItem=0;ListView_InsertColumn(data->list,0,&column);
+        column.iSubItem=1;ListView_InsertColumn(data->list,1,&column);
+        column.iSubItem=2;ListView_InsertColumn(data->list,2,&column);
 
         HWND refresh=CreateWindowExW(0,L"BUTTON",L"Refresh",WS_CHILD|WS_VISIBLE|WS_TABSTOP|BS_OWNERDRAW,
-            DIALOG_MARGIN,buttonY,DIALOG_BUTTON_WIDTH,DIALOG_BUTTON_HEIGHT,w,(HMENU)IDC_RUNNING_REFRESH,gInst,nullptr);
+            0,0,1,1,w,(HMENU)IDC_RUNNING_REFRESH,gInst,nullptr);
         HWND cancel=CreateWindowExW(0,L"BUTTON",L"Cancel",WS_CHILD|WS_VISIBLE|WS_TABSTOP|BS_OWNERDRAW,
-            client.right-DIALOG_MARGIN-DIALOG_BUTTON_WIDTH,buttonY,DIALOG_BUTTON_WIDTH,DIALOG_BUTTON_HEIGHT,w,(HMENU)IDCANCEL,gInst,nullptr);
+            0,0,1,1,w,(HMENU)IDCANCEL,gInst,nullptr);
         HWND select=CreateWindowExW(0,L"BUTTON",L"Select",WS_CHILD|WS_VISIBLE|WS_TABSTOP|BS_OWNERDRAW,
-            client.right-DIALOG_MARGIN-DIALOG_BUTTON_WIDTH*2-DIALOG_BUTTON_GAP,buttonY,DIALOG_BUTTON_WIDTH,DIALOG_BUTTON_HEIGHT,w,(HMENU)IDC_RUNNING_SELECT,gInst,nullptr);
-        for(HWND button:{refresh,cancel,select}){
-            SendMessageW(button,WM_SETFONT,(WPARAM)gFontBold,TRUE);
-            StyleMainButton(button);
-        }
+            0,0,1,1,w,(HMENU)IDC_RUNNING_SELECT,gInst,nullptr);
+        for(HWND button:{refresh,cancel,select})StyleMainButton(button);
+
+        LayoutRunningAppsDialog(w,data);
         PopulateRunningAppsList(data);
         SetFocus(data->list);
+        return 0;
+    }
+    case WM_SIZE:
+        if(data)LayoutRunningAppsDialog(w,data);
+        return 0;
+    case WM_DPICHANGED:{
+        if(!data)return 0;
+        const UINT dpi=HIWORD(wp)?HIWORD(wp):GetDpiForWindow(w);
+        const RECT* suggested=reinterpret_cast<const RECT*>(lp);
+        ApplyRunningAppsResponsiveLayout(w,data,dpi,suggested);
+        RecreateRunningAppsListForDpi(w,data);
         return 0;
     }
     case WM_NOTIFY:
@@ -4624,39 +5211,53 @@ LRESULT CALLBACK RunningAppsDialogProc(HWND w,UINT m,WPARAM wp,LPARAM lp){
                 FillRect(draw->hDC,&r,selectedBrush);
                 DeleteObject(selectedBrush);
             }else FillRect(draw->hDC,&r,gFieldBrush);
+            const int iconSize=DialogUi(data,16);
+            const int iconX=r.left+DialogUi(data,6);
             if(app.icon)
-                DrawIconEx(draw->hDC,r.left+6,r.top+(r.bottom-r.top-16)/2,
-                    app.icon,16,16,0,nullptr,DI_NORMAL);
+                DrawIconEx(draw->hDC,iconX,r.top+(r.bottom-r.top-iconSize)/2,
+                    app.icon,iconSize,iconSize,0,nullptr,DI_NORMAL);
             SetBkMode(draw->hDC,TRANSPARENT);SetTextColor(draw->hDC,C_TEXT);
-            HFONT old=(HFONT)SelectObject(draw->hDC,gFont);
-            RECT appRect{r.left+30,r.top,r.left+225,r.bottom};
-            RECT exeRect{r.left+238,r.top,r.left+370,r.bottom};
-            RECT pathRect{r.left+383,r.top,r.right-8,r.bottom};
+            HFONT old=(HFONT)SelectObject(draw->hDC,data->responsive.font);
+            RECT appRect{r.left+DialogUi(data,30),r.top,r.left+DialogUi(data,225),r.bottom};
+            RECT exeRect{r.left+DialogUi(data,238),r.top,r.left+DialogUi(data,370),r.bottom};
+            RECT pathRect{r.left+DialogUi(data,383),r.top,r.right-DialogUi(data,8),r.bottom};
             DrawTextW(draw->hDC,app.name.c_str(),-1,&appRect,DT_LEFT|DT_VCENTER|DT_SINGLELINE|DT_END_ELLIPSIS|DT_NOPREFIX);
             DrawTextW(draw->hDC,app.executable.c_str(),-1,&exeRect,DT_LEFT|DT_VCENTER|DT_SINGLELINE|DT_END_ELLIPSIS|DT_NOPREFIX);
             DrawTextW(draw->hDC,app.path.c_str(),-1,&pathRect,DT_LEFT|DT_VCENTER|DT_SINGLELINE|DT_END_ELLIPSIS|DT_NOPREFIX);
             SelectObject(draw->hDC,old);
             return TRUE;
         }
-        if(draw->CtlID==IDC_RUNNING_HEADER){
+        if(draw->CtlID==IDC_RUNNING_HEADER&&data){
             RECT r=draw->rcItem;
             FillRect(draw->hDC,&r,gPanel2Brush);
             SetBkMode(draw->hDC,TRANSPARENT);SetTextColor(draw->hDC,C_TEXT);
-            HFONT old=(HFONT)SelectObject(draw->hDC,gFontBold);
-            RECT app{r.left+10,r.top,r.left+230,r.bottom};
-            RECT exe{r.left+238,r.top,r.left+375,r.bottom};
-            RECT path{r.left+383,r.top,r.right-8,r.bottom};
+            HFONT old=(HFONT)SelectObject(draw->hDC,data->responsive.fontBold);
+            RECT app{r.left+DialogUi(data,10),r.top,r.left+DialogUi(data,230),r.bottom};
+            RECT exe{r.left+DialogUi(data,238),r.top,r.left+DialogUi(data,375),r.bottom};
+            RECT path{r.left+DialogUi(data,383),r.top,r.right-DialogUi(data,8),r.bottom};
             DrawTextW(draw->hDC,L"Application",-1,&app,DT_LEFT|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);
             DrawTextW(draw->hDC,L"Executable",-1,&exe,DT_LEFT|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);
             DrawTextW(draw->hDC,L"Path",-1,&path,DT_LEFT|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);
-            Fill(draw->hDC,230,r.top+6,1,r.bottom-r.top-12,C_BORDER);
-            Fill(draw->hDC,375,r.top+6,1,r.bottom-r.top-12,C_BORDER);
+            const int dividerH=std::max(1,static_cast<int>(r.bottom-r.top)-DialogUi(data,12));
+            Fill(draw->hDC,r.left+DialogUi(data,230),r.top+DialogUi(data,6),1,dividerH,C_BORDER);
+            Fill(draw->hDC,r.left+DialogUi(data,375),r.top+DialogUi(data,6),1,dividerH,C_BORDER);
             Fill(draw->hDC,r.left,r.bottom-1,r.right-r.left,1,C_BORDER);
             SelectObject(draw->hDC,old);
             return TRUE;
         }
         if(draw->CtlID==IDC_RUNNING_REFRESH||draw->CtlID==IDC_RUNNING_SELECT||draw->CtlID==IDCANCEL){
-            DrawOwnerButton(draw);return TRUE;
+            const bool down=(draw->itemState&ODS_SELECTED)!=0;
+            const bool disabled=(draw->itemState&ODS_DISABLED)!=0;
+            RECT r=draw->rcItem;
+            FillRound(draw->hDC,r,down?C_ACCENT_DARK:C_PANEL2,C_BORDER,7);
+            SetBkMode(draw->hDC,TRANSPARENT);
+            SetTextColor(draw->hDC,disabled?C_MUTED:C_TEXT);
+            HFONT font=(data&&data->responsive.fontBold)?data->responsive.fontBold:gFontBold;
+            HFONT old=(HFONT)SelectObject(draw->hDC,font);
+            wchar_t label[128]{};GetWindowTextW(draw->hwndItem,label,128);
+            DrawTextW(draw->hDC,label,-1,&r,DT_CENTER|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);
+            SelectObject(draw->hDC,old);
+            return TRUE;
         }
         break;
     }
@@ -4668,8 +5269,9 @@ LRESULT CALLBACK RunningAppsDialogProc(HWND w,UINT m,WPARAM wp,LPARAM lp){
     case WM_PAINT:{
         PAINTSTRUCT ps{};HDC dc=BeginPaint(w,&ps);
         RECT client{};GetClientRect(w,&client);
-        const int buttonY=client.bottom-DIALOG_MARGIN-DIALOG_BUTTON_HEIGHT;
-        RECT border{DIALOG_MARGIN,DIALOG_MARGIN,client.right-DIALOG_MARGIN,buttonY-DIALOG_MARGIN};
+        const int margin=DialogUi(data,DIALOG_MARGIN);
+        const int buttonY=client.bottom-margin-DialogUi(data,DIALOG_BUTTON_HEIGHT);
+        RECT border{margin,margin,client.right-margin,buttonY-margin};
         HBRUSH brush=CreateSolidBrush(C_BORDER);FrameRect(dc,&border,brush);DeleteObject(brush);
         EndPaint(w,&ps);return 0;
     }
@@ -4677,6 +5279,7 @@ LRESULT CALLBACK RunningAppsDialogProc(HWND w,UINT m,WPARAM wp,LPARAM lp){
     case WM_DESTROY:
         if(data)for(auto& app:data->apps)if(app.icon)DestroyIcon(app.icon);
         if(data&&data->images){ImageList_Destroy(data->images);data->images=nullptr;}
+        if(data)DestroyResponsiveDialogFonts(&data->responsive);
         return 0;
     }
     return DefWindowProcW(w,m,wp,lp);
@@ -4692,19 +5295,31 @@ bool SelectRunningApplication(HWND owner,std::wstring& selectedPath){
         registered=true;
     }
 
-    RunningAppsDialogData data;
+    RunningAppsDialogData data{};
     HWND previousFocus=GetFocus();
     const bool disableOwner=owner&&IsWindowEnabled(owner);
     if(disableOwner)EnableWindow(owner,FALSE);
+
+    RECT ownerRect{};
+    if(owner&&IsWindowVisible(owner))GetWindowRect(owner,&ownerRect);
+    else SystemParametersInfoW(SPI_GETWORKAREA,0,&ownerRect,0);
+    HMONITOR ownerMonitor=owner?MonitorFromWindow(owner,MONITOR_DEFAULTTONEAREST):MonitorFromRect(&ownerRect,MONITOR_DEFAULTTONEAREST);
+    MONITORINFO mi{sizeof(mi)};GetMonitorInfoW(ownerMonitor,&mi);
+
+    const int initialX=ownerRect.left+(ownerRect.right-ownerRect.left-720)/2;
+    const int initialY=ownerRect.top+(ownerRect.bottom-ownerRect.top-390)/2;
     HWND dialog=CreateWindowExW(WS_EX_DLGMODALFRAME,L"NvProfileSwitcherRunningApps",
-        L"Running applications",WS_CAPTION|WS_SYSMENU,0,0,720,390,owner,nullptr,gInst,&data);
+        L"Running applications",WS_CAPTION|WS_SYSMENU,initialX,initialY,720,390,owner,nullptr,gInst,&data);
     if(!dialog){if(disableOwner)EnableWindow(owner,TRUE);return false;}
+
     BOOL darkTitle=TRUE;DwmSetWindowAttribute(dialog,20,&darkTitle,sizeof(darkTitle));
-    RECT wr{},target{};GetWindowRect(dialog,&wr);
-    if(owner&&IsWindowVisible(owner))GetWindowRect(owner,&target);else SystemParametersInfoW(SPI_GETWORKAREA,0,&target,0);
+    ApplyRunningAppsResponsiveLayout(dialog,&data,GetDpiForWindow(dialog),nullptr);
+
+    RECT wr{};GetWindowRect(dialog,&wr);
     const int ww=wr.right-wr.left,wh=wr.bottom-wr.top;
-    SetWindowPos(dialog,HWND_TOP,target.left+(target.right-target.left-ww)/2,
-        target.top+(target.bottom-target.top-wh)/2,0,0,SWP_NOSIZE|SWP_SHOWWINDOW);
+    const int x=mi.rcWork.left+(mi.rcWork.right-mi.rcWork.left-ww)/2;
+    const int y=mi.rcWork.top+(mi.rcWork.bottom-mi.rcWork.top-wh)/2;
+    SetWindowPos(dialog,HWND_TOP,x,y,0,0,SWP_NOSIZE|SWP_SHOWWINDOW);
     SetForegroundWindow(dialog);
 
     MSG msg{};
@@ -4821,7 +5436,7 @@ bool ImportConfiguration(HWND owner){
     gSettings=Settings{};
     Load();
     gSettings.desktop.name=L"Windows";
-    for(const auto& d:gDisplays) EnsureDesktopProfile(d.gdiName,d.monitorId);
+    for(const auto& d:gDisplays) EnsureDesktopProfile(d.displayName,d.monitorId);
     EnsureAllApplicationDisplayProfiles();
     SetStartup(gSettings.startWindows);
     SetHotkeyControl(IDC_HOTKEY_SHOW,gSettings.showHideHotkey);
@@ -4840,6 +5455,80 @@ bool ImportConfiguration(HWND owner){
     gActive.clear();
     CheckProcesses();
     return true;
+}
+
+
+enum {IDC_CONFIG_IMPORT=5301,IDC_CONFIG_EXPORT};
+
+LRESULT CALLBACK ConfigurationPopupProc(HWND w,UINT m,WPARAM wp,LPARAM lp){
+    switch(m){
+    case WM_CREATE:{
+        RECT c{};GetClientRect(w,&c);
+        const int margin=8,gap=6,buttonH=38;
+        HWND importButton=CreateWindowExW(0,L"BUTTON",L"Import",
+            WS_CHILD|WS_VISIBLE|WS_TABSTOP|BS_OWNERDRAW,
+            margin,margin,c.right-margin*2,buttonH,w,(HMENU)IDC_CONFIG_IMPORT,gInst,nullptr);
+        HWND exportButton=CreateWindowExW(0,L"BUTTON",L"Export",
+            WS_CHILD|WS_VISIBLE|WS_TABSTOP|BS_OWNERDRAW,
+            margin,margin+buttonH+gap,c.right-margin*2,buttonH,w,(HMENU)IDC_CONFIG_EXPORT,gInst,nullptr);
+        SendMessageW(importButton,WM_SETFONT,(WPARAM)gFontBold,TRUE);
+        SendMessageW(exportButton,WM_SETFONT,(WPARAM)gFontBold,TRUE);
+        SetFocus(importButton);
+        return 0;
+    }
+    case WM_DRAWITEM:{
+        auto* d=(DRAWITEMSTRUCT*)lp;
+        if(d->CtlID==IDC_CONFIG_IMPORT||d->CtlID==IDC_CONFIG_EXPORT){
+            const bool down=(d->itemState&ODS_SELECTED)!=0;
+            RECT r=d->rcItem;
+            FillRound(d->hDC,r,down?C_ACCENT_DARK:C_PANEL2,C_BORDER,7);
+            SetBkMode(d->hDC,TRANSPARENT);SetTextColor(d->hDC,C_TEXT);
+            HFONT old=(HFONT)SelectObject(d->hDC,gFontBold);
+            const wchar_t* label=d->CtlID==IDC_CONFIG_IMPORT?L"Import":L"Export";
+            DrawTextW(d->hDC,label,-1,&r,DT_CENTER|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);
+            SelectObject(d->hDC,old);
+            return TRUE;
+        }
+        break;
+    }
+    case WM_COMMAND:
+        if(LOWORD(wp)==IDC_CONFIG_IMPORT){DestroyWindow(w);ImportConfiguration(gWnd);return 0;}
+        if(LOWORD(wp)==IDC_CONFIG_EXPORT){DestroyWindow(w);ExportConfiguration(gWnd);return 0;}
+        break;
+    case WM_ACTIVATE:
+        if(LOWORD(wp)==WA_INACTIVE){DestroyWindow(w);return 0;}
+        break;
+    case WM_KEYDOWN:
+        if(wp==VK_ESCAPE){DestroyWindow(w);return 0;}
+        break;
+    case WM_PAINT:{
+        PAINTSTRUCT ps{};HDC dc=BeginPaint(w,&ps);RECT r{};GetClientRect(w,&r);
+        FillRect(dc,&r,gBackBrush);HBRUSH border=CreateSolidBrush(C_BORDER);FrameRect(dc,&r,border);DeleteObject(border);
+        EndPaint(w,&ps);return 0;
+    }
+    }
+    return DefWindowProcW(w,m,wp,lp);
+}
+
+void ShowConfigurationPopup(HWND owner){
+    static bool registered=false;
+    if(!registered){
+        WNDCLASSEXW wc{sizeof(wc)};
+        wc.lpfnWndProc=ConfigurationPopupProc;wc.hInstance=gInst;wc.hCursor=LoadCursor(nullptr,IDC_ARROW);
+        wc.hbrBackground=gBackBrush;wc.lpszClassName=L"NvProfileSwitcherConfigurationPopup";
+        if(!RegisterClassExW(&wc)&&GetLastError()!=ERROR_CLASS_ALREADY_EXISTS)return;
+        registered=true;
+    }
+    HWND anchor=GetDlgItem(owner,IDC_EXPORT_PROFILES);
+    if(!anchor)return;
+    RECT br{};GetWindowRect(anchor,&br);
+    const int width=230,height=98;
+    int x=br.right-width;
+    int y=br.top-height-6;
+    HWND popup=CreateWindowExW(WS_EX_TOOLWINDOW|WS_EX_TOPMOST,L"NvProfileSwitcherConfigurationPopup",L"",
+        WS_POPUP,x,y,width,height,owner,nullptr,gInst,nullptr);
+    if(!popup)return;
+    ShowWindow(popup,SW_SHOWNORMAL);UpdateWindow(popup);SetForegroundWindow(popup);
 }
 
 LRESULT CALLBACK Proc(HWND w,UINT m,WPARAM wp,LPARAM lp){switch(m){case WM_SHOW_EXISTING_INSTANCE:ShowMain();return 0;case WM_UPDATE_AVAILABLE:ShowUpdateAvailable((UpdateInfo*)lp);return 0;case WM_SHOW_APP_MESSAGE:{auto* data=(AppMessageData*)lp;if(data){std::wstring title=data->title,text=data->text;delete data;ShowAppMessage(title,text);}return 0;}case WM_CREATE:gWnd=w;BuildControls();RegisterConfiguredHotkeys();RefreshList();LoadSelected();SetTimer(w,1,250,nullptr);return 0;case WM_DPICHANGED:{
@@ -4918,7 +5607,7 @@ case WM_CTLCOLORSTATIC:{HDC dc=(HDC)wp;
     if(d->CtlID==IDC_ADD||d->CtlID==IDC_REMOVE||d->CtlID==IDC_PROFILE_UP||d->CtlID==IDC_PROFILE_DOWN){
         DrawProfileHeaderButton(d);return TRUE;
     }
-    if(d->CtlID==IDC_SAVE||d->CtlID==IDC_DEFAULTS||d->CtlID==IDC_BROWSE||d->CtlID==IDC_RUNNING_APPS||d->CtlID==IDC_HOTKEY_SHOW_CLEAR||d->CtlID==IDC_HOTKEY_OVERRIDE_CLEAR||d->CtlID==IDC_HOTKEY_RESUME_CLEAR||d->CtlID==IDC_PROFILE_HOTKEY_CLEAR||d->CtlID==IDC_IMPORT_PROFILES||d->CtlID==IDC_EXPORT_PROFILES||d->CtlID==IDC_MANAGE_DISPLAYS){
+    if(d->CtlID==IDC_SAVE||d->CtlID==IDC_DEFAULTS||d->CtlID==IDC_BROWSE||d->CtlID==IDC_RUNNING_APPS||d->CtlID==IDC_HOTKEY_SHOW_CLEAR||d->CtlID==IDC_HOTKEY_OVERRIDE_CLEAR||d->CtlID==IDC_HOTKEY_RESUME_CLEAR||d->CtlID==IDC_PROFILE_HOTKEY_CLEAR||d->CtlID==IDC_EXPORT_PROFILES||d->CtlID==IDC_MANAGE_DISPLAYS){
         DrawOwnerButton(d);return TRUE;
     }
     if(d->CtlID==IDC_FOOT_GITHUB||d->CtlID==IDC_FOOT_SUPPORT||d->CtlID==IDC_FOOT_ABOUT){
@@ -5059,7 +5748,7 @@ case WM_TIMER:
     }
 #endif
     return 0;
-case WM_COMMAND:{int id=LOWORD(wp);if(id==IDC_PROFILE_UP){MoveSelectedProfile(-1);return 0;}if(id==IDC_PROFILE_DOWN){MoveSelectedProfile(1);return 0;}if(id==IDC_HOTKEY_SHOW&&HIWORD(wp)==EN_CHANGE){UpdateConfiguredHotkey(IDC_HOTKEY_SHOW,gSettings.showHideHotkey);return 0;}if(id==IDC_HOTKEY_OVERRIDE&&HIWORD(wp)==EN_CHANGE){UpdateConfiguredHotkey(IDC_HOTKEY_OVERRIDE,gSettings.windowsOverrideHotkey);return 0;}if(id==IDC_HOTKEY_RESUME&&HIWORD(wp)==EN_CHANGE){UpdateConfiguredHotkey(IDC_HOTKEY_RESUME,gSettings.resumeAutomaticHotkey);return 0;}if(id==IDC_PROFILE_HOTKEY&&HIWORD(wp)==EN_CHANGE&&!IsDesktopSelected()){if(auto*p=SelectedProfile()){UpdateConfiguredHotkey(IDC_PROFILE_HOTKEY,p->hotkey);InvalidateRect(H(IDC_LIST),nullptr,TRUE);}return 0;}if(id==IDC_LIST&&HIWORD(wp)==LBN_SELCHANGE){HideExecutableTooltip();DiscardPreview();LoadSelected();return 0;}if(id==IDC_DISPLAY&&HIWORD(wp)==CBN_SELCHANGE){DiscardPreview();int ds=(int)SendMessageW(H(IDC_DISPLAY),CB_GETCURSEL,0,0);if(ds>=0&&ds<(int)gDisplays.size()){if(IsDesktopSelected()){auto*p=EnsureDesktopProfile(gDisplays[ds].gdiName,gDisplays[ds].monitorId);LoadValuesToSliders(ValuesFromFlatProfile(*p));}else{auto*p=SelectedProfile();if(p){LoadValuesToSliders(*EnsureApplicationValuesForDisplay(*p,gDisplays[ds].gdiName,gDisplays[ds].monitorId));}}}return 0;}if(id==IDC_RUNNING_APPS){std::wstring path;if(SelectRunningApplication(w,path)){Txt(IDC_EXE,path);InvalidateRect(H(IDC_EXE),nullptr,TRUE);auto* p=SelectedProfile();if(p&&!IsDesktopSelected()){p->exePath=path;InvalidateRect(H(IDC_LIST),nullptr,TRUE);}}return 0;}switch(id){case IDC_HOTKEY_SHOW_CLEAR:ClearConfiguredHotkey(IDC_HOTKEY_SHOW,gSettings.showHideHotkey);break;case IDC_HOTKEY_OVERRIDE_CLEAR:ClearConfiguredHotkey(IDC_HOTKEY_OVERRIDE,gSettings.windowsOverrideHotkey);break;case IDC_HOTKEY_RESUME_CLEAR:ClearConfiguredHotkey(IDC_HOTKEY_RESUME,gSettings.resumeAutomaticHotkey);break;case IDC_PROFILE_HOTKEY_CLEAR:if(!IsDesktopSelected()){if(auto*p=SelectedProfile()){ClearConfiguredHotkey(IDC_PROFILE_HOTKEY,p->hotkey);InvalidateRect(H(IDC_LIST),nullptr,TRUE);}}break;case IDC_BROWSE:{OPENFILENAMEW o{sizeof(o)};wchar_t f[MAX_PATH]{};o.hwndOwner=w;o.lpstrFilter=L"Executables (*.exe)\0*.exe\0All files\0*.*\0";o.lpstrFile=f;o.nMaxFile=MAX_PATH;o.Flags=OFN_FILEMUSTEXIST;if(GetOpenFileNameW(&o)){Txt(IDC_EXE,f);InvalidateRect(H(IDC_EXE),nullptr,TRUE);auto* p=SelectedProfile();if(p&&!IsDesktopSelected()){p->exePath=f;InvalidateRect(H(IDC_LIST),nullptr,TRUE);}}break;}case IDC_MANAGE_DISPLAYS:ShowManageDisplaysDialog(w);break;case IDC_IMPORT_PROFILES:ImportConfiguration(w);break;case IDC_EXPORT_PROFILES:ExportConfiguration(w);break;case IDC_DEFAULTS:ResetSlidersToDefaults();break;case IDC_SAVE:SaveSelected();break;case IDC_ADD:{ApplicationProfile np{};if(!gDisplays.empty()){for(const auto&d:gDisplays)np.displayProfiles.push_back(ApplicationDefaultsForDisplay(d.gdiName,d.monitorId));}gSettings.profiles.push_back(np);gSelected=(int)gSettings.profiles.size();Save();RefreshList();LoadSelected();break;}case IDC_REMOVE:if(gSelected>0&&gSelected<=(int)gSettings.profiles.size()){size_t removed=(size_t)(gSelected-1);UnregisterConfiguredHotkeys();if(gOverrideMode==OverrideMode::Profile){if(gOverrideProfileIndex==removed)gOverrideMode=OverrideMode::Automatic;else if(gOverrideProfileIndex>removed)--gOverrideProfileIndex;}gSettings.profiles.erase(gSettings.profiles.begin()+removed);RegisterConfiguredHotkeys();gSelected=gSettings.profiles.empty()?0:std::min(gSelected,(int)gSettings.profiles.size());Save();RefreshList();LoadSelected();gActive.clear();CheckProcesses();}break;case IDC_STARTWIN:gSettings.startWindows=SendMessageW(H(IDC_STARTWIN),BM_GETCHECK,0,0)==BST_CHECKED;SetStartup(gSettings.startWindows);Save();break;case IDC_STARTMIN:gSettings.startMinimized=SendMessageW(H(IDC_STARTMIN),BM_GETCHECK,0,0)==BST_CHECKED;Save();break;case IDC_MINTRAY:
+case WM_COMMAND:{int id=LOWORD(wp);if(id==IDC_PROFILE_UP){MoveSelectedProfile(-1);return 0;}if(id==IDC_PROFILE_DOWN){MoveSelectedProfile(1);return 0;}if(id==IDC_HOTKEY_SHOW&&HIWORD(wp)==EN_CHANGE){UpdateConfiguredHotkey(IDC_HOTKEY_SHOW,gSettings.showHideHotkey);return 0;}if(id==IDC_HOTKEY_OVERRIDE&&HIWORD(wp)==EN_CHANGE){UpdateConfiguredHotkey(IDC_HOTKEY_OVERRIDE,gSettings.windowsOverrideHotkey);return 0;}if(id==IDC_HOTKEY_RESUME&&HIWORD(wp)==EN_CHANGE){UpdateConfiguredHotkey(IDC_HOTKEY_RESUME,gSettings.resumeAutomaticHotkey);return 0;}if(id==IDC_PROFILE_HOTKEY&&HIWORD(wp)==EN_CHANGE&&!IsDesktopSelected()){if(auto*p=SelectedProfile()){UpdateConfiguredHotkey(IDC_PROFILE_HOTKEY,p->hotkey);InvalidateRect(H(IDC_LIST),nullptr,TRUE);}return 0;}if(id==IDC_LIST&&HIWORD(wp)==LBN_SELCHANGE){HideExecutableTooltip();DiscardPreview();LoadSelected();return 0;}if(id==IDC_DISPLAY&&HIWORD(wp)==CBN_SELCHANGE){DiscardPreview();int ds=(int)SendMessageW(H(IDC_DISPLAY),CB_GETCURSEL,0,0);if(ds>=0&&ds<(int)gDisplays.size()){if(IsDesktopSelected()){auto*p=EnsureDesktopProfile(gDisplays[ds].displayName,gDisplays[ds].monitorId);LoadValuesToSliders(ValuesFromFlatProfile(*p));}else{auto*p=SelectedProfile();if(p){LoadValuesToSliders(*EnsureApplicationValuesForDisplay(*p,gDisplays[ds].displayName,gDisplays[ds].monitorId));}}}return 0;}if(id==IDC_RUNNING_APPS){std::wstring path;if(SelectRunningApplication(w,path)){Txt(IDC_EXE,path);InvalidateRect(H(IDC_EXE),nullptr,TRUE);auto* p=SelectedProfile();if(p&&!IsDesktopSelected()){p->exePath=path;InvalidateRect(H(IDC_LIST),nullptr,TRUE);}}return 0;}switch(id){case IDC_HOTKEY_SHOW_CLEAR:ClearConfiguredHotkey(IDC_HOTKEY_SHOW,gSettings.showHideHotkey);break;case IDC_HOTKEY_OVERRIDE_CLEAR:ClearConfiguredHotkey(IDC_HOTKEY_OVERRIDE,gSettings.windowsOverrideHotkey);break;case IDC_HOTKEY_RESUME_CLEAR:ClearConfiguredHotkey(IDC_HOTKEY_RESUME,gSettings.resumeAutomaticHotkey);break;case IDC_PROFILE_HOTKEY_CLEAR:if(!IsDesktopSelected()){if(auto*p=SelectedProfile()){ClearConfiguredHotkey(IDC_PROFILE_HOTKEY,p->hotkey);InvalidateRect(H(IDC_LIST),nullptr,TRUE);}}break;case IDC_BROWSE:{OPENFILENAMEW o{sizeof(o)};wchar_t f[MAX_PATH]{};o.hwndOwner=w;o.lpstrFilter=L"Executables (*.exe)\0*.exe\0All files\0*.*\0";o.lpstrFile=f;o.nMaxFile=MAX_PATH;o.Flags=OFN_FILEMUSTEXIST;if(GetOpenFileNameW(&o)){Txt(IDC_EXE,f);InvalidateRect(H(IDC_EXE),nullptr,TRUE);auto* p=SelectedProfile();if(p&&!IsDesktopSelected()){p->exePath=f;InvalidateRect(H(IDC_LIST),nullptr,TRUE);}}break;}case IDC_MANAGE_DISPLAYS:ShowManageDisplaysDialog(w);break;case IDC_EXPORT_PROFILES:ShowConfigurationPopup(w);break;case IDC_DEFAULTS:ResetSlidersToDefaults();break;case IDC_SAVE:SaveSelected();break;case IDC_ADD:{ApplicationProfile np{};if(!gDisplays.empty()){for(const auto&d:gDisplays)np.displayProfiles.push_back(ApplicationDefaultsForDisplay(d.displayName,d.monitorId));}gSettings.profiles.push_back(np);gSelected=(int)gSettings.profiles.size();Save();RefreshList();LoadSelected();break;}case IDC_REMOVE:if(gSelected>0&&gSelected<=(int)gSettings.profiles.size()){size_t removed=(size_t)(gSelected-1);UnregisterConfiguredHotkeys();if(gOverrideMode==OverrideMode::Profile){if(gOverrideProfileIndex==removed)gOverrideMode=OverrideMode::Automatic;else if(gOverrideProfileIndex>removed)--gOverrideProfileIndex;}gSettings.profiles.erase(gSettings.profiles.begin()+removed);RegisterConfiguredHotkeys();gSelected=gSettings.profiles.empty()?0:std::min(gSelected,(int)gSettings.profiles.size());Save();RefreshList();LoadSelected();gActive.clear();CheckProcesses();}break;case IDC_STARTWIN:gSettings.startWindows=SendMessageW(H(IDC_STARTWIN),BM_GETCHECK,0,0)==BST_CHECKED;SetStartup(gSettings.startWindows);Save();break;case IDC_STARTMIN:gSettings.startMinimized=SendMessageW(H(IDC_STARTMIN),BM_GETCHECK,0,0)==BST_CHECKED;Save();break;case IDC_MINTRAY:
     gSettings.minimizeToTray=SendMessageW(H(IDC_MINTRAY),BM_GETCHECK,0,0)==BST_CHECKED;
     if(!gSettings.minimizeToTray)
         SetTrayIconVisible(false);
@@ -5157,7 +5846,7 @@ gWnd=CreateWindowExW(0,wc.lpszClassName,L"NvProfileSwitcher",mainStyle,initialX,
 ApplyResponsiveLayout(gWnd,MonitorFromWindow(gWnd,MONITOR_DEFAULTTONEAREST),nullptr,true);
 BOOL darkTitle=TRUE;DwmSetWindowAttribute(gWnd,20,&darkTitle,sizeof(darkTitle));
 
-SetWindowLongPtrW(gWnd,GWLP_USERDATA,0);gTrayMenu=CreatePopupMenu();AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_OPEN,L"Open NvProfileSwitcher");AppendMenuW(gTrayMenu,MF_SEPARATOR,0,nullptr);AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_CHECK_UPDATE,L"Check for updates");AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_ABOUT,L"About NvProfileSwitcher");AppendMenuW(gTrayMenu,MF_SEPARATOR,0,nullptr);AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_EXIT,L"Exit");gNid.cbSize=sizeof(gNid);gNid.hWnd=gWnd;gNid.uID=1;gNid.uFlags=NIF_MESSAGE|NIF_ICON|NIF_TIP;gNid.uCallbackMessage=WM_TRAY;gNid.hIcon=gIcon;wcscpy_s(gNid.szTip,L"NvProfileSwitcher");gStatusOk=InitNv();if(gStatusOk){for(const auto&d:gDisplays)EnsureDesktopProfile(d.gdiName,d.monitorId);EnsureAllApplicationDisplayProfiles();Save();if(auto* p=SelectedProfile())RefreshDisplayCombo(*p);RestoreAllDesktopProfiles();LoadSelected();}gActive=L"Windows";bool min=(wcsstr(cmd,L"--minimized")!=nullptr);
+SetWindowLongPtrW(gWnd,GWLP_USERDATA,0);gTrayMenu=CreatePopupMenu();AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_OPEN,L"Open NvProfileSwitcher");AppendMenuW(gTrayMenu,MF_SEPARATOR,0,nullptr);AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_CHECK_UPDATE,L"Check for updates");AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_ABOUT,L"About NvProfileSwitcher");AppendMenuW(gTrayMenu,MF_SEPARATOR,0,nullptr);AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_EXIT,L"Exit");gNid.cbSize=sizeof(gNid);gNid.hWnd=gWnd;gNid.uID=1;gNid.uFlags=NIF_MESSAGE|NIF_ICON|NIF_TIP;gNid.uCallbackMessage=WM_TRAY;gNid.hIcon=gIcon;wcscpy_s(gNid.szTip,L"NvProfileSwitcher");gStatusOk=InitNv();if(gStatusOk){for(const auto&d:gDisplays)EnsureDesktopProfile(d.displayName,d.monitorId);EnsureAllApplicationDisplayProfiles();Save();if(auto* p=SelectedProfile())RefreshDisplayCombo(*p);RestoreAllDesktopProfiles();LoadSelected();}gActive=L"Windows";bool min=(wcsstr(cmd,L"--minimized")!=nullptr);
 if(min) SetTrayIconVisible(true);
 ShowWindow(gWnd,min?SW_HIDE:SW_SHOW);
 UpdateWindow(gWnd);
