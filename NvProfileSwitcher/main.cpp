@@ -3161,7 +3161,7 @@ void DrawSortIndicator(HDC dc,int x,int centerY,int unit,COLORREF color,bool act
     // used by GitHub. Keep every bar on the same horizontal center line.
     const int lineH=std::max(2,unit*2);
     const int step=std::max(5,unit*5);
-    const int w1=unit*14,w2=unit*9,w3=unit*4;
+    const int w1=unit*14,w2=unit*10,w3=unit*4;
     const int topY=centerY-step-lineH/2;
     const int midY=centerY-lineH/2;
     const int bottomY=centerY+step-lineH/2;
