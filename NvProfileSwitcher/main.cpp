@@ -5045,13 +5045,14 @@ LRESULT CALLBACK ManageDisplaysDialogProc(HWND w,UINT m,WPARAM wp,LPARAM lp){
             const int innerGap=DialogUi(data,8);
             RECT a{r.left+pad,r.top,divider-innerGap,r.bottom};RECT b{divider+pad,r.top,r.right-innerGap,r.bottom};
             DrawTextW(draw->hDC,L"Display",-1,&a,DT_LEFT|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);DrawTextW(draw->hDC,L"Status",-1,&b,DT_LEFT|DT_VCENTER|DT_SINGLELINE|DT_NOPREFIX);
-            SIZE displayText{};GetTextExtentPoint32W(draw->hDC,L"Display",7,&displayText);
-            SIZE statusText{};GetTextExtentPoint32W(draw->hDC,L"Status",6,&statusText);
             const int glyphUnit=std::max(1,DialogUi(data,1));
-            const int glyphGap=DialogUi(data,7);
+            const int glyphWidth=glyphUnit*10;
+            const int glyphRightMargin=DialogUi(data,10);
             const int glyphY=(r.top+r.bottom)/2;
-            DrawSortIndicator(draw->hDC,a.left+displayText.cx+glyphGap,glyphY,glyphUnit,data->sortColumn==0?C_TEXT:C_MUTED,data->sortColumn==0,data->sortAscending);
-            DrawSortIndicator(draw->hDC,b.left+statusText.cx+glyphGap,glyphY,glyphUnit,data->sortColumn==1?C_TEXT:C_MUTED,data->sortColumn==1,data->sortAscending);
+            const int displayGlyphX=divider-glyphRightMargin-glyphWidth;
+            const int statusGlyphX=r.right-glyphRightMargin-glyphWidth;
+            DrawSortIndicator(draw->hDC,displayGlyphX,glyphY,glyphUnit,data->sortColumn==0?C_TEXT:C_MUTED,data->sortColumn==0,data->sortAscending);
+            DrawSortIndicator(draw->hDC,statusGlyphX,glyphY,glyphUnit,data->sortColumn==1?C_TEXT:C_MUTED,data->sortColumn==1,data->sortAscending);
             Fill(draw->hDC,divider,(int)r.top+DialogUi(data,6),1,std::max(1,(int)(r.bottom-r.top)-DialogUi(data,12)),C_BORDER);
             Fill(draw->hDC,r.left,r.bottom-1,r.right-r.left,1,C_BORDER);SelectObject(draw->hDC,oldFont);return TRUE;
         }
