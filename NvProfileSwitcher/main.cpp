@@ -4325,7 +4325,7 @@ struct RunningAppsDialogData{
     HWND emptyMessage{};
     HIMAGELIST images{};
     ResponsiveDialogState responsive{};
-    int sortColumn=-1;
+    int sortColumn=0;
     bool sortAscending=true;
 };
 
