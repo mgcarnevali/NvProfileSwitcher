@@ -5933,7 +5933,7 @@ gFontPanelTitle=ScaledFontFromBase(gBaseFontPanelTitle,gUiScale);
 gFontTitle=ScaledFontFromBase(gBaseFontTitle,gUiScale);
 gFontSmall=ScaledFontFromBase(gBaseFontSmall,gUiScale);
 gFontHeaderButton=ScaledFontFromBase(gBaseFontHeaderButton,gUiScale);
-gIconFont=ScaledFontFromBase(gBaseIconFont,gUiScale);gIcon=LoadIconW(h,MAKEINTRESOURCEW(IDI_APPICON));WNDCLASSEXW wc{sizeof(wc)};wc.style=CS_HREDRAW|CS_VREDRAW;wc.lpfnWndProc=Proc;wc.hInstance=h;wc.hIcon=gIcon;wc.hIconSm=gIcon;wc.hCursor=LoadCursor(nullptr,IDC_ARROW);wc.hbrBackground=gBackBrush;wc.lpszClassName=L"NvProfileSwitcherNative";RegisterClassExW(&wc);
+gIconFont=ScaledFontFromBase(gBaseIconFont,gUiScale);gIcon=LoadIconW(h,MAKEINTRESOURCEW(IDI_APPICON_TRANSPARENT));WNDCLASSEXW wc{sizeof(wc)};wc.style=CS_HREDRAW|CS_VREDRAW;wc.lpfnWndProc=Proc;wc.hInstance=h;wc.hIcon=gIcon;wc.hIconSm=gIcon;wc.hCursor=LoadCursor(nullptr,IDC_ARROW);wc.hbrBackground=gBackBrush;wc.lpszClassName=L"NvProfileSwitcherNative";RegisterClassExW(&wc);
 DWORD mainStyle=WS_OVERLAPPED|WS_CAPTION|WS_SYSMENU|WS_MINIMIZEBOX;
 RECT initialClient{0,0,Ui(MAIN_BASE_CLIENT_WIDTH),Ui(MAIN_BASE_CLIENT_HEIGHT)};
 AdjustWindowRectEx(&initialClient,mainStyle,FALSE,0);
