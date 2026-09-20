@@ -112,7 +112,6 @@ double gUiScale=1.0;
 // existing display-settle timer perform the one responsive resize.
 bool gPendingResponsiveRect=false;
 RECT gResponsiveSuggestedRect{};
-bool gApplyingResponsiveLayout=false;
 
 int Ui(int value){
     return static_cast<int>(std::lround(static_cast<double>(value)*gUiScale));
@@ -3836,7 +3835,6 @@ void ApplyResponsiveLayout(HWND hwnd,HMONITOR monitor,const RECT* suggested=null
     // not synchronously redraw every step while the window is being dragged
     // across monitors. The DPI change itself remains immediate.
     SendMessageW(hwnd,WM_SETREDRAW,FALSE,0);
-    gApplyingResponsiveLayout=true;
 
     gUiScale=CalculateMainWindowScale(hwnd,monitor);
     RecreateScaledUiFonts();
@@ -3867,18 +3865,19 @@ void ApplyResponsiveLayout(HWND hwnd,HMONITOR monitor,const RECT* suggested=null
 
     SetWindowPos(hwnd,nullptr,x,y,size.cx,size.cy,SWP_NOZORDER|SWP_NOACTIVATE);
 
-    for(int pass=0;pass<3;++pass){
-        RECT client{};
-        RECT window{};
-        GetClientRect(hwnd,&client);
-        GetWindowRect(hwnd,&window);
+    // One measured correction is enough after Windows has applied the target
+    // monitor DPI. Avoid the old three-pass SetWindowPos loop, which could
+    // repeatedly resize the top-level window during the monitor crossing.
+    RECT client{};
+    RECT window{};
+    GetClientRect(hwnd,&client);
+    GetWindowRect(hwnd,&window);
 
-        const int actualClientW=client.right-client.left;
-        const int actualClientH=client.bottom-client.top;
-        const int deltaW=desiredClientW-actualClientW;
-        const int deltaH=desiredClientH-actualClientH;
-        if(std::abs(deltaW)<=1&&std::abs(deltaH)<=1) break;
-
+    const int actualClientW=client.right-client.left;
+    const int actualClientH=client.bottom-client.top;
+    const int deltaW=desiredClientW-actualClientW;
+    const int deltaH=desiredClientH-actualClientH;
+    if(std::abs(deltaW)>1||std::abs(deltaH)>1){
         const int outerW=(window.right-window.left)+deltaW;
         const int outerH=(window.bottom-window.top)+deltaH;
         SetWindowPos(hwnd,nullptr,0,0,outerW,outerH,
@@ -3900,7 +3899,6 @@ void ApplyResponsiveLayout(HWND hwnd,HMONITOR monitor,const RECT* suggested=null
             SWP_NOSIZE|SWP_NOZORDER|SWP_NOACTIVATE);
 
     ResizeControls();
-    gApplyingResponsiveLayout=false;
 
     // Paint the completed layout once instead of repainting every intermediate
     // MoveWindow/WM_SETFONT operation during the DPI transition.
@@ -5671,11 +5669,6 @@ LRESULT CALLBACK Proc(HWND w,UINT m,WPARAM wp,LPARAM lp){switch(m){case WM_SHOW_
         }
         return 0;
     }
-    // ApplyResponsiveLayout can issue several SetWindowPos calls while correcting
-    // the outer/client size. Those calls synchronously generate WM_SIZE; doing a
-    // full child layout for every correction is redundant and causes the visible
-    // hitch when crossing monitors with different DPI.
-    if(gApplyingResponsiveLayout)return 0;
     ResizeControls();
     InvalidateRect(w,nullptr,TRUE);
     return 0;case WM_PAINT:Paint(w);return 0;
