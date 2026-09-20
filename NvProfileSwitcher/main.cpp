@@ -3911,32 +3911,7 @@ void ApplyResponsiveLayout(HWND hwnd,HMONITOR monitor,const RECT* suggested=null
     const int desiredClientW=Ui(MAIN_BASE_CLIENT_WIDTH);
     const int desiredClientH=Ui(MAIN_BASE_CLIENT_HEIGHT);
 
-    // During an active cross-monitor drag, Windows can move the modal move
-    // loop's cursor reference as a side effect of resizing the top-level window
-    // to our adaptive DPI size. Measure that shift around the first SetWindowPos
-    // and compensate only the window's X position. DPI application stays
-    // immediate and the established vertical title-bar anchor is untouched.
-    POINT cursorBeforeResize{};
-    if(preserveDragAnchor)
-        GetCursorPos(&cursorBeforeResize);
-
     SetWindowPos(hwnd,nullptr,x,y,size.cx,size.cy,SWP_NOZORDER|SWP_NOACTIVATE);
-
-    if(preserveDragAnchor){
-        POINT cursorAfterResize{};
-        RECT afterResize{};
-        if(GetCursorPos(&cursorAfterResize)&&GetWindowRect(hwnd,&afterResize)){
-            const int cursorShiftX=static_cast<int>(
-                cursorAfterResize.x-cursorBeforeResize.x);
-            if(cursorShiftX!=0){
-                SetWindowPos(hwnd,nullptr,
-                    static_cast<int>(afterResize.left-cursorShiftX),
-                    static_cast<int>(afterResize.top),
-                    0,0,
-                    SWP_NOSIZE|SWP_NOZORDER|SWP_NOACTIVATE);
-            }
-        }
-    }
 
     // One measured correction is enough after Windows has applied the target
     // monitor DPI. Avoid the old three-pass SetWindowPos loop, which could
