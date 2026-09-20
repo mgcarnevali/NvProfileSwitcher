@@ -3840,6 +3840,7 @@ void ApplyResponsiveLayout(HWND hwnd,HMONITOR monitor,const RECT* suggested=null
     // that cursor.
     const bool preserveDragAnchor=gMainWindowInSizeMove&&suggested&&!center;
     POINT dragCursor{};
+    int dragAnchorX=0;
     int dragAnchorY=0;
     if(preserveDragAnchor){
         RECT before{},beforeClient{};
@@ -3863,6 +3864,10 @@ void ApplyResponsiveLayout(HWND hwnd,HMONITOR monitor,const RECT* suggested=null
                 gDragAnchorValid=true;
             }
 
+            const int beforeW=std::max<int>(
+                1,static_cast<int>(before.right-before.left));
+            dragAnchorX=static_cast<int>(
+                std::lround(gDragAnchorX*beforeW));
             dragAnchorY=static_cast<int>(
                 std::lround(gDragTitleRatio*beforeNonClientTop));
         }
@@ -3886,7 +3891,11 @@ void ApplyResponsiveLayout(HWND hwnd,HMONITOR monitor,const RECT* suggested=null
     int x=left+(right-left-size.cx)/2;
     int y=top+(bottom-top-size.cy)/2;
     if(preserveDragAnchor){
-        x=dragCursor.x-static_cast<int>(std::lround(gDragAnchorX*size.cx));
+        // Match the vertical-anchor strategy: keep the pre-resize physical
+        // grab offset for the first DPI resize. Once Windows has applied the
+        // new non-client geometry, the measured correction below rebuilds both
+        // axes from their stored ratios using the real destination geometry.
+        x=dragCursor.x-dragAnchorX;
         y=dragCursor.y-dragAnchorY;
     }else if(!center&&suggested){
         x=(int)suggested->left;
