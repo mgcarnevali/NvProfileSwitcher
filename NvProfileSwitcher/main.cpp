@@ -114,7 +114,7 @@ bool gPendingResponsiveRect=false;
 RECT gResponsiveSuggestedRect{};
 bool gMainWindowInSizeMove=false;
 bool gDragAnchorValid=false;
-double gDragAnchorLogicalX=0.0;
+double gDragAnchorX=0.5;
 double gDragTitleRatio=0.5;
 
 int Ui(int value){
@@ -3853,13 +3853,9 @@ void ApplyResponsiveLayout(HWND hwnd,HMONITOR monitor,const RECT* suggested=null
             // it after every DPI resize makes tiny rounding differences become
             // the new reference and causes horizontal drift on repeated crossings.
             if(!gDragAnchorValid){
-                // Keep the horizontal grab point as a DPI-independent logical
-                // distance from the left edge for the whole drag. A proportional
-                // window-width anchor jumps between two positions when the outer
-                // width changes across monitors.
-                const UINT beforeDpi=std::max<UINT>(96,GetDpiForWindow(hwnd));
-                gDragAnchorLogicalX=
-                    static_cast<double>(dragCursor.x-before.left)*96.0/beforeDpi;
+                const int beforeW=std::max(1,(int)(before.right-before.left));
+                gDragAnchorX=std::clamp(
+                    static_cast<double>(dragCursor.x-before.left)/beforeW,0.0,1.0);
                 const int initialAnchorY=std::max<int>(
                     0,static_cast<int>(dragCursor.y-before.top));
                 gDragTitleRatio=std::clamp(
@@ -3890,10 +3886,11 @@ void ApplyResponsiveLayout(HWND hwnd,HMONITOR monitor,const RECT* suggested=null
     int x=left+(right-left-size.cx)/2;
     int y=top+(bottom-top-size.cy)/2;
     if(preserveDragAnchor){
-        const UINT targetDpi=std::max<UINT>(96,GetDpiForWindow(hwnd));
-        const int dragAnchorX=static_cast<int>(
-            std::lround(gDragAnchorLogicalX*targetDpi/96.0));
-        x=dragCursor.x-dragAnchorX;
+        // During the modal move loop, let Windows keep ownership of the
+        // horizontal drag position from WM_DPICHANGED. Recomputing X here from
+        // the resized outer width makes our SetWindowPos fight the system move
+        // loop and produces the fixed left/right jump seen between monitors.
+        x=(int)suggested->left;
         y=dragCursor.y-dragAnchorY;
     }else if(!center&&suggested){
         x=(int)suggested->left;
@@ -3947,10 +3944,10 @@ void ApplyResponsiveLayout(HWND hwnd,HMONITOR monitor,const RECT* suggested=null
     if(preserveDragAnchor){
         // The measured client-size correction can alter the final outer width.
         // Re-anchor only after that final size is known.
-        const UINT finalDpi=std::max<UINT>(96,GetDpiForWindow(hwnd));
-        const int finalAnchorX=static_cast<int>(
-            std::lround(gDragAnchorLogicalX*finalDpi/96.0));
-        const int finalX=dragCursor.x-finalAnchorX;
+        // Keep the X selected by Windows' DPI/move loop. Only Y needs our
+        // explicit title-bar correction; overriding X a second time after the
+        // measured resize is what can create the lateral snap.
+        const int finalX=finalWindow.left;
 
         // Measure the destination monitor's real top non-client area after the
         // DPI resize, then restore the same relative point inside the title bar.
