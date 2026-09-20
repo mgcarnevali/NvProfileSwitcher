@@ -3936,8 +3936,17 @@ void ApplyResponsiveLayout(HWND hwnd,HMONITOR monitor,const RECT* suggested=null
         const int correctedH=(window.bottom-window.top)+
             ((std::abs(deltaH)>1)?deltaH:0);
 
-        const int finalX=dragCursor.x-
-            static_cast<int>(std::lround(gDragAnchorX*correctedW));
+        const int currentW=window.right-window.left;
+
+        // The 2K -> portable transition already tracks correctly. On the
+        // reverse transition the corrected outer width becomes smaller; using
+        // that smaller width to recompute the proportional X anchor introduces
+        // a second horizontal move. Keep the X established by the first
+        // SetWindowPos only for that shrinking transition.
+        const bool shrinkingWidth=correctedW<currentW;
+        const int finalX=shrinkingWidth
+            ? static_cast<int>(window.left)
+            : dragCursor.x-static_cast<int>(std::lround(gDragAnchorX*correctedW));
 
         RECT currentClient{};
         POINT currentClientTop{0,0};
