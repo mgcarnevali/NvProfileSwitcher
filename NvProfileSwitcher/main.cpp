@@ -3838,14 +3838,25 @@ void ApplyResponsiveLayout(HWND hwnd,HMONITOR monitor,const RECT* suggested=null
     const bool preserveDragAnchor=gMainWindowInSizeMove&&suggested&&!center;
     POINT dragCursor{};
     double dragAnchorX=0.5;
+    double dragTitleRatio=0.5;
     int dragAnchorY=0;
     if(preserveDragAnchor){
-        RECT before{};
-        if(GetWindowRect(hwnd,&before)&&GetCursorPos(&dragCursor)){
+        RECT before{},beforeClient{};
+        POINT beforeClientTop{0,0};
+        if(GetWindowRect(hwnd,&before)&&GetClientRect(hwnd,&beforeClient)&&
+           ClientToScreen(hwnd,&beforeClientTop)&&GetCursorPos(&dragCursor)){
             const int beforeW=std::max(1,(int)(before.right-before.left));
             dragAnchorX=std::clamp(
                 static_cast<double>(dragCursor.x-before.left)/beforeW,0.0,1.0);
+
+            // Preserve the vertical grab point relative to the actual top
+            // non-client area instead of as a fixed number of physical pixels.
+            // That area changes height when moving between different DPIs.
+            const int beforeNonClientTop=std::max<int>(
+                1,static_cast<int>(beforeClientTop.y-before.top));
             dragAnchorY=std::max<int>(0,static_cast<int>(dragCursor.y-before.top));
+            dragTitleRatio=std::clamp(
+                static_cast<double>(dragAnchorY)/beforeNonClientTop,0.0,1.0);
         }
     }
 
@@ -3923,7 +3934,19 @@ void ApplyResponsiveLayout(HWND hwnd,HMONITOR monitor,const RECT* suggested=null
         // Re-anchor only after that final size is known.
         const int finalX=dragCursor.x-
             static_cast<int>(std::lround(dragAnchorX*finalW));
-        const int finalY=dragCursor.y-dragAnchorY;
+
+        // Measure the destination monitor's real top non-client area after the
+        // DPI resize, then restore the same relative point inside the title bar.
+        RECT finalClient{};
+        POINT finalClientTop{0,0};
+        int finalAnchorY=dragAnchorY;
+        if(GetClientRect(hwnd,&finalClient)&&ClientToScreen(hwnd,&finalClientTop)){
+            const int finalNonClientTop=std::max<int>(
+                1,static_cast<int>(finalClientTop.y-finalWindow.top));
+            finalAnchorY=static_cast<int>(
+                std::lround(dragTitleRatio*finalNonClientTop));
+        }
+        const int finalY=dragCursor.y-finalAnchorY;
         if(finalX!=finalWindow.left||finalY!=finalWindow.top)
             SetWindowPos(hwnd,nullptr,finalX,finalY,0,0,
                 SWP_NOSIZE|SWP_NOZORDER|SWP_NOACTIVATE);
