@@ -3831,6 +3831,24 @@ void ApplyResponsiveLayout(HWND hwnd,HMONITOR monitor,const RECT* suggested=null
     MONITORINFO mi{sizeof(mi)};
     if(!monitor||!GetMonitorInfoW(monitor,&mi)) return;
 
+    // Capture the real drag anchor before changing the window geometry. During
+    // a cross-monitor DPI transition the window may need a different physical
+    // size, but the point of the title bar held by the cursor should stay under
+    // that cursor.
+    const bool preserveDragAnchor=gMainWindowInSizeMove&&suggested&&!center;
+    POINT dragCursor{};
+    double dragAnchorX=0.5;
+    int dragAnchorY=0;
+    if(preserveDragAnchor){
+        RECT before{};
+        if(GetWindowRect(hwnd,&before)&&GetCursorPos(&dragCursor)){
+            const int beforeW=std::max(1,(int)(before.right-before.left));
+            dragAnchorX=std::clamp(
+                static_cast<double>(dragCursor.x-before.left)/beforeW,0.0,1.0);
+            dragAnchorY=std::max(0,dragCursor.y-before.top);
+        }
+    }
+
     // A per-monitor DPI transition updates fonts, the top-level window and many
     // child controls in one pass. Suppress intermediate paints so Windows does
     // not synchronously redraw every step while the window is being dragged
@@ -3848,16 +3866,26 @@ void ApplyResponsiveLayout(HWND hwnd,HMONITOR monitor,const RECT* suggested=null
 
     int x=left+(right-left-size.cx)/2;
     int y=top+(bottom-top-size.cy)/2;
-    if(!center&&suggested){
+    if(preserveDragAnchor){
+        x=dragCursor.x-static_cast<int>(std::lround(dragAnchorX*size.cx));
+        y=dragCursor.y-dragAnchorY;
+    }else if(!center&&suggested){
         x=(int)suggested->left;
         y=(int)suggested->top;
     }
-    const int maxX=std::max<int>(left,static_cast<int>(right-size.cx));
-    const int maxY=std::max<int>(top,static_cast<int>(bottom-size.cy));
-    x=std::clamp<int>(x,left,maxX);
-    y=std::clamp<int>(y,top,maxY);
 
-    // Size the top-level window from the client area we actually need.  The
+    // Do not clamp the window to the target work area while Windows is in its
+    // modal move loop. Clamping here is what can detach the title bar from the
+    // cursor when the destination monitor is smaller. Windows normally allows
+    // part of a dragged window to remain outside the work area.
+    if(!preserveDragAnchor){
+        const int maxX=std::max<int>(left,static_cast<int>(right-size.cx));
+        const int maxY=std::max<int>(top,static_cast<int>(bottom-size.cy));
+        x=std::clamp<int>(x,left,maxX);
+        y=std::clamp<int>(y,top,maxY);
+    }
+
+    // Size the top-level window from the client area we actually need. The
     // non-client metrics returned by Windows can be DPI-virtualized depending
     // on the manifest/current monitor, so verify the resulting client size and
     // correct the outer size by the measured delta instead of assuming it.
@@ -3885,19 +3913,31 @@ void ApplyResponsiveLayout(HWND hwnd,HMONITOR monitor,const RECT* suggested=null
             SWP_NOMOVE|SWP_NOZORDER|SWP_NOACTIVATE);
     }
 
-    // The correction above may change the final outer dimensions by a few
-    // pixels. Keep the finished window inside the selected monitor work area.
     RECT finalWindow{};
     GetWindowRect(hwnd,&finalWindow);
     const int finalW=finalWindow.right-finalWindow.left;
     const int finalH=finalWindow.bottom-finalWindow.top;
-    const int finalMaxX=std::max(left,right-finalW);
-    const int finalMaxY=std::max(top,bottom-finalH);
-    const int finalX=std::clamp<int>(static_cast<int>(finalWindow.left),left,finalMaxX);
-    const int finalY=std::clamp<int>(static_cast<int>(finalWindow.top),top,finalMaxY);
-    if(finalX!=finalWindow.left||finalY!=finalWindow.top)
-        SetWindowPos(hwnd,nullptr,finalX,finalY,0,0,
-            SWP_NOSIZE|SWP_NOZORDER|SWP_NOACTIVATE);
+
+    if(preserveDragAnchor){
+        // The measured client-size correction can alter the final outer width.
+        // Re-anchor only after that final size is known.
+        const int finalX=dragCursor.x-
+            static_cast<int>(std::lround(dragAnchorX*finalW));
+        const int finalY=dragCursor.y-dragAnchorY;
+        if(finalX!=finalWindow.left||finalY!=finalWindow.top)
+            SetWindowPos(hwnd,nullptr,finalX,finalY,0,0,
+                SWP_NOSIZE|SWP_NOZORDER|SWP_NOACTIVATE);
+    }else{
+        // Outside an active drag, retain the existing behavior of keeping the
+        // finished window fully inside the selected monitor work area.
+        const int finalMaxX=std::max(left,right-finalW);
+        const int finalMaxY=std::max(top,bottom-finalH);
+        const int finalX=std::clamp<int>(static_cast<int>(finalWindow.left),left,finalMaxX);
+        const int finalY=std::clamp<int>(static_cast<int>(finalWindow.top),top,finalMaxY);
+        if(finalX!=finalWindow.left||finalY!=finalWindow.top)
+            SetWindowPos(hwnd,nullptr,finalX,finalY,0,0,
+                SWP_NOSIZE|SWP_NOZORDER|SWP_NOACTIVATE);
+    }
 
     ResizeControls();
 
@@ -3907,7 +3947,6 @@ void ApplyResponsiveLayout(HWND hwnd,HMONITOR monitor,const RECT* suggested=null
     RedrawWindow(hwnd,nullptr,nullptr,
         RDW_INVALIDATE|RDW_ERASE|RDW_ALLCHILDREN|RDW_UPDATENOW);
 }
-
 
 
 struct UpdateInfo{
@@ -5654,29 +5693,6 @@ case WM_DPICHANGED:{
     // unused background seen on high-DPI displays.
     RECT target=*reinterpret_cast<RECT*>(lp);
     HMONITOR monitor=MonitorFromRect(&target,MONITOR_DEFAULTTONEAREST);
-
-    // While the user is dragging the title bar, Windows' suggested rectangle
-    // can move the window underneath the cursor when its physical size changes.
-    // Preserve the cursor's relative horizontal grab point and vertical offset
-    // from the top edge, then feed that anchored rectangle into the existing
-    // responsive layout. The DPI resize itself remains immediate.
-    if(gMainWindowInSizeMove){
-        RECT before{};
-        POINT cursor{};
-        if(GetWindowRect(w,&before) && GetCursorPos(&cursor)){
-            const int beforeW=std::max(1,(int)(before.right-before.left));
-            const int targetW=std::max(1,(int)(target.right-target.left));
-            const double grabX=std::clamp(
-                static_cast<double>(cursor.x-before.left)/beforeW,0.0,1.0);
-            const int grabY=cursor.y-before.top;
-
-            target.left=cursor.x-static_cast<LONG>(std::lround(grabX*targetW));
-            target.top=cursor.y-grabY;
-            target.right=target.left+targetW;
-            target.bottom=target.top+
-                (reinterpret_cast<RECT*>(lp)->bottom-reinterpret_cast<RECT*>(lp)->top);
-        }
-    }
 
     gPendingResponsiveRect=false;
     KillTimer(w,2);
