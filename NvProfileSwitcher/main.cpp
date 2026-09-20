@@ -3845,7 +3845,7 @@ void ApplyResponsiveLayout(HWND hwnd,HMONITOR monitor,const RECT* suggested=null
             const int beforeW=std::max(1,(int)(before.right-before.left));
             dragAnchorX=std::clamp(
                 static_cast<double>(dragCursor.x-before.left)/beforeW,0.0,1.0);
-            dragAnchorY=std::max(0,dragCursor.y-before.top);
+            dragAnchorY=std::max<int>(0,static_cast<int>(dragCursor.y-before.top));
         }
     }
 
