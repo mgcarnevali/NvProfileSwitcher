@@ -5650,25 +5650,8 @@ LRESULT CALLBACK Proc(HWND w,UINT m,WPARAM wp,LPARAM lp){switch(m){case WM_SHOW_
     // unused background seen on high-DPI displays.
     RECT target=*reinterpret_cast<RECT*>(lp);
     HMONITOR monitor=MonitorFromRect(&target,MONITOR_DEFAULTTONEAREST);
-
-    // Fast back-and-forth crossings can queue repeated DPI notifications.
-    // Real DPI changes still run immediately; only skip the expensive font/
-    // child-layout rebuild when the new DPI maps to the scale already applied.
-    const UINT targetDpi=HIWORD(wp)?HIWORD(wp):GetDpiForWindow(w);
-    const double targetScale=AdaptiveUiScaleForDpi(targetDpi);
-    const bool redundantScale=std::abs(targetScale-gUiScale)<0.0001;
-
     gPendingResponsiveRect=false;
     KillTimer(w,2);
-
-    if(redundantScale){
-        // Honor Windows' suggested top-level rect without rebuilding the UI.
-        SetWindowPos(w,nullptr,target.left,target.top,
-            target.right-target.left,target.bottom-target.top,
-            SWP_NOZORDER|SWP_NOACTIVATE);
-        return 0;
-    }
-
     ApplyResponsiveLayout(w,monitor,&target,false);
     return 0;
 }case WM_EXITSIZEMOVE:return 0;case WM_HOTKEY:if(wp==ID_HOTKEY_SHOW_HIDE){ToggleMainVisibility();return 0;}if(wp==ID_HOTKEY_WINDOWS_OVERRIDE){ToggleWindowsOverride();return 0;}if(wp==ID_HOTKEY_RESUME_AUTOMATIC){ResumeAutomaticSwitching();return 0;}if(wp>=ID_HOTKEY_PROFILE_BASE&&wp<ID_HOTKEY_PROFILE_BASE+(WPARAM)gSettings.profiles.size()){ToggleProfileOverride((size_t)(wp-ID_HOTKEY_PROFILE_BASE));return 0;}break;case WM_ACTIVATE:
@@ -5971,8 +5954,16 @@ const int initialH=initialClient.bottom-initialClient.top;
 const int initialX=startupWork.left+(startupWorkW-initialW)/2;
 const int initialY=startupWork.top+(startupWorkH-initialH)/2;
 gWnd=CreateWindowExW(0,wc.lpszClassName,L"NvProfileSwitcher",mainStyle,initialX,initialY,initialW,initialH,nullptr,nullptr,h,nullptr);
+
+// Apply the dark non-client frame while the main window is still hidden.
+// Doing this before the responsive SetWindowPos work prevents DWM from
+// preparing the default light title bar first and repainting it dark later.
+BOOL darkTitle=TRUE;
+DwmSetWindowAttribute(gWnd,20,&darkTitle,sizeof(darkTitle));
+SetWindowPos(gWnd,nullptr,0,0,0,0,
+    SWP_NOMOVE|SWP_NOSIZE|SWP_NOZORDER|SWP_NOACTIVATE|SWP_FRAMECHANGED);
+
 ApplyResponsiveLayout(gWnd,MonitorFromWindow(gWnd,MONITOR_DEFAULTTONEAREST),nullptr,true);
-BOOL darkTitle=TRUE;DwmSetWindowAttribute(gWnd,20,&darkTitle,sizeof(darkTitle));
 
 SetWindowLongPtrW(gWnd,GWLP_USERDATA,0);gTrayMenu=CreatePopupMenu();AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_OPEN,L"Open NvProfileSwitcher");AppendMenuW(gTrayMenu,MF_SEPARATOR,0,nullptr);AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_CHECK_UPDATE,L"Check for updates");AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_ABOUT,L"About NvProfileSwitcher");AppendMenuW(gTrayMenu,MF_SEPARATOR,0,nullptr);AppendMenuW(gTrayMenu,MF_STRING,ID_TRAY_EXIT,L"Exit");gNid.cbSize=sizeof(gNid);gNid.hWnd=gWnd;gNid.uID=1;gNid.uFlags=NIF_MESSAGE|NIF_ICON|NIF_TIP;gNid.uCallbackMessage=WM_TRAY;gNid.hIcon=gIcon;wcscpy_s(gNid.szTip,L"NvProfileSwitcher");gStatusOk=InitNv();if(gStatusOk){for(const auto&d:gDisplays)EnsureDesktopProfile(d.displayName,d.monitorId);EnsureAllApplicationDisplayProfiles();Save();if(auto* p=SelectedProfile())RefreshDisplayCombo(*p);RestoreAllDesktopProfiles();LoadSelected();}gActive=L"Windows";bool min=(wcsstr(cmd,L"--minimized")!=nullptr);
 if(min) SetTrayIconVisible(true);
