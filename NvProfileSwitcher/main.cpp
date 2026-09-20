@@ -107,11 +107,6 @@ constexpr int MAIN_BASE_CLIENT_WIDTH=1344;
 constexpr int MAIN_BASE_CLIENT_HEIGHT=891;
 constexpr int MAIN_SAFE_MARGIN=12;
 double gUiScale=1.0;
-// WM_DPICHANGED can arrive as part of the same monitor transition as
-// WM_DISPLAYCHANGE/WM_DEVICECHANGE. Keep its target rect and let the
-// existing display-settle timer perform the one responsive resize.
-bool gPendingResponsiveRect=false;
-RECT gResponsiveSuggestedRect{};
 bool gMainWindowInSizeMove=false;
 bool gDragAnchorValid=false;
 double gDragAnchorX=0.5;
@@ -5744,7 +5739,6 @@ case WM_DPICHANGED:{
     RECT target=*reinterpret_cast<RECT*>(lp);
     HMONITOR monitor=MonitorFromRect(&target,MONITOR_DEFAULTTONEAREST);
 
-    gPendingResponsiveRect=false;
     KillTimer(w,2);
     ApplyResponsiveLayout(w,monitor,&target,false);
     return 0;
@@ -5928,25 +5922,14 @@ case WM_TIMER:
         KillTimer(w,2);
         RefreshDisplayTopology();
 
+        // Preserve the current position for topology-only changes. Passing
+        // the current rect prevents ApplyResponsiveLayout from recentering
+        // the window just because a display/device notification fired.
         RECT targetRect{};
-        const RECT* suggested=nullptr;
-        HMONITOR monitor=nullptr;
-
-        if(gPendingResponsiveRect){
-            targetRect=gResponsiveSuggestedRect;
-            suggested=&targetRect;
-            monitor=MonitorFromRect(&targetRect,MONITOR_DEFAULTTONEAREST);
-        }else{
-            // Preserve the current position for topology-only changes. Passing
-            // the current rect prevents ApplyResponsiveLayout from recentering
-            // the window just because a display/device notification fired.
-            GetWindowRect(w,&targetRect);
-            suggested=&targetRect;
-            monitor=MonitorFromRect(&targetRect,MONITOR_DEFAULTTONEAREST);
-        }
-
-        gPendingResponsiveRect=false;
-        ApplyResponsiveLayout(w,monitor,suggested,false);
+        GetWindowRect(w,&targetRect);
+        HMONITOR monitor=MonitorFromRect(
+            &targetRect,MONITOR_DEFAULTTONEAREST);
+        ApplyResponsiveLayout(w,monitor,&targetRect,false);
         return 0;
     }
 #if NVPS_DEV_BUILD
