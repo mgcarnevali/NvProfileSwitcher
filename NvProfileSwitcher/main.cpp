@@ -3886,11 +3886,7 @@ void ApplyResponsiveLayout(HWND hwnd,HMONITOR monitor,const RECT* suggested=null
     int x=left+(right-left-size.cx)/2;
     int y=top+(bottom-top-size.cy)/2;
     if(preserveDragAnchor){
-        // During the modal move loop, let Windows keep ownership of the
-        // horizontal drag position from WM_DPICHANGED. Recomputing X here from
-        // the resized outer width makes our SetWindowPos fight the system move
-        // loop and produces the fixed left/right jump seen between monitors.
-        x=(int)suggested->left;
+        x=dragCursor.x-static_cast<int>(std::lround(gDragAnchorX*size.cx));
         y=dragCursor.y-dragAnchorY;
     }else if(!center&&suggested){
         x=(int)suggested->left;
@@ -3929,42 +3925,49 @@ void ApplyResponsiveLayout(HWND hwnd,HMONITOR monitor,const RECT* suggested=null
     const int actualClientH=client.bottom-client.top;
     const int deltaW=desiredClientW-actualClientW;
     const int deltaH=desiredClientH-actualClientH;
-    if(std::abs(deltaW)>1||std::abs(deltaH)>1){
-        const int outerW=(window.right-window.left)+deltaW;
-        const int outerH=(window.bottom-window.top)+deltaH;
-        SetWindowPos(hwnd,nullptr,0,0,outerW,outerH,
-            SWP_NOMOVE|SWP_NOZORDER|SWP_NOACTIVATE);
-    }
-
-    RECT finalWindow{};
-    GetWindowRect(hwnd,&finalWindow);
-    const int finalW=finalWindow.right-finalWindow.left;
-    const int finalH=finalWindow.bottom-finalWindow.top;
 
     if(preserveDragAnchor){
-        // The measured client-size correction can alter the final outer width.
-        // Re-anchor only after that final size is known.
-        // Keep the X selected by Windows' DPI/move loop. Only Y needs our
-        // explicit title-bar correction; overriding X a second time after the
-        // measured resize is what can create the lateral snap.
-        const int finalX=finalWindow.left;
+        // Fold the measured client-size correction and the final drag-anchor
+        // position into one SetWindowPos. The previous sequence corrected size
+        // first and then moved the window again, which can fight Windows' modal
+        // move loop and produce the two-position horizontal snap.
+        const int correctedW=(window.right-window.left)+
+            ((std::abs(deltaW)>1)?deltaW:0);
+        const int correctedH=(window.bottom-window.top)+
+            ((std::abs(deltaH)>1)?deltaH:0);
 
-        // Measure the destination monitor's real top non-client area after the
-        // DPI resize, then restore the same relative point inside the title bar.
-        RECT finalClient{};
-        POINT finalClientTop{0,0};
+        const int finalX=dragCursor.x-
+            static_cast<int>(std::lround(gDragAnchorX*correctedW));
+
+        RECT currentClient{};
+        POINT currentClientTop{0,0};
         int finalAnchorY=dragAnchorY;
-        if(GetClientRect(hwnd,&finalClient)&&ClientToScreen(hwnd,&finalClientTop)){
-            const int finalNonClientTop=std::max<int>(
-                1,static_cast<int>(finalClientTop.y-finalWindow.top));
+        if(GetClientRect(hwnd,&currentClient)&&ClientToScreen(hwnd,&currentClientTop)){
+            const int currentNonClientTop=std::max<int>(
+                1,static_cast<int>(currentClientTop.y-window.top));
             finalAnchorY=static_cast<int>(
-                std::lround(gDragTitleRatio*finalNonClientTop));
+                std::lround(gDragTitleRatio*currentNonClientTop));
         }
         const int finalY=dragCursor.y-finalAnchorY;
-        if(finalX!=finalWindow.left||finalY!=finalWindow.top)
-            SetWindowPos(hwnd,nullptr,finalX,finalY,0,0,
-                SWP_NOSIZE|SWP_NOZORDER|SWP_NOACTIVATE);
+
+        if(finalX!=window.left||finalY!=window.top||
+           correctedW!=(window.right-window.left)||
+           correctedH!=(window.bottom-window.top)){
+            SetWindowPos(hwnd,nullptr,finalX,finalY,correctedW,correctedH,
+                SWP_NOZORDER|SWP_NOACTIVATE);
+        }
     }else{
+        if(std::abs(deltaW)>1||std::abs(deltaH)>1){
+            const int outerW=(window.right-window.left)+deltaW;
+            const int outerH=(window.bottom-window.top)+deltaH;
+            SetWindowPos(hwnd,nullptr,0,0,outerW,outerH,
+                SWP_NOMOVE|SWP_NOZORDER|SWP_NOACTIVATE);
+        }
+
+        RECT finalWindow{};
+        GetWindowRect(hwnd,&finalWindow);
+        const int finalW=finalWindow.right-finalWindow.left;
+        const int finalH=finalWindow.bottom-finalWindow.top;
         // Outside an active drag, retain the existing behavior of keeping the
         // finished window fully inside the selected monitor work area.
         const int finalMaxX=std::max(left,right-finalW);
