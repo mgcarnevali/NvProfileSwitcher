@@ -117,14 +117,6 @@ bool gDragAnchorValid=false;
 double gDragAnchorX=0.5;
 double gDragTitleRatio=0.5;
 
-// During a modal title-bar drag, Windows owns the physical top-level geometry.
-// Applying our adaptive outer size inside WM_DPICHANGED makes the move loop
-// adjust its cursor reference. Remember only the latest target monitor/rect and
-// apply our normal responsive geometry once the drag finishes.
-bool gDeferredDragResponsiveLayout=false;
-HMONITOR gDeferredDragMonitor=nullptr;
-RECT gDeferredDragSuggestedRect{};
-
 int Ui(int value){
     return static_cast<int>(std::lround(static_cast<double>(value)*gUiScale));
 }
@@ -3919,7 +3911,32 @@ void ApplyResponsiveLayout(HWND hwnd,HMONITOR monitor,const RECT* suggested=null
     const int desiredClientW=Ui(MAIN_BASE_CLIENT_WIDTH);
     const int desiredClientH=Ui(MAIN_BASE_CLIENT_HEIGHT);
 
+    // During an active cross-monitor drag, Windows can move the modal move
+    // loop's cursor reference as a side effect of resizing the top-level window
+    // to our adaptive DPI size. Measure that shift around the first SetWindowPos
+    // and compensate only the window's X position. DPI application stays
+    // immediate and the established vertical title-bar anchor is untouched.
+    POINT cursorBeforeResize{};
+    if(preserveDragAnchor)
+        GetCursorPos(&cursorBeforeResize);
+
     SetWindowPos(hwnd,nullptr,x,y,size.cx,size.cy,SWP_NOZORDER|SWP_NOACTIVATE);
+
+    if(preserveDragAnchor){
+        POINT cursorAfterResize{};
+        RECT afterResize{};
+        if(GetCursorPos(&cursorAfterResize)&&GetWindowRect(hwnd,&afterResize)){
+            const int cursorShiftX=static_cast<int>(
+                cursorAfterResize.x-cursorBeforeResize.x);
+            if(cursorShiftX!=0){
+                SetWindowPos(hwnd,nullptr,
+                    static_cast<int>(afterResize.left-cursorShiftX),
+                    static_cast<int>(afterResize.top),
+                    0,0,
+                    SWP_NOSIZE|SWP_NOZORDER|SWP_NOACTIVATE);
+            }
+        }
+    }
 
     // One measured correction is enough after Windows has applied the target
     // monitor DPI. Avoid the old three-pass SetWindowPos loop, which could
@@ -5733,53 +5750,24 @@ void ShowConfigurationPopup(HWND owner){
 LRESULT CALLBACK Proc(HWND w,UINT m,WPARAM wp,LPARAM lp){switch(m){case WM_SHOW_EXISTING_INSTANCE:ShowMain();return 0;case WM_UPDATE_AVAILABLE:ShowUpdateAvailable((UpdateInfo*)lp);return 0;case WM_SHOW_APP_MESSAGE:{auto* data=(AppMessageData*)lp;if(data){std::wstring title=data->title,text=data->text;delete data;ShowAppMessage(title,text);}return 0;}case WM_CREATE:gWnd=w;BuildControls();RegisterConfiguredHotkeys();RefreshList();LoadSelected();SetTimer(w,1,250,nullptr);return 0;case WM_ENTERSIZEMOVE:
     gMainWindowInSizeMove=true;
     gDragAnchorValid=false;
-    gDeferredDragResponsiveLayout=false;
-    gDeferredDragMonitor=nullptr;
     return 0;
 case WM_DPICHANGED:{
+    // Windows has already selected the new DPI for this HWND. Apply the
+    // responsive size immediately while that DPI is authoritative. Deferring
+    // this message left the top-level HWND at the previous monitor's physical
+    // size while only the child/layout scale changed, producing the large
+    // unused background seen on high-DPI displays.
     RECT target=*reinterpret_cast<RECT*>(lp);
     HMONITOR monitor=MonitorFromRect(&target,MONITOR_DEFAULTTONEAREST);
 
     gPendingResponsiveRect=false;
     KillTimer(w,2);
-
-    if(gMainWindowInSizeMove){
-        // Do not apply NvProfileSwitcher's adaptive outer size while Windows is
-        // still running its modal move loop. The WM_DPICHANGED suggested size
-        // follows the raw DPI ratio (for example 1360 -> 2720 at 200%), while
-        // our UI intentionally uses a gentler adaptive scale (1360 -> ~1639).
-        // Resizing to our value here makes Windows move the drag cursor reference.
-        //
-        // Keep the latest destination and let DefWindowProc own this DPI change
-        // while the mouse is held. Our normal responsive layout is applied once,
-        // immediately after WM_EXITSIZEMOVE.
-        gDeferredDragResponsiveLayout=true;
-        gDeferredDragMonitor=monitor;
-        gDeferredDragSuggestedRect=target;
-        break;
-    }
-
     ApplyResponsiveLayout(w,monitor,&target,false);
     return 0;
-}case WM_EXITSIZEMOVE:{
+}case WM_EXITSIZEMOVE:
     gMainWindowInSizeMove=false;
     gDragAnchorValid=false;
-
-    if(gDeferredDragResponsiveLayout){
-        HMONITOR monitor=gDeferredDragMonitor;
-        RECT target=gDeferredDragSuggestedRect;
-        gDeferredDragResponsiveLayout=false;
-        gDeferredDragMonitor=nullptr;
-
-        if(!monitor)
-            monitor=MonitorFromWindow(w,MONITOR_DEFAULTTONEAREST);
-
-        // The modal drag is over, so Windows no longer adjusts its cursor
-        // reference. Apply the established adaptive DPI layout exactly once.
-        ApplyResponsiveLayout(w,monitor,&target,false);
-    }
-    return 0;
-}case WM_HOTKEY:if(wp==ID_HOTKEY_SHOW_HIDE){ToggleMainVisibility();return 0;}if(wp==ID_HOTKEY_WINDOWS_OVERRIDE){ToggleWindowsOverride();return 0;}if(wp==ID_HOTKEY_RESUME_AUTOMATIC){ResumeAutomaticSwitching();return 0;}if(wp>=ID_HOTKEY_PROFILE_BASE&&wp<ID_HOTKEY_PROFILE_BASE+(WPARAM)gSettings.profiles.size()){ToggleProfileOverride((size_t)(wp-ID_HOTKEY_PROFILE_BASE));return 0;}break;case WM_ACTIVATE:
+    return 0;case WM_HOTKEY:if(wp==ID_HOTKEY_SHOW_HIDE){ToggleMainVisibility();return 0;}if(wp==ID_HOTKEY_WINDOWS_OVERRIDE){ToggleWindowsOverride();return 0;}if(wp==ID_HOTKEY_RESUME_AUTOMATIC){ResumeAutomaticSwitching();return 0;}if(wp>=ID_HOTKEY_PROFILE_BASE&&wp<ID_HOTKEY_PROFILE_BASE+(WPARAM)gSettings.profiles.size()){ToggleProfileOverride((size_t)(wp-ID_HOTKEY_PROFILE_BASE));return 0;}break;case WM_ACTIVATE:
     if(LOWORD(wp)!=WA_INACTIVE) RefreshDriverVersion();
     return 0;case WM_SIZE:
     if(wp==SIZE_MINIMIZED){
