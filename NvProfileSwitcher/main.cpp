@@ -5650,8 +5650,25 @@ LRESULT CALLBACK Proc(HWND w,UINT m,WPARAM wp,LPARAM lp){switch(m){case WM_SHOW_
     // unused background seen on high-DPI displays.
     RECT target=*reinterpret_cast<RECT*>(lp);
     HMONITOR monitor=MonitorFromRect(&target,MONITOR_DEFAULTTONEAREST);
+
+    // Fast back-and-forth crossings can queue repeated DPI notifications.
+    // Real DPI changes still run immediately; only skip the expensive font/
+    // child-layout rebuild when the new DPI maps to the scale already applied.
+    const UINT targetDpi=HIWORD(wp)?HIWORD(wp):GetDpiForWindow(w);
+    const double targetScale=AdaptiveUiScaleForDpi(targetDpi);
+    const bool redundantScale=std::abs(targetScale-gUiScale)<0.0001;
+
     gPendingResponsiveRect=false;
     KillTimer(w,2);
+
+    if(redundantScale){
+        // Honor Windows' suggested top-level rect without rebuilding the UI.
+        SetWindowPos(w,nullptr,target.left,target.top,
+            target.right-target.left,target.bottom-target.top,
+            SWP_NOZORDER|SWP_NOACTIVATE);
+        return 0;
+    }
+
     ApplyResponsiveLayout(w,monitor,&target,false);
     return 0;
 }case WM_EXITSIZEMOVE:return 0;case WM_HOTKEY:if(wp==ID_HOTKEY_SHOW_HIDE){ToggleMainVisibility();return 0;}if(wp==ID_HOTKEY_WINDOWS_OVERRIDE){ToggleWindowsOverride();return 0;}if(wp==ID_HOTKEY_RESUME_AUTOMATIC){ResumeAutomaticSwitching();return 0;}if(wp>=ID_HOTKEY_PROFILE_BASE&&wp<ID_HOTKEY_PROFILE_BASE+(WPARAM)gSettings.profiles.size()){ToggleProfileOverride((size_t)(wp-ID_HOTKEY_PROFILE_BASE));return 0;}break;case WM_ACTIVATE:
