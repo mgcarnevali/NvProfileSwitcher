@@ -112,6 +112,7 @@ double gUiScale=1.0;
 // existing display-settle timer perform the one responsive resize.
 bool gPendingResponsiveRect=false;
 RECT gResponsiveSuggestedRect{};
+bool gMainWindowInSizeMove=false;
 
 int Ui(int value){
     return static_cast<int>(std::lround(static_cast<double>(value)*gUiScale));
@@ -5642,7 +5643,10 @@ void ShowConfigurationPopup(HWND owner){
     ShowWindow(popup,SW_SHOWNORMAL);UpdateWindow(popup);SetForegroundWindow(popup);
 }
 
-LRESULT CALLBACK Proc(HWND w,UINT m,WPARAM wp,LPARAM lp){switch(m){case WM_SHOW_EXISTING_INSTANCE:ShowMain();return 0;case WM_UPDATE_AVAILABLE:ShowUpdateAvailable((UpdateInfo*)lp);return 0;case WM_SHOW_APP_MESSAGE:{auto* data=(AppMessageData*)lp;if(data){std::wstring title=data->title,text=data->text;delete data;ShowAppMessage(title,text);}return 0;}case WM_CREATE:gWnd=w;BuildControls();RegisterConfiguredHotkeys();RefreshList();LoadSelected();SetTimer(w,1,250,nullptr);return 0;case WM_DPICHANGED:{
+LRESULT CALLBACK Proc(HWND w,UINT m,WPARAM wp,LPARAM lp){switch(m){case WM_SHOW_EXISTING_INSTANCE:ShowMain();return 0;case WM_UPDATE_AVAILABLE:ShowUpdateAvailable((UpdateInfo*)lp);return 0;case WM_SHOW_APP_MESSAGE:{auto* data=(AppMessageData*)lp;if(data){std::wstring title=data->title,text=data->text;delete data;ShowAppMessage(title,text);}return 0;}case WM_CREATE:gWnd=w;BuildControls();RegisterConfiguredHotkeys();RefreshList();LoadSelected();SetTimer(w,1,250,nullptr);return 0;case WM_ENTERSIZEMOVE:
+    gMainWindowInSizeMove=true;
+    return 0;
+case WM_DPICHANGED:{
     // Windows has already selected the new DPI for this HWND. Apply the
     // responsive size immediately while that DPI is authoritative. Deferring
     // this message left the top-level HWND at the previous monitor's physical
@@ -5650,11 +5654,37 @@ LRESULT CALLBACK Proc(HWND w,UINT m,WPARAM wp,LPARAM lp){switch(m){case WM_SHOW_
     // unused background seen on high-DPI displays.
     RECT target=*reinterpret_cast<RECT*>(lp);
     HMONITOR monitor=MonitorFromRect(&target,MONITOR_DEFAULTTONEAREST);
+
+    // While the user is dragging the title bar, Windows' suggested rectangle
+    // can move the window underneath the cursor when its physical size changes.
+    // Preserve the cursor's relative horizontal grab point and vertical offset
+    // from the top edge, then feed that anchored rectangle into the existing
+    // responsive layout. The DPI resize itself remains immediate.
+    if(gMainWindowInSizeMove){
+        RECT before{};
+        POINT cursor{};
+        if(GetWindowRect(w,&before) && GetCursorPos(&cursor)){
+            const int beforeW=std::max(1,(int)(before.right-before.left));
+            const int targetW=std::max(1,(int)(target.right-target.left));
+            const double grabX=std::clamp(
+                static_cast<double>(cursor.x-before.left)/beforeW,0.0,1.0);
+            const int grabY=cursor.y-before.top;
+
+            target.left=cursor.x-static_cast<LONG>(std::lround(grabX*targetW));
+            target.top=cursor.y-grabY;
+            target.right=target.left+targetW;
+            target.bottom=target.top+
+                (reinterpret_cast<RECT*>(lp)->bottom-reinterpret_cast<RECT*>(lp)->top);
+        }
+    }
+
     gPendingResponsiveRect=false;
     KillTimer(w,2);
     ApplyResponsiveLayout(w,monitor,&target,false);
     return 0;
-}case WM_EXITSIZEMOVE:return 0;case WM_HOTKEY:if(wp==ID_HOTKEY_SHOW_HIDE){ToggleMainVisibility();return 0;}if(wp==ID_HOTKEY_WINDOWS_OVERRIDE){ToggleWindowsOverride();return 0;}if(wp==ID_HOTKEY_RESUME_AUTOMATIC){ResumeAutomaticSwitching();return 0;}if(wp>=ID_HOTKEY_PROFILE_BASE&&wp<ID_HOTKEY_PROFILE_BASE+(WPARAM)gSettings.profiles.size()){ToggleProfileOverride((size_t)(wp-ID_HOTKEY_PROFILE_BASE));return 0;}break;case WM_ACTIVATE:
+}case WM_EXITSIZEMOVE:
+    gMainWindowInSizeMove=false;
+    return 0;case WM_HOTKEY:if(wp==ID_HOTKEY_SHOW_HIDE){ToggleMainVisibility();return 0;}if(wp==ID_HOTKEY_WINDOWS_OVERRIDE){ToggleWindowsOverride();return 0;}if(wp==ID_HOTKEY_RESUME_AUTOMATIC){ResumeAutomaticSwitching();return 0;}if(wp>=ID_HOTKEY_PROFILE_BASE&&wp<ID_HOTKEY_PROFILE_BASE+(WPARAM)gSettings.profiles.size()){ToggleProfileOverride((size_t)(wp-ID_HOTKEY_PROFILE_BASE));return 0;}break;case WM_ACTIVATE:
     if(LOWORD(wp)!=WA_INACTIVE) RefreshDriverVersion();
     return 0;case WM_SIZE:
     if(wp==SIZE_MINIMIZED){
