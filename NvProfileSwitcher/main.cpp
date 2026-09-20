@@ -107,11 +107,10 @@ constexpr int MAIN_BASE_CLIENT_WIDTH=1344;
 constexpr int MAIN_BASE_CLIENT_HEIGHT=891;
 constexpr int MAIN_SAFE_MARGIN=12;
 double gUiScale=1.0;
-// WM_DPICHANGED can arrive as part of the same monitor transition as
-// WM_DISPLAYCHANGE/WM_DEVICECHANGE. Keep its target rect and let the
-// existing display-settle timer perform the one responsive resize.
-bool gPendingResponsiveRect=false;
-RECT gResponsiveSuggestedRect{};
+bool gMainWindowInSizeMove=false;
+bool gDragAnchorValid=false;
+double gDragAnchorX=0.5;
+double gDragTitleRatio=0.5;
 
 int Ui(int value){
     return static_cast<int>(std::lround(static_cast<double>(value)*gUiScale));
@@ -3830,6 +3829,45 @@ void ApplyResponsiveLayout(HWND hwnd,HMONITOR monitor,const RECT* suggested=null
     MONITORINFO mi{sizeof(mi)};
     if(!monitor||!GetMonitorInfoW(monitor,&mi)) return;
 
+    // Capture the real drag anchor before changing the window geometry. During
+    // a cross-monitor DPI transition the window may need a different physical
+    // size, but the point of the title bar held by the cursor should stay under
+    // that cursor.
+    const bool preserveDragAnchor=gMainWindowInSizeMove&&suggested&&!center;
+    POINT dragCursor{};
+    int dragAnchorX=0;
+    int dragAnchorY=0;
+    if(preserveDragAnchor){
+        RECT before{},beforeClient{};
+        POINT beforeClientTop{0,0};
+        if(GetWindowRect(hwnd,&before)&&GetClientRect(hwnd,&beforeClient)&&
+           ClientToScreen(hwnd,&beforeClientTop)&&GetCursorPos(&dragCursor)){
+            const int beforeNonClientTop=std::max<int>(
+                1,static_cast<int>(beforeClientTop.y-before.top));
+
+            // Capture the grab point once for the whole move loop. Recomputing
+            // it after every DPI resize makes tiny rounding differences become
+            // the new reference and causes horizontal drift on repeated crossings.
+            if(!gDragAnchorValid){
+                const int beforeW=std::max(1,(int)(before.right-before.left));
+                gDragAnchorX=std::clamp(
+                    static_cast<double>(dragCursor.x-before.left)/beforeW,0.0,1.0);
+                const int initialAnchorY=std::max<int>(
+                    0,static_cast<int>(dragCursor.y-before.top));
+                gDragTitleRatio=std::clamp(
+                    static_cast<double>(initialAnchorY)/beforeNonClientTop,0.0,1.0);
+                gDragAnchorValid=true;
+            }
+
+            const int beforeW=std::max<int>(
+                1,static_cast<int>(before.right-before.left));
+            dragAnchorX=static_cast<int>(
+                std::lround(gDragAnchorX*beforeW));
+            dragAnchorY=static_cast<int>(
+                std::lround(gDragTitleRatio*beforeNonClientTop));
+        }
+    }
+
     // A per-monitor DPI transition updates fonts, the top-level window and many
     // child controls in one pass. Suppress intermediate paints so Windows does
     // not synchronously redraw every step while the window is being dragged
@@ -3847,16 +3885,30 @@ void ApplyResponsiveLayout(HWND hwnd,HMONITOR monitor,const RECT* suggested=null
 
     int x=left+(right-left-size.cx)/2;
     int y=top+(bottom-top-size.cy)/2;
-    if(!center&&suggested){
+    if(preserveDragAnchor){
+        // Match the vertical-anchor strategy: keep the pre-resize physical
+        // grab offset for the first DPI resize. Once Windows has applied the
+        // new non-client geometry, the measured correction below rebuilds both
+        // axes from their stored ratios using the real destination geometry.
+        x=dragCursor.x-dragAnchorX;
+        y=dragCursor.y-dragAnchorY;
+    }else if(!center&&suggested){
         x=(int)suggested->left;
         y=(int)suggested->top;
     }
-    const int maxX=std::max<int>(left,static_cast<int>(right-size.cx));
-    const int maxY=std::max<int>(top,static_cast<int>(bottom-size.cy));
-    x=std::clamp<int>(x,left,maxX);
-    y=std::clamp<int>(y,top,maxY);
 
-    // Size the top-level window from the client area we actually need.  The
+    // Do not clamp the window to the target work area while Windows is in its
+    // modal move loop. Clamping here is what can detach the title bar from the
+    // cursor when the destination monitor is smaller. Windows normally allows
+    // part of a dragged window to remain outside the work area.
+    if(!preserveDragAnchor){
+        const int maxX=std::max<int>(left,static_cast<int>(right-size.cx));
+        const int maxY=std::max<int>(top,static_cast<int>(bottom-size.cy));
+        x=std::clamp<int>(x,left,maxX);
+        y=std::clamp<int>(y,top,maxY);
+    }
+
+    // Size the top-level window from the client area we actually need. The
     // non-client metrics returned by Windows can be DPI-virtualized depending
     // on the manifest/current monitor, so verify the resulting client size and
     // correct the outer size by the measured delta instead of assuming it.
@@ -3877,26 +3929,59 @@ void ApplyResponsiveLayout(HWND hwnd,HMONITOR monitor,const RECT* suggested=null
     const int actualClientH=client.bottom-client.top;
     const int deltaW=desiredClientW-actualClientW;
     const int deltaH=desiredClientH-actualClientH;
-    if(std::abs(deltaW)>1||std::abs(deltaH)>1){
-        const int outerW=(window.right-window.left)+deltaW;
-        const int outerH=(window.bottom-window.top)+deltaH;
-        SetWindowPos(hwnd,nullptr,0,0,outerW,outerH,
-            SWP_NOMOVE|SWP_NOZORDER|SWP_NOACTIVATE);
-    }
 
-    // The correction above may change the final outer dimensions by a few
-    // pixels. Keep the finished window inside the selected monitor work area.
-    RECT finalWindow{};
-    GetWindowRect(hwnd,&finalWindow);
-    const int finalW=finalWindow.right-finalWindow.left;
-    const int finalH=finalWindow.bottom-finalWindow.top;
-    const int finalMaxX=std::max(left,right-finalW);
-    const int finalMaxY=std::max(top,bottom-finalH);
-    const int finalX=std::clamp<int>(static_cast<int>(finalWindow.left),left,finalMaxX);
-    const int finalY=std::clamp<int>(static_cast<int>(finalWindow.top),top,finalMaxY);
-    if(finalX!=finalWindow.left||finalY!=finalWindow.top)
-        SetWindowPos(hwnd,nullptr,finalX,finalY,0,0,
-            SWP_NOSIZE|SWP_NOZORDER|SWP_NOACTIVATE);
+    if(preserveDragAnchor){
+        // Fold the measured client-size correction and the final drag-anchor
+        // position into one SetWindowPos. The previous sequence corrected size
+        // first and then moved the window again, which can fight Windows' modal
+        // move loop and produce the two-position horizontal snap.
+        const int correctedW=(window.right-window.left)+
+            ((std::abs(deltaW)>1)?deltaW:0);
+        const int correctedH=(window.bottom-window.top)+
+            ((std::abs(deltaH)>1)?deltaH:0);
+
+        const int finalX=dragCursor.x-
+            static_cast<int>(std::lround(gDragAnchorX*correctedW));
+
+        RECT currentClient{};
+        POINT currentClientTop{0,0};
+        int finalAnchorY=dragAnchorY;
+        if(GetClientRect(hwnd,&currentClient)&&ClientToScreen(hwnd,&currentClientTop)){
+            const int currentNonClientTop=std::max<int>(
+                1,static_cast<int>(currentClientTop.y-window.top));
+            finalAnchorY=static_cast<int>(
+                std::lround(gDragTitleRatio*currentNonClientTop));
+        }
+        const int finalY=dragCursor.y-finalAnchorY;
+
+        if(finalX!=window.left||finalY!=window.top||
+           correctedW!=(window.right-window.left)||
+           correctedH!=(window.bottom-window.top)){
+            SetWindowPos(hwnd,nullptr,finalX,finalY,correctedW,correctedH,
+                SWP_NOZORDER|SWP_NOACTIVATE);
+        }
+    }else{
+        if(std::abs(deltaW)>1||std::abs(deltaH)>1){
+            const int outerW=(window.right-window.left)+deltaW;
+            const int outerH=(window.bottom-window.top)+deltaH;
+            SetWindowPos(hwnd,nullptr,0,0,outerW,outerH,
+                SWP_NOMOVE|SWP_NOZORDER|SWP_NOACTIVATE);
+        }
+
+        RECT finalWindow{};
+        GetWindowRect(hwnd,&finalWindow);
+        const int finalW=finalWindow.right-finalWindow.left;
+        const int finalH=finalWindow.bottom-finalWindow.top;
+        // Outside an active drag, retain the existing behavior of keeping the
+        // finished window fully inside the selected monitor work area.
+        const int finalMaxX=std::max(left,right-finalW);
+        const int finalMaxY=std::max(top,bottom-finalH);
+        const int finalX=std::clamp<int>(static_cast<int>(finalWindow.left),left,finalMaxX);
+        const int finalY=std::clamp<int>(static_cast<int>(finalWindow.top),top,finalMaxY);
+        if(finalX!=finalWindow.left||finalY!=finalWindow.top)
+            SetWindowPos(hwnd,nullptr,finalX,finalY,0,0,
+                SWP_NOSIZE|SWP_NOZORDER|SWP_NOACTIVATE);
+    }
 
     ResizeControls();
 
@@ -3906,7 +3991,6 @@ void ApplyResponsiveLayout(HWND hwnd,HMONITOR monitor,const RECT* suggested=null
     RedrawWindow(hwnd,nullptr,nullptr,
         RDW_INVALIDATE|RDW_ERASE|RDW_ALLCHILDREN|RDW_UPDATENOW);
 }
-
 
 
 struct UpdateInfo{
@@ -5642,7 +5726,11 @@ void ShowConfigurationPopup(HWND owner){
     ShowWindow(popup,SW_SHOWNORMAL);UpdateWindow(popup);SetForegroundWindow(popup);
 }
 
-LRESULT CALLBACK Proc(HWND w,UINT m,WPARAM wp,LPARAM lp){switch(m){case WM_SHOW_EXISTING_INSTANCE:ShowMain();return 0;case WM_UPDATE_AVAILABLE:ShowUpdateAvailable((UpdateInfo*)lp);return 0;case WM_SHOW_APP_MESSAGE:{auto* data=(AppMessageData*)lp;if(data){std::wstring title=data->title,text=data->text;delete data;ShowAppMessage(title,text);}return 0;}case WM_CREATE:gWnd=w;BuildControls();RegisterConfiguredHotkeys();RefreshList();LoadSelected();SetTimer(w,1,250,nullptr);return 0;case WM_DPICHANGED:{
+LRESULT CALLBACK Proc(HWND w,UINT m,WPARAM wp,LPARAM lp){switch(m){case WM_SHOW_EXISTING_INSTANCE:ShowMain();return 0;case WM_UPDATE_AVAILABLE:ShowUpdateAvailable((UpdateInfo*)lp);return 0;case WM_SHOW_APP_MESSAGE:{auto* data=(AppMessageData*)lp;if(data){std::wstring title=data->title,text=data->text;delete data;ShowAppMessage(title,text);}return 0;}case WM_CREATE:gWnd=w;BuildControls();RegisterConfiguredHotkeys();RefreshList();LoadSelected();SetTimer(w,1,250,nullptr);return 0;case WM_ENTERSIZEMOVE:
+    gMainWindowInSizeMove=true;
+    gDragAnchorValid=false;
+    return 0;
+case WM_DPICHANGED:{
     // Windows has already selected the new DPI for this HWND. Apply the
     // responsive size immediately while that DPI is authoritative. Deferring
     // this message left the top-level HWND at the previous monitor's physical
@@ -5650,11 +5738,14 @@ LRESULT CALLBACK Proc(HWND w,UINT m,WPARAM wp,LPARAM lp){switch(m){case WM_SHOW_
     // unused background seen on high-DPI displays.
     RECT target=*reinterpret_cast<RECT*>(lp);
     HMONITOR monitor=MonitorFromRect(&target,MONITOR_DEFAULTTONEAREST);
-    gPendingResponsiveRect=false;
+
     KillTimer(w,2);
     ApplyResponsiveLayout(w,monitor,&target,false);
     return 0;
-}case WM_EXITSIZEMOVE:return 0;case WM_HOTKEY:if(wp==ID_HOTKEY_SHOW_HIDE){ToggleMainVisibility();return 0;}if(wp==ID_HOTKEY_WINDOWS_OVERRIDE){ToggleWindowsOverride();return 0;}if(wp==ID_HOTKEY_RESUME_AUTOMATIC){ResumeAutomaticSwitching();return 0;}if(wp>=ID_HOTKEY_PROFILE_BASE&&wp<ID_HOTKEY_PROFILE_BASE+(WPARAM)gSettings.profiles.size()){ToggleProfileOverride((size_t)(wp-ID_HOTKEY_PROFILE_BASE));return 0;}break;case WM_ACTIVATE:
+}case WM_EXITSIZEMOVE:
+    gMainWindowInSizeMove=false;
+    gDragAnchorValid=false;
+    return 0;case WM_HOTKEY:if(wp==ID_HOTKEY_SHOW_HIDE){ToggleMainVisibility();return 0;}if(wp==ID_HOTKEY_WINDOWS_OVERRIDE){ToggleWindowsOverride();return 0;}if(wp==ID_HOTKEY_RESUME_AUTOMATIC){ResumeAutomaticSwitching();return 0;}if(wp>=ID_HOTKEY_PROFILE_BASE&&wp<ID_HOTKEY_PROFILE_BASE+(WPARAM)gSettings.profiles.size()){ToggleProfileOverride((size_t)(wp-ID_HOTKEY_PROFILE_BASE));return 0;}break;case WM_ACTIVATE:
     if(LOWORD(wp)!=WA_INACTIVE) RefreshDriverVersion();
     return 0;case WM_SIZE:
     if(wp==SIZE_MINIMIZED){
@@ -5831,25 +5922,14 @@ case WM_TIMER:
         KillTimer(w,2);
         RefreshDisplayTopology();
 
+        // Preserve the current position for topology-only changes. Passing
+        // the current rect prevents ApplyResponsiveLayout from recentering
+        // the window just because a display/device notification fired.
         RECT targetRect{};
-        const RECT* suggested=nullptr;
-        HMONITOR monitor=nullptr;
-
-        if(gPendingResponsiveRect){
-            targetRect=gResponsiveSuggestedRect;
-            suggested=&targetRect;
-            monitor=MonitorFromRect(&targetRect,MONITOR_DEFAULTTONEAREST);
-        }else{
-            // Preserve the current position for topology-only changes. Passing
-            // the current rect prevents ApplyResponsiveLayout from recentering
-            // the window just because a display/device notification fired.
-            GetWindowRect(w,&targetRect);
-            suggested=&targetRect;
-            monitor=MonitorFromRect(&targetRect,MONITOR_DEFAULTTONEAREST);
-        }
-
-        gPendingResponsiveRect=false;
-        ApplyResponsiveLayout(w,monitor,suggested,false);
+        GetWindowRect(w,&targetRect);
+        HMONITOR monitor=MonitorFromRect(
+            &targetRect,MONITOR_DEFAULTTONEAREST);
+        ApplyResponsiveLayout(w,monitor,&targetRect,false);
         return 0;
     }
 #if NVPS_DEV_BUILD
