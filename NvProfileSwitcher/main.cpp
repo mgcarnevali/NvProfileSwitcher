@@ -5631,16 +5631,15 @@ void ShowConfigurationPopup(HWND owner){
 }
 
 LRESULT CALLBACK Proc(HWND w,UINT m,WPARAM wp,LPARAM lp){switch(m){case WM_SHOW_EXISTING_INSTANCE:ShowMain();return 0;case WM_UPDATE_AVAILABLE:ShowUpdateAvailable((UpdateInfo*)lp);return 0;case WM_SHOW_APP_MESSAGE:{auto* data=(AppMessageData*)lp;if(data){std::wstring title=data->title,text=data->text;delete data;ShowAppMessage(title,text);}return 0;}case WM_CREATE:gWnd=w;BuildControls();RegisterConfiguredHotkeys();RefreshList();LoadSelected();SetTimer(w,1,250,nullptr);return 0;case WM_DPICHANGED:{
-    // Windows has already selected the new DPI for this HWND. Apply the
-    // responsive size immediately while that DPI is authoritative. Deferring
-    // this message left the top-level HWND at the previous monitor's physical
-    // size while only the child/layout scale changed, producing the large
-    // unused background seen on high-DPI displays.
-    RECT target=*reinterpret_cast<RECT*>(lp);
-    HMONITOR monitor=MonitorFromRect(&target,MONITOR_DEFAULTTONEAREST);
-    gPendingResponsiveRect=false;
-    KillTimer(w,2);
-    ApplyResponsiveLayout(w,monitor,&target,false);
+    // Do not run the full responsive layout synchronously while the window is
+    // crossing monitors. Windows can deliver several size/position messages
+    // during a per-monitor DPI transition, and ApplyResponsiveLayout() performs
+    // multiple SetWindowPos/layout/font operations. Debounce the DPI transition
+    // and apply the final suggested rect once the move has settled.
+    gResponsiveSuggestedRect=*reinterpret_cast<RECT*>(lp);
+    gPendingResponsiveRect=true;
+    KillTimer(w,4);
+    SetTimer(w,4,120,nullptr);
     return 0;
 }case WM_EXITSIZEMOVE:return 0;case WM_HOTKEY:if(wp==ID_HOTKEY_SHOW_HIDE){ToggleMainVisibility();return 0;}if(wp==ID_HOTKEY_WINDOWS_OVERRIDE){ToggleWindowsOverride();return 0;}if(wp==ID_HOTKEY_RESUME_AUTOMATIC){ResumeAutomaticSwitching();return 0;}if(wp>=ID_HOTKEY_PROFILE_BASE&&wp<ID_HOTKEY_PROFILE_BASE+(WPARAM)gSettings.profiles.size()){ToggleProfileOverride((size_t)(wp-ID_HOTKEY_PROFILE_BASE));return 0;}break;case WM_ACTIVATE:
     if(LOWORD(wp)!=WA_INACTIVE) RefreshDriverVersion();
@@ -5813,6 +5812,16 @@ case WM_DEVICECHANGE:
 case WM_TIMER:
     if(wp==1){
         CheckProcesses();
+        return 0;
+    }
+    if(wp==4){
+        KillTimer(w,4);
+        if(gPendingResponsiveRect){
+            RECT targetRect=gResponsiveSuggestedRect;
+            gPendingResponsiveRect=false;
+            HMONITOR monitor=MonitorFromRect(&targetRect,MONITOR_DEFAULTTONEAREST);
+            ApplyResponsiveLayout(w,monitor,&targetRect,false);
+        }
         return 0;
     }
     if(wp==2){
