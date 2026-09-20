@@ -113,6 +113,9 @@ double gUiScale=1.0;
 bool gPendingResponsiveRect=false;
 RECT gResponsiveSuggestedRect{};
 bool gMainWindowInSizeMove=false;
+bool gDragAnchorValid=false;
+double gDragAnchorX=0.5;
+double gDragTitleRatio=0.5;
 
 int Ui(int value){
     return static_cast<int>(std::lround(static_cast<double>(value)*gUiScale));
@@ -3837,26 +3840,31 @@ void ApplyResponsiveLayout(HWND hwnd,HMONITOR monitor,const RECT* suggested=null
     // that cursor.
     const bool preserveDragAnchor=gMainWindowInSizeMove&&suggested&&!center;
     POINT dragCursor{};
-    double dragAnchorX=0.5;
-    double dragTitleRatio=0.5;
     int dragAnchorY=0;
     if(preserveDragAnchor){
         RECT before{},beforeClient{};
         POINT beforeClientTop{0,0};
         if(GetWindowRect(hwnd,&before)&&GetClientRect(hwnd,&beforeClient)&&
            ClientToScreen(hwnd,&beforeClientTop)&&GetCursorPos(&dragCursor)){
-            const int beforeW=std::max(1,(int)(before.right-before.left));
-            dragAnchorX=std::clamp(
-                static_cast<double>(dragCursor.x-before.left)/beforeW,0.0,1.0);
-
-            // Preserve the vertical grab point relative to the actual top
-            // non-client area instead of as a fixed number of physical pixels.
-            // That area changes height when moving between different DPIs.
             const int beforeNonClientTop=std::max<int>(
                 1,static_cast<int>(beforeClientTop.y-before.top));
-            dragAnchorY=std::max<int>(0,static_cast<int>(dragCursor.y-before.top));
-            dragTitleRatio=std::clamp(
-                static_cast<double>(dragAnchorY)/beforeNonClientTop,0.0,1.0);
+
+            // Capture the grab point once for the whole move loop. Recomputing
+            // it after every DPI resize makes tiny rounding differences become
+            // the new reference and causes horizontal drift on repeated crossings.
+            if(!gDragAnchorValid){
+                const int beforeW=std::max(1,(int)(before.right-before.left));
+                gDragAnchorX=std::clamp(
+                    static_cast<double>(dragCursor.x-before.left)/beforeW,0.0,1.0);
+                const int initialAnchorY=std::max<int>(
+                    0,static_cast<int>(dragCursor.y-before.top));
+                gDragTitleRatio=std::clamp(
+                    static_cast<double>(initialAnchorY)/beforeNonClientTop,0.0,1.0);
+                gDragAnchorValid=true;
+            }
+
+            dragAnchorY=static_cast<int>(
+                std::lround(gDragTitleRatio*beforeNonClientTop));
         }
     }
 
@@ -3878,7 +3886,7 @@ void ApplyResponsiveLayout(HWND hwnd,HMONITOR monitor,const RECT* suggested=null
     int x=left+(right-left-size.cx)/2;
     int y=top+(bottom-top-size.cy)/2;
     if(preserveDragAnchor){
-        x=dragCursor.x-static_cast<int>(std::lround(dragAnchorX*size.cx));
+        x=dragCursor.x-static_cast<int>(std::lround(gDragAnchorX*size.cx));
         y=dragCursor.y-dragAnchorY;
     }else if(!center&&suggested){
         x=(int)suggested->left;
@@ -3933,7 +3941,7 @@ void ApplyResponsiveLayout(HWND hwnd,HMONITOR monitor,const RECT* suggested=null
         // The measured client-size correction can alter the final outer width.
         // Re-anchor only after that final size is known.
         const int finalX=dragCursor.x-
-            static_cast<int>(std::lround(dragAnchorX*finalW));
+            static_cast<int>(std::lround(gDragAnchorX*finalW));
 
         // Measure the destination monitor's real top non-client area after the
         // DPI resize, then restore the same relative point inside the title bar.
@@ -3944,7 +3952,7 @@ void ApplyResponsiveLayout(HWND hwnd,HMONITOR monitor,const RECT* suggested=null
             const int finalNonClientTop=std::max<int>(
                 1,static_cast<int>(finalClientTop.y-finalWindow.top));
             finalAnchorY=static_cast<int>(
-                std::lround(dragTitleRatio*finalNonClientTop));
+                std::lround(gDragTitleRatio*finalNonClientTop));
         }
         const int finalY=dragCursor.y-finalAnchorY;
         if(finalX!=finalWindow.left||finalY!=finalWindow.top)
@@ -5707,6 +5715,7 @@ void ShowConfigurationPopup(HWND owner){
 
 LRESULT CALLBACK Proc(HWND w,UINT m,WPARAM wp,LPARAM lp){switch(m){case WM_SHOW_EXISTING_INSTANCE:ShowMain();return 0;case WM_UPDATE_AVAILABLE:ShowUpdateAvailable((UpdateInfo*)lp);return 0;case WM_SHOW_APP_MESSAGE:{auto* data=(AppMessageData*)lp;if(data){std::wstring title=data->title,text=data->text;delete data;ShowAppMessage(title,text);}return 0;}case WM_CREATE:gWnd=w;BuildControls();RegisterConfiguredHotkeys();RefreshList();LoadSelected();SetTimer(w,1,250,nullptr);return 0;case WM_ENTERSIZEMOVE:
     gMainWindowInSizeMove=true;
+    gDragAnchorValid=false;
     return 0;
 case WM_DPICHANGED:{
     // Windows has already selected the new DPI for this HWND. Apply the
@@ -5723,6 +5732,7 @@ case WM_DPICHANGED:{
     return 0;
 }case WM_EXITSIZEMOVE:
     gMainWindowInSizeMove=false;
+    gDragAnchorValid=false;
     return 0;case WM_HOTKEY:if(wp==ID_HOTKEY_SHOW_HIDE){ToggleMainVisibility();return 0;}if(wp==ID_HOTKEY_WINDOWS_OVERRIDE){ToggleWindowsOverride();return 0;}if(wp==ID_HOTKEY_RESUME_AUTOMATIC){ResumeAutomaticSwitching();return 0;}if(wp>=ID_HOTKEY_PROFILE_BASE&&wp<ID_HOTKEY_PROFILE_BASE+(WPARAM)gSettings.profiles.size()){ToggleProfileOverride((size_t)(wp-ID_HOTKEY_PROFILE_BASE));return 0;}break;case WM_ACTIVATE:
     if(LOWORD(wp)!=WA_INACTIVE) RefreshDriverVersion();
     return 0;case WM_SIZE:
