@@ -117,6 +117,36 @@ bool gDragAnchorValid=false;
 double gDragAnchorX=0.5;
 double gDragTitleRatio=0.5;
 
+void DpiDragTrace(const wchar_t* stage,HWND hwnd,const RECT* suggested=nullptr,
+                  int requestedX=INT_MIN,int requestedW=INT_MIN){
+    if(!gMainWindowInSizeMove)return;
+    RECT wr{};
+    POINT cursor{};
+    if(!GetWindowRect(hwnd,&wr)||!GetCursorPos(&cursor))return;
+
+    wchar_t exePath[MAX_PATH]{};
+    GetModuleFileNameW(nullptr,exePath,MAX_PATH);
+    std::wstring logPath=exePath;
+    const size_t slash=logPath.find_last_of(L"\\/");
+    if(slash!=std::wstring::npos)logPath.resize(slash+1);
+    else logPath.clear();
+    logPath+=L"dpi-drag-trace.log";
+
+    FILE* f=nullptr;
+    if(_wfopen_s(&f,logPath.c_str(),L"a+, ccs=UTF-8")!=0||!f)return;
+
+    const int suggestedLeft=suggested?static_cast<int>(suggested->left):INT_MIN;
+    const int suggestedWidth=suggested?
+        static_cast<int>(suggested->right-suggested->left):INT_MIN;
+
+    fwprintf(f,
+        L"%ls | dpi=%u cursorX=%ld winLeft=%ld winW=%ld anchorX=%.6f "
+        L"suggestedLeft=%d suggestedW=%d requestedX=%d requestedW=%d\n",
+        stage,GetDpiForWindow(hwnd),cursor.x,wr.left,wr.right-wr.left,gDragAnchorX,
+        suggestedLeft,suggestedWidth,requestedX,requestedW);
+    fclose(f);
+}
+
 int Ui(int value){
     return static_cast<int>(std::lround(static_cast<double>(value)*gUiScale));
 }
@@ -3839,6 +3869,7 @@ void ApplyResponsiveLayout(HWND hwnd,HMONITOR monitor,const RECT* suggested=null
     // size, but the point of the title bar held by the cursor should stay under
     // that cursor.
     const bool preserveDragAnchor=gMainWindowInSizeMove&&suggested&&!center;
+    if(preserveDragAnchor)DpiDragTrace(L"Apply-enter",hwnd,suggested);
     POINT dragCursor{};
     int dragAnchorY=0;
     if(preserveDragAnchor){
@@ -3911,7 +3942,9 @@ void ApplyResponsiveLayout(HWND hwnd,HMONITOR monitor,const RECT* suggested=null
     const int desiredClientW=Ui(MAIN_BASE_CLIENT_WIDTH);
     const int desiredClientH=Ui(MAIN_BASE_CLIENT_HEIGHT);
 
+    if(preserveDragAnchor)DpiDragTrace(L"Before-first-SWP",hwnd,suggested,x,size.cx);
     SetWindowPos(hwnd,nullptr,x,y,size.cx,size.cy,SWP_NOZORDER|SWP_NOACTIVATE);
+    if(preserveDragAnchor)DpiDragTrace(L"After-first-SWP",hwnd,suggested,x,size.cx);
 
     // One measured correction is enough after Windows has applied the target
     // monitor DPI. Avoid the old three-pass SetWindowPos loop, which could
@@ -3936,17 +3969,8 @@ void ApplyResponsiveLayout(HWND hwnd,HMONITOR monitor,const RECT* suggested=null
         const int correctedH=(window.bottom-window.top)+
             ((std::abs(deltaH)>1)?deltaH:0);
 
-        const int currentW=window.right-window.left;
-
-        // The 2K -> portable transition already tracks correctly. On the
-        // reverse transition the corrected outer width becomes smaller; using
-        // that smaller width to recompute the proportional X anchor introduces
-        // a second horizontal move. Keep the X established by the first
-        // SetWindowPos only for that shrinking transition.
-        const bool shrinkingWidth=correctedW<currentW;
-        const int finalX=shrinkingWidth
-            ? static_cast<int>(window.left)
-            : dragCursor.x-static_cast<int>(std::lround(gDragAnchorX*correctedW));
+        const int finalX=dragCursor.x-
+            static_cast<int>(std::lround(gDragAnchorX*correctedW));
 
         RECT currentClient{};
         POINT currentClientTop{0,0};
@@ -3962,8 +3986,10 @@ void ApplyResponsiveLayout(HWND hwnd,HMONITOR monitor,const RECT* suggested=null
         if(finalX!=window.left||finalY!=window.top||
            correctedW!=(window.right-window.left)||
            correctedH!=(window.bottom-window.top)){
+            DpiDragTrace(L"Before-final-SWP",hwnd,suggested,finalX,correctedW);
             SetWindowPos(hwnd,nullptr,finalX,finalY,correctedW,correctedH,
                 SWP_NOZORDER|SWP_NOACTIVATE);
+            DpiDragTrace(L"After-final-SWP",hwnd,suggested,finalX,correctedW);
         }
     }else{
         if(std::abs(deltaW)>1||std::abs(deltaH)>1){
@@ -5743,6 +5769,7 @@ case WM_DPICHANGED:{
     // unused background seen on high-DPI displays.
     RECT target=*reinterpret_cast<RECT*>(lp);
     HMONITOR monitor=MonitorFromRect(&target,MONITOR_DEFAULTTONEAREST);
+    DpiDragTrace(L"WM_DPICHANGED",w,&target);
 
     gPendingResponsiveRect=false;
     KillTimer(w,2);
