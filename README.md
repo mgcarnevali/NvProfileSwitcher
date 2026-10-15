@@ -15,7 +15,7 @@ Set your favorite colors once. NvProfileSwitcher takes care of the rest.
 </div>
 
 > [!NOTE]
-> **NvProfileSwitcher v3 is in development.** The releases page currently provides the publicly available versions. Version 3 downloads will appear there when released.
+> **NvProfileSwitcher v3 is in development.** Downloads will be available on the releases page when v3 is released.
 
 <!-- Add an actual v3 screenshot here when available. -->
 
@@ -31,7 +31,7 @@ NvProfileSwitcher watches which application is in the foreground and applies the
 |---|---|
 | **Automatic application switching** | Detects the foreground application and activates the first matching, enabled profile. |
 | **Five NVIDIA color controls** | Adjust **Digital Vibrance, Hue, Brightness, Contrast, and Gamma** independently for each monitor. |
-| **NVIDIA settings import** | Automatically imports existing NVIDIA Control Panel color settings when a monitor is first detected, preserving your preferred colors. |
+| **NVIDIA settings import** | Initializes newly detected monitors from available NVIDIA Control Panel brightness, contrast, and gamma settings. |
 | **Per-monitor settings** | Save distinct colors for each physical display in every profile. |
 | **Live Preview** | See adjustments immediately without committing them until you save. |
 | **Multiple executables per profile** | Associate several `.exe` names with one profile and use profile order to set priority. |
@@ -70,10 +70,10 @@ Each application profile has its own name, executable associations, enabled stat
 
 - **Add profile** creates a new profile to configure.
 - **Running apps...** lets you choose from detected running applications; **Browse...** selects an executable on disk.
-- **Enable/disable** determines whether a profile participates in automatic switching and manual activation.
+- **Enable/disable** using the power button beside a profile determines whether it participates in automatic switching and manual activation.
 - **Move up/down** changes matching priority.
 - **Copy settings** copies color settings from another profile for displays shared by both.
-- **Reset** returns the selected monitor's controls to neutral values in the editor.
+- **Reset to NVIDIA defaults** returns the selected monitor's controls to neutral values (100 brightness, 100 contrast, 1.00 gamma, 50% Digital Vibrance, and 0° hue), not the values imported on first detection.
 - **Save profile** commits your edits; **Cancel** discards them. NvProfileSwitcher asks before discarding unsaved changes.
 
 ### Color controls
@@ -124,13 +124,15 @@ Assign global shortcuts in **Hotkeys**, and individual application shortcuts in 
 | **Resume auto switching** | Clear the current override. |
 | **Profile hotkey** | Toggle a specific enabled application profile override. |
 
-Click a hotkey field and press your desired combination. Press **Esc** to clear it. Shortcuts generally require Ctrl or Alt plus another key; **F1–F24** can be used alone. **Ctrl+Alt** combinations are reserved to avoid conflicts with AltGr, and duplicate or already-registered shortcuts are rejected. No default shortcuts are assigned.
+Click a hotkey field and press your desired combination. Press **Esc** to clear it. Shortcuts generally require Ctrl or Alt plus another key; **F1–F24** can be used alone. **Ctrl+Alt without Shift** is reserved to avoid conflicts with AltGr; the Windows key is not supported as a modifier. Duplicate or already-registered shortcuts are rejected. No default shortcuts are assigned.
 
 ## Multiple monitors
 
 NvProfileSwitcher stores separate colors for each display and profile. Where available, it uses a unique **EDID serial number** to recognize a physical monitor even if Windows changes its display number or connection. Displays without unique serial numbers are tracked by their connection, with safeguards for ambiguous identities.
 
-When a monitor is detected for the first time, NvProfileSwitcher initializes its Windows Profile settings using the available NVIDIA Control Panel values for Brightness, Contrast, Gamma, Digital Vibrance, and Hue. If valid NVIDIA settings are unavailable, neutral defaults are used.
+When a monitor is detected for the first time, NvProfileSwitcher initializes its Windows Profile with available NVIDIA Control Panel **Brightness, Contrast, and Gamma** settings, and reads **Digital Vibrance and Hue** from the current NVIDIA driver values. If valid settings cannot be read, neutral defaults are used for the affected controls. Per-channel (R/G/B) adjustments are not imported.
+
+This initialization happens only once per monitor; subsequent changes in NVIDIA Control Panel are not automatically synchronized.
 
 Existing saved monitor settings are preserved. Newly created application profiles inherit their initial colors from the Windows Profile. Connection and disconnection events refresh the display setup automatically.
 
@@ -145,11 +147,11 @@ When Windows resumes, NvProfileSwitcher refreshes the NVIDIA API and monitor inf
 NvProfileSwitcher can run conveniently alongside your other applications:
 
 - **Start with Windows** launches it when you sign in.
-- **Start minimized** starts it hidden in the system tray.
+- **Start minimized** starts it hidden in the system tray when launched with Windows.
 - **Minimize to tray** hides the window instead of keeping it on the taskbar when minimized.
 - **Always on top** keeps the main window above other windows.
 
-The tray menu provides **Open NvProfileSwitcher**, **Global Switching**, **Check for updates**, **About NvProfileSwitcher**, and **Exit**. Clicking the tray icon reopens the window.
+While NvProfileSwitcher is hidden in the system tray, its icon menu provides **Open NvProfileSwitcher**, **Global Switching**, **Check for updates**, **About NvProfileSwitcher**, and **Exit**. Clicking the tray icon reopens the window.
 
 **Closing the window with X exits NvProfileSwitcher** and restores the Windows Profile. Use minimize-to-tray when you want the application to keep running out of sight.
 
@@ -170,8 +172,6 @@ The active configuration is stored locally at:
 ```text
 %APPDATA%\NvProfileSwitcher\config.json
 ```
-
-**Upgrading from v2?** Version 3 is a new application generation. Existing v2 configuration files are not automatically migrated or directly imported into v3.
 
 ## Download and installation
 
@@ -201,9 +201,6 @@ Yes. Assign a profile hotkey, use Windows Override, or select Resume auto switch
 **Can I keep the app running without a visible window?**  
 Yes. Enable Minimize to tray, or Start minimized when launching with Windows.
 
-**Can I use my v2 configuration file?**  
-No. Configure v3 profiles separately; v3's Import/Export feature is intended for v3 configuration backups.
-
 **What if a feature doesn't work on my system?**  
 [Open an issue](https://github.com/mgcarnevali/NvProfileSwitcher/issues) with your Windows version, NVIDIA GPU and driver, and steps to reproduce the problem.
 
@@ -213,13 +210,11 @@ Found a bug or have a feature request? [**Open a GitHub issue**](https://github.
 
 If you'd like to support continued development, visit [**Ko-fi**](https://ko-fi.com/mgcarnevali).
 
-## License and previous versions
+## Freeware
 
-**NvProfileSwitcher v3 is proprietary freeware.** It is free to use, and its source code is not publicly distributed. The applicable terms will accompany the v3 release.
+**NvProfileSwitcher is free to use.**
 
-Earlier open-source releases retain their original licenses, including **GNU GPL v3.0** for v2. The original source tree remains available in the [`legacy/v2` branch](https://github.com/mgcarnevali/NvProfileSwitcher/tree/legacy/v2), along with the repository's historical tags and releases.
-
-Copyright © 2026 Maximiliano Carnevali. All rights reserved for the proprietary v3 release, subject to applicable third-party rights and licenses.
+Copyright © 2026 Maximiliano Carnevali. All rights reserved.
 
 ---
 
