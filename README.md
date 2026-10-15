@@ -31,6 +31,7 @@ NvProfileSwitcher watches which application is in the foreground and applies the
 |---|---|
 | **Automatic application switching** | Detects the foreground application and activates the first matching, enabled profile. |
 | **Five NVIDIA color controls** | Adjust **Digital Vibrance, Hue, Brightness, Contrast, and Gamma** independently for each monitor. |
+| **NVIDIA settings import** | Automatically imports existing NVIDIA Control Panel color settings when a monitor is first detected, preserving your preferred colors. |
 | **Per-monitor settings** | Save distinct colors for each physical display in every profile. |
 | **Live Preview** | See adjustments immediately without committing them until you save. |
 | **Multiple executables per profile** | Associate several `.exe` names with one profile and use profile order to set priority. |
@@ -129,7 +130,9 @@ Click a hotkey field and press your desired combination. Press **Esc** to clear 
 
 NvProfileSwitcher stores separate colors for each display and profile. Where available, it uses a unique **EDID serial number** to recognize a physical monitor even if Windows changes its display number or connection. Displays without unique serial numbers are tracked by their connection, with safeguards for ambiguous identities.
 
-When a new monitor appears, NvProfileSwitcher adds it to your profiles using the corresponding Windows Profile baseline. Connection and disconnection events refresh the display setup automatically.
+When a monitor is detected for the first time, NvProfileSwitcher initializes its Windows Profile settings using the available NVIDIA Control Panel values for Brightness, Contrast, Gamma, Digital Vibrance, and Hue. If valid NVIDIA settings are unavailable, neutral defaults are used.
+
+Existing saved monitor settings are preserved. Newly created application profiles inherit their initial colors from the Windows Profile. Connection and disconnection events refresh the display setup automatically.
 
 Use **Advanced Settings → Manage displays...** to review saved displays and remove disconnected displays you no longer use.
 
