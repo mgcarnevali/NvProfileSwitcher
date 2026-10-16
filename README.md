@@ -242,11 +242,13 @@ Found a bug or have a feature request? [**Open a GitHub issue**](https://github.
 
 If you'd like to support continued development, visit [**Ko-fi**](https://ko-fi.com/mgcarnevali).
 
-## Freeware
+## License
 
-**NvProfileSwitcher is free to use.**
+NvProfileSwitcher is free and open-source software licensed under the **GNU General Public License v3.0 (GPLv3)**.
 
-Copyright © 2026 Maximiliano Carnevali. All rights reserved.
+You are free to use, study, modify, and redistribute the software under the terms of the [GPLv3 license](LICENSE).
+
+Copyright © 2026 Maximiliano Carnevali.
 
 ---
 
