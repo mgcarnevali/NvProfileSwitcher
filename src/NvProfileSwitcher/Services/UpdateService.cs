@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Diagnostics;
 using System.IO.Compression;
 using Microsoft.Win32;
@@ -25,6 +26,10 @@ internal sealed record PreparedUpdate(bool IsInstaller, string Root, string File
 
 /// <summary>A prepared update whose helper or installer was started.</summary>
 internal sealed record LaunchedUpdate(PreparedUpdate Update, Process? Process);
+
+/// <summary>The user cancelled the UAC prompt of the installer: nothing was started or changed.</summary>
+internal sealed class UpdateCancelledException(Exception innerException)
+    : Exception("The update was cancelled.", innerException);
 
 internal static class UpdateService
 {
@@ -252,12 +257,20 @@ internal static class UpdateService
 
             return new LaunchedUpdate(update, process);
         }
-        catch
+        catch (Exception ex)
         {
             TryDeleteDirectory(update.Root);
+            if (update.IsInstaller && IsCancelledByUser(ex))
+                throw new UpdateCancelledException(ex);
             throw;
         }
     }
+
+    private const int ErrorCancelled = 1223;
+
+    // What Process.Start throws when the user answers No to the UAC prompt (ERROR_CANCELLED).
+    internal static bool IsCancelledByUser(Exception ex) =>
+        ex is Win32Exception { NativeErrorCode: ErrorCancelled };
 
     // The installer runs elevated, so it does not start NvProfileSwitcher again after a silent
     // update (skipifsilent): whatever it started would be elevated too, or run as the

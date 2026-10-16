@@ -38,6 +38,12 @@ public partial class UpdateAvailableWindow : Window
                 LaterButton.IsEnabled = true;
             }
         }
+        catch (UpdateCancelledException)
+        {
+            ProgressText.Text = "Update cancelled\nThe update was cancelled. NvProfileSwitcher has not been modified.";
+            UpdateButton.IsEnabled = true;
+            LaterButton.IsEnabled = true;
+        }
         catch (Exception ex)
         {
             ProgressText.Text = "Update failed. Your current installation was not changed.\n" + ex.Message;

@@ -97,10 +97,12 @@ public sealed class DialogServiceTests
     }
 
     // An update that is not launched or does not close the application leaves the dialog as it
-    // was before Update was clicked; a failure is reported in the dialog, as before.
+    // was before Update was clicked; a failure is reported in the dialog, as before, and a
+    // cancelled UAC prompt with a short message instead of the error.
     [AvaloniaTheory]
     [InlineData("cancelled")]
     [InlineData("failed")]
+    [InlineData("uac-cancelled")]
     public void UpdateTheDialogOffersAgainWhenTheUpdateDoesNotCloseTheApplication(string outcome)
     {
         var (main, dialogs) = Create();
@@ -109,9 +111,12 @@ public sealed class DialogServiceTests
         _ = dialogs.ShowUpdateAvailableAsync(FakeReleaseSource.Release("9.8.7"), _ =>
         {
             installs++;
-            return outcome == "failed"
-                ? Task.FromException<bool>(new InvalidOperationException("Could not start the update helper."))
-                : Task.FromResult(false);
+            return outcome switch
+            {
+                "failed" => Task.FromException<bool>(new InvalidOperationException("Could not start the update helper.")),
+                "uac-cancelled" => Task.FromException<bool>(new UpdateCancelledException(new System.ComponentModel.Win32Exception(1223))),
+                _ => Task.FromResult(false)
+            };
         });
         Dispatcher.UIThread.RunJobs();
         var dialog = OwnedDialog<UpdateAvailableWindow>(main);
@@ -125,9 +130,11 @@ public sealed class DialogServiceTests
         Assert.Equal(1, installs);
         Assert.True(update.IsEnabled);
         Assert.True(later.IsEnabled);
-        Assert.Equal(outcome == "failed", progress.IsVisible);
+        Assert.Equal(outcome != "cancelled", progress.IsVisible);
         if (outcome == "failed")
             Assert.Equal("Update failed. Your current installation was not changed.\nCould not start the update helper.", progress.Text);
+        if (outcome == "uac-cancelled")
+            Assert.Equal("Update cancelled\nThe update was cancelled. NvProfileSwitcher has not been modified.", progress.Text);
         dialog.Close();
         main.Close();
     }

@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using Xunit;
 
 namespace NvProfileSwitcher.Core.Tests;
@@ -62,6 +63,24 @@ public sealed class UpdateCleanupTests : IDisposable
     public void TheRelauncherRejectsInvalidArguments(string[] args)
     {
         Assert.Equal(2, UpdateService.RelaunchAfterInstall(args));
+    }
+
+    // Only ERROR_CANCELLED, what Process.Start throws when the UAC prompt is answered No, is a
+    // cancellation; any other error, access denied included, is still a failure.
+    [Theory]
+    [InlineData(1223, true)]
+    [InlineData(5, false)]
+    [InlineData(2, false)]
+    public void OnlyACancelledUacPromptIsACancellation(int error, bool cancelled)
+    {
+        Assert.Equal(cancelled, UpdateService.IsCancelledByUser(new Win32Exception(error)));
+    }
+
+    [Fact]
+    public void OtherExceptionsAreNotACancellation()
+    {
+        Assert.False(UpdateService.IsCancelledByUser(new InvalidOperationException("Could not start the update installer.")));
+        Assert.False(UpdateService.IsCancelledByUser(new TaskCanceledException()));
     }
 
     // The installer already exited and the executable does not exist (the installation failed

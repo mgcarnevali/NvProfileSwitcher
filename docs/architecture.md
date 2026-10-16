@@ -751,7 +751,9 @@ Backup      [Import...]  [Export...]
   for the installer to exit, deletes the installer files and starts the installed executable (the
   new version, or the previous one when the installation failed or was cancelled). It starts
   nothing while the installer runs. A cancelled UAC prompt starts neither the installer nor the
-  relauncher. An interactive installation still offers "Launch NvProfileSwitcher", which Setup
+  relauncher, and is reported as a cancellation, not as a failure: `Launch` turns the
+  `Win32Exception` with `ERROR_CANCELLED` (1223) into `UpdateCancelledException`, and the update
+  dialog shows "Update cancelled" with a short message instead of the error. An interactive installation still offers "Launch NvProfileSwitcher", which Setup
   runs without elevation.
 - **Temporary files.** Each update uses its own folder in `%TEMP%\NvProfileSwitcher\Updates`. A
   failed, discarded or cancelled update deletes it at once. After a portable update the helper
