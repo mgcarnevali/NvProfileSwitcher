@@ -691,7 +691,7 @@ everything was saved. In protected mode it writes nothing.
 ## 14. Application Settings and Advanced
 
 **Application Settings:** Start with Windows, Start minimized, Minimize to tray, Always on top and
-Check for updates automatically save at once. Start with Windows and Start minimized rewrite the Run entry
+Check for updates save at once. Start with Windows and Start minimized rewrite the Run entry
 (`"exe" [--minimized]`) after a successful save; it is also rewritten at every startup. Check for
 updates moved here from the reference's Advanced dialog; in development builds it is disabled,
 unchecked, with the tooltip "Update checks are disabled in development builds.". "Advanced…" opens
