@@ -156,7 +156,7 @@ public sealed class ApplicationSettingsTests
         Dispatcher.UIThread.RunJobs();
         var boxes = view.GetVisualDescendants().OfType<CheckBox>().ToList();
         Assert.Equal(
-            ["Start with Windows", "Start minimized", "Minimize to tray", "Always on top", "Check for updates automatically"],
+            ["Start with Windows", "Start minimized", "Minimize to tray", "Always on top", "Check for updates"],
             boxes.Select(box => box.Content));
 
         boxes[3].IsChecked = true;
@@ -180,7 +180,7 @@ public sealed class ApplicationSettingsTests
         var window = new Window { Content = view };
         window.Show();
         Dispatcher.UIThread.RunJobs();
-        var box = view.GetVisualDescendants().OfType<CheckBox>().Single(b => Equals(b.Content, "Check for updates automatically"));
+        var box = view.GetVisualDescendants().OfType<CheckBox>().Single(b => Equals(b.Content, "Check for updates"));
 
         Assert.False(box.IsEnabled);
         Assert.False(box.IsChecked);

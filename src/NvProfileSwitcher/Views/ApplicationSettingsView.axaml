@@ -19,7 +19,7 @@
         <CheckBox Content="Always on top" IsChecked="{CompiledBinding AlwaysOnTop}"/>
         <!-- As in the original, the tooltip is set on the disabled checkbox of development
              builds without ShowOnDisabled. -->
-        <CheckBox Content="Check for updates automatically" IsChecked="{CompiledBinding CheckForUpdates}"
+        <CheckBox Content="Check for updates" IsChecked="{CompiledBinding CheckForUpdates}"
                   IsEnabled="{CompiledBinding IsCheckForUpdatesEnabled}"
                   ToolTip.Tip="{CompiledBinding CheckForUpdatesToolTip}"/>
       </StackPanel>
