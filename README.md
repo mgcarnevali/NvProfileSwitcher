@@ -191,7 +191,7 @@ Manage update checks, remember switching and override states, organize saved dis
 
 ### Updates
 
-Use **Check for updates** from the application or tray menu, or enable **Check for updates automatically** in Application Settings. When a new stable release is available, NvProfileSwitcher offers to install it or postpone it.
+Use **Check for updates** from the application or tray menu, or enable **Check for updates** in Application Settings. When a new stable release is available, NvProfileSwitcher offers to install it or postpone it.
 
 Downloads are checked against their **SHA-256** verification files. The updater supports both the installed edition and the portable executable.
 
