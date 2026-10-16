@@ -10,7 +10,7 @@ Set your favorite colors once. NvProfileSwitcher takes care of the rest.
 
 [**Download**](https://github.com/mgcarnevali/NvProfileSwitcher/releases) · [**Report an issue**](https://github.com/mgcarnevali/NvProfileSwitcher/issues) · [**Support development**](https://ko-fi.com/mgcarnevali)
 
-**Windows 10 / 11** · **NVIDIA GPU** · **Freeware**
+**Windows 10 / 11** · **NVIDIA GPU** · **Free & Open Source**
 
 </div>
 
