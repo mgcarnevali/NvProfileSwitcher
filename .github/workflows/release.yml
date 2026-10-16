@@ -342,9 +342,12 @@ jobs:
             throw "The executable in $zipName is not the one that was built and tested."
           }
 
+          # Inno Setup pads the product version with spaces; only the surrounding whitespace is
+          # ignored, so any other difference still fails.
           $installer = (Get-Item (Join-Path $dir $setupName)).VersionInfo
-          if ($installer.ProductVersion -ne $version) {
-            throw "$setupName reports product version $($installer.ProductVersion), not $version."
+          $productVersion = "$($installer.ProductVersion)".Trim()
+          if ($productVersion -ne $version) {
+            throw "$setupName reports product version '$($installer.ProductVersion)', not $version."
           }
 
           Get-ChildItem -Path $dir -File | ForEach-Object { Write-Host "$($_.Name) ($($_.Length) bytes)" }
