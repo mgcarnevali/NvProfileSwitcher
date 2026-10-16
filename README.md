@@ -68,6 +68,12 @@ Your always-available baseline profile. It is the first entry in the list and ca
 
 New profiles start with your Windows Profile's color settings for the connected displays, so you can fine-tune only what needs to change.
 
+<div align="center">
+  <img src="assets/screenshots/nvprofileswitcher-windows-profile.png"
+       alt="NvProfileSwitcher v3 - Windows Profile"
+       width="100%">
+</div>
+
 ### Application Profiles
 
 Each application profile has its own name, executable associations, enabled state, optional hotkey, and color settings for every monitor.
