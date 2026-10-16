@@ -743,6 +743,22 @@ Backup      [Import...]  [Export...]
 - When the update is not launched or the application does not close, the dialog is as it was
   before Update was clicked, with no new text. A failure to prepare or launch is reported in the
   dialog as before. While one installation runs, another one (a second update dialog) does nothing.
+- **Starting again after an installed update.** The installer is started elevated (`runas`) and
+  runs `/SILENT`; its `[Run]` entry is `skipifsilent`, because whatever an elevated Setup starts
+  is elevated too, or runs as the administrator who approved the prompt. Instead, `Launch` starts
+  a copy of the running executable from the update folder, with the user's normal privileges:
+  `--relaunch-after-install <installer pid> "<executable>" "<update folder>"` waits up to an hour
+  for the installer to exit, deletes the installer files and starts the installed executable (the
+  new version, or the previous one when the installation failed or was cancelled). It starts
+  nothing while the installer runs. A cancelled UAC prompt starts neither the installer nor the
+  relauncher. An interactive installation still offers "Launch NvProfileSwitcher", which Setup
+  runs without elevation.
+- **Temporary files.** Each update uses its own folder in `%TEMP%\NvProfileSwitcher\Updates`. A
+  failed, discarded or cancelled update deletes it at once. After a portable update the helper
+  deletes the package, the extracted files and the backup. What a process still running from that
+  folder keeps (the helper or the relauncher) is deleted when the primary instance starts
+  (`UpdateService.DeleteLeftoverUpdates`, before any update of that process exists); a folder
+  still in use then is deleted on a later start.
 
 ---
 

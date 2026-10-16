@@ -15,6 +15,12 @@ internal static class Program
             return;
         }
 
+        if (args.Length > 0 && string.Equals(args[0], UpdateService.RelaunchAfterInstallArgument, StringComparison.OrdinalIgnoreCase))
+        {
+            Environment.ExitCode = UpdateService.RelaunchAfterInstall(args);
+            return;
+        }
+
         if (!SingleInstanceService.TryCreatePrimary(out var singleInstance))
         {
             SingleInstanceService.RequestShowFromPrimary();
@@ -23,6 +29,7 @@ internal static class Program
 
         SingleInstance = singleInstance;
         singleInstance.StartListening();
+        UpdateService.DeleteLeftoverUpdates();
 
         try
         {

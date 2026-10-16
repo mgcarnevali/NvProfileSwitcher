@@ -28,6 +28,29 @@ internal sealed record LaunchedUpdate(PreparedUpdate Update, Process? Process);
 
 internal static class UpdateService
 {
+    /// <summary>The folder that holds one subfolder per update while it is prepared and applied.</summary>
+    internal static string UpdatesDirectory => Path.Combine(Path.GetTempPath(), "NvProfileSwitcher", "Updates");
+
+    /// <summary>
+    /// Deletes what earlier updates left in <paramref name="updatesDirectory"/> (by default
+    /// <see cref="UpdatesDirectory"/>): the installer of a completed update, or the helper of a
+    /// portable one, which cannot delete the folder it runs from. Called once when the primary
+    /// instance starts, before any update of this process exists. A folder still in use is kept
+    /// and deleted on a later start.
+    /// </summary>
+    internal static void DeleteLeftoverUpdates(string? updatesDirectory = null)
+    {
+        try
+        {
+            foreach (var folder in Directory.EnumerateDirectories(updatesDirectory ?? UpdatesDirectory))
+                TryDeleteDirectory(folder);
+        }
+        catch
+        {
+            // No updates folder, or it cannot be read: nothing to delete.
+        }
+    }
+
     private static readonly Uri LatestReleaseApi =
         new("https://api.github.com/repos/mgcarnevali/NvProfileSwitcher/releases/latest");
 
@@ -141,7 +164,7 @@ internal static class UpdateService
 
         EnsureInstallDirectoryWritable(installDirectory);
 
-        var updateRoot = Path.Combine(Path.GetTempPath(), "NvProfileSwitcher", "Updates", Guid.NewGuid().ToString("N"));
+        var updateRoot = Path.Combine(UpdatesDirectory, Guid.NewGuid().ToString("N"));
         var downloadDirectory = Path.Combine(updateRoot, "download");
         var extractDirectory = Path.Combine(updateRoot, "extract");
         var helperDirectory = Path.Combine(updateRoot, "helper");
@@ -219,16 +242,119 @@ internal static class UpdateService
                     WorkingDirectory = update.WorkingDirectory
                 });
 
-            return process is null
-                ? throw new InvalidOperationException(update.IsInstaller
+            if (process is null)
+                throw new InvalidOperationException(update.IsInstaller
                     ? "Could not start the update installer."
-                    : "Could not start the update helper.")
-                : new LaunchedUpdate(update, process);
+                    : "Could not start the update helper.");
+
+            if (update.IsInstaller)
+                StartRelauncher(update, process);
+
+            return new LaunchedUpdate(update, process);
         }
         catch
         {
             TryDeleteDirectory(update.Root);
             throw;
+        }
+    }
+
+    // The installer runs elevated, so it does not start NvProfileSwitcher again after a silent
+    // update (skipifsilent): whatever it started would be elevated too, or run as the
+    // administrator who approved the prompt. A copy of this executable, started from this
+    // process and so with the user's normal privileges, waits for the installer to exit and
+    // starts the installed application. Once the installer has started, nothing here stops the
+    // update: without the relauncher the application is only not started again.
+    private static void StartRelauncher(PreparedUpdate update, Process installer)
+    {
+        try
+        {
+            var processPath = Environment.ProcessPath;
+            if (string.IsNullOrWhiteSpace(processPath))
+                return;
+
+            var relauncherDirectory = Path.Combine(update.Root, "relauncher");
+            Directory.CreateDirectory(relauncherDirectory);
+            var relauncherPath = Path.Combine(relauncherDirectory, "NvProfileSwitcher.UpdateHelper.exe");
+            File.Copy(processPath, relauncherPath, overwrite: true);
+
+            var arguments = string.Join(' ',
+                RelaunchAfterInstallArgument,
+                installer.Id.ToString(),
+                Quote(processPath),
+                Quote(update.Root));
+            Process.Start(new ProcessStartInfo(relauncherPath, arguments)
+            {
+                UseShellExecute = false,
+                WorkingDirectory = relauncherDirectory
+            })?.Dispose();
+        }
+        catch
+        {
+            // The installer is already running; the application is just not started again.
+        }
+    }
+
+    internal const string RelaunchAfterInstallArgument = "--relaunch-after-install";
+
+    /// <summary>How long the relauncher waits for the installer before it gives up.</summary>
+    private static readonly TimeSpan InstallerTimeout = TimeSpan.FromHours(1);
+
+    /// <summary>
+    /// Runs as the relauncher: <c>--relaunch-after-install &lt;installer pid&gt; "&lt;executable&gt;"
+    /// "&lt;update folder&gt;"</c>. Waits for the installer to exit, deletes the installer files of
+    /// the update folder and starts the installed executable, which is the new version or, when
+    /// the installation failed or was cancelled, the previous one. Nothing is started while the
+    /// installer still runs or when it does not exit in time. Returns 0 when the application was
+    /// started, 2 for invalid arguments, 3 when the installer did not exit and 4 when the
+    /// executable could not be started.
+    /// </summary>
+    internal static int RelaunchAfterInstall(string[] args)
+    {
+        if (args.Length != 4 || !int.TryParse(args[1], out var installerProcessId) ||
+            string.IsNullOrWhiteSpace(args[2]) || string.IsNullOrWhiteSpace(args[3]))
+            return 2;
+
+        var executable = args[2];
+        var updateRoot = args[3];
+
+        try
+        {
+            using var installer = Process.GetProcessById(installerProcessId);
+            if (!installer.WaitForExit(InstallerTimeout))
+                return 3;
+        }
+        catch (ArgumentException)
+        {
+            // The installer already exited.
+        }
+
+        // The relauncher runs from its own subfolder; the rest of the update is deleted now and
+        // its own folder on the next start (DeleteLeftoverUpdates).
+        try
+        {
+            foreach (var file in Directory.EnumerateFiles(updateRoot))
+                File.Delete(file);
+        }
+        catch
+        {
+            // Deleted on the next start.
+        }
+
+        try
+        {
+            if (!File.Exists(executable))
+                return 4;
+            Process.Start(new ProcessStartInfo(executable)
+            {
+                UseShellExecute = true,
+                WorkingDirectory = Path.GetDirectoryName(executable) ?? ""
+            })?.Dispose();
+            return 0;
+        }
+        catch
+        {
+            return 4;
         }
     }
 
@@ -267,7 +393,7 @@ internal static class UpdateService
         IProgress<string>? progress,
         CancellationToken cancellationToken)
     {
-        var updateRoot = Path.Combine(Path.GetTempPath(), "NvProfileSwitcher", "Updates", Guid.NewGuid().ToString("N"));
+        var updateRoot = Path.Combine(UpdatesDirectory, Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(updateRoot);
 
         var installerPath = Path.Combine(updateRoot, release.PackageName);
@@ -396,6 +522,11 @@ internal static class UpdateService
                 File.Copy(source, destination, overwrite: true);
                 replacedFiles.Add((destination, backup));
             }
+
+            // Updated: the package, the extracted files and the backup are no longer needed. The
+            // helper's own folder is deleted on the next start (DeleteLeftoverUpdates).
+            foreach (var folder in new[] { "download", "extract", "backup" })
+                TryDeleteDirectory(Path.Combine(updateRoot, folder));
 
             Process.Start(new ProcessStartInfo(targetExecutable) { UseShellExecute = true });
             return 0;

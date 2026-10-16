@@ -59,4 +59,4 @@ Name: "{autoprograms}\NvProfileSwitcher"; Filename: "{app}\NvProfileSwitcher.exe
 Name: "{autodesktop}\NvProfileSwitcher"; Filename: "{app}\NvProfileSwitcher.exe"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\NvProfileSwitcher.exe"; Description: "Launch NvProfileSwitcher"; Flags: nowait postinstall
+Filename: "{app}\NvProfileSwitcher.exe"; Description: "Launch NvProfileSwitcher"; Flags: nowait postinstall skipifsilent
