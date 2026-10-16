@@ -86,7 +86,7 @@ Each application profile has its own name, executable associations, enabled stat
 - **Reset to NVIDIA defaults** returns the selected monitor's controls to neutral values (100 brightness, 100 contrast, 1.00 gamma, 50% Digital Vibrance, and 0° hue), not the values imported on first detection.
 - **Save profile** commits your edits; **Cancel** discards them. NvProfileSwitcher asks before discarding unsaved changes.
 
-  <div align="center">
+<div align="center">
   <img src="assets/screenshots/nvprofileswitcher-application-profile.png"
        alt="NvProfileSwitcher v3 - Application Profile"
        width="100%">
