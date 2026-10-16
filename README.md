@@ -142,6 +142,12 @@ Existing saved monitor settings are preserved. Newly created application profile
 
 Use **Advanced Settings → Manage displays...** to review saved displays and remove disconnected displays you no longer use.
 
+<div align="center">
+  <img src="assets/screenshots/nvprofileswitcher-manage-displays.png"
+       alt="NvProfileSwitcher v3 - Manage Displays"
+       width="100%">
+</div>
+
 ## Recovery after sleep or hibernation
 
 When Windows resumes, NvProfileSwitcher refreshes the NVIDIA API and monitor information, then reapplies the appropriate colors — whether you're using an application profile, Windows Profile, or Live Preview. No manual profile selection is required.
