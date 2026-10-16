@@ -14,9 +14,6 @@ Set your favorite colors once. NvProfileSwitcher takes care of the rest.
 
 </div>
 
-> [!NOTE]
-> **NvProfileSwitcher v3 is in development.** Downloads will be available on the releases page when v3 is released.
-
 <div align="center">
   <img src="assets/screenshots/nvprofileswitcher-main-window.png"
        alt="NvProfileSwitcher v3 - Main Window"
