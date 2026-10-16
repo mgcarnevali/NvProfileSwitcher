@@ -17,7 +17,11 @@ Set your favorite colors once. NvProfileSwitcher takes care of the rest.
 > [!NOTE]
 > **NvProfileSwitcher v3 is in development.** Downloads will be available on the releases page when v3 is released.
 
-<!-- Add an actual v3 screenshot here when available. -->
+<div align="center">
+  <img src="assets/screenshots/nvprofileswitcher-main-window.png"
+       alt="NvProfileSwitcher v3 - Main Window"
+       width="100%">
+</div>
 
 ## Made for every game and app
 
