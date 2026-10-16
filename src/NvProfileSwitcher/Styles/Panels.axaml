@@ -1,0 +1,174 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <!-- Section panel shared by Profiles, Profile Settings, Hotkeys and Application Settings. -->
+  <Style Selector="Border.panel">
+    <Setter Property="Background" Value="{DynamicResource NvPanelBackgroundBrush}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource NvBorderBrush}"/>
+    <Setter Property="BorderThickness" Value="1"/>
+    <Setter Property="CornerRadius" Value="7"/>
+    <Setter Property="Padding" Value="14"/>
+  </Style>
+
+  <!-- Panel header: 18 DIP stroked icon (24x24 geometry) followed by the title. -->
+  <Style Selector="StackPanel.panelHeader">
+    <Setter Property="Orientation" Value="Horizontal"/>
+    <Setter Property="Spacing" Value="7"/>
+  </Style>
+  <Style Selector="TextBlock.panelTitle">
+    <Setter Property="FontSize" Value="17"/>
+    <Setter Property="FontWeight" Value="SemiBold"/>
+    <Setter Property="VerticalAlignment" Value="Center"/>
+  </Style>
+  <Style Selector="Viewbox.strokeIcon">
+    <Setter Property="Stretch" Value="Uniform"/>
+    <Setter Property="VerticalAlignment" Value="Center"/>
+  </Style>
+  <Style Selector="Path.strokeIcon">
+    <Setter Property="Stroke" Value="#FFFFFF"/>
+    <Setter Property="StrokeThickness" Value="2"/>
+    <Setter Property="StrokeLineCap" Value="Round"/>
+    <Setter Property="StrokeJoin" Value="Round"/>
+    <Setter Property="Fill" Value="Transparent"/>
+  </Style>
+
+  <!-- Profile list: same item composition and rounded first/last containers as main. -->
+  <Style Selector="ListBox.profileList > ListBoxItem">
+    <Setter Property="Padding" Value="0"/>
+    <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+    <!-- Fluent 12.1.2 keeps the auto-hidden vertical thumb as a 2 DIP strip at the
+         right edge; stop profile containers at that edge. -->
+    <Setter Property="Margin" Value="0,0,2,0"/>
+  </Style>
+  <Style Selector="ListBox.profileList > ListBoxItem:nth-child(1)">
+    <Setter Property="CornerRadius" Value="7,7,0,0"/>
+  </Style>
+  <Style Selector="ListBox.profileList > ListBoxItem:nth-last-child(1)">
+    <Setter Property="CornerRadius" Value="0,0,7,7"/>
+  </Style>
+  <Style Selector="ListBox.profileList > ListBoxItem:nth-child(1):nth-last-child(1)">
+    <Setter Property="CornerRadius" Value="7"/>
+  </Style>
+
+  <!-- Profile row actions: hidden until the row is hovered, as in the original layout. -->
+  <Style Selector="Border.profileRow Button.reorderButton">
+    <Setter Property="Opacity" Value="0"/>
+    <Setter Property="IsHitTestVisible" Value="False"/>
+    <Setter Property="Background" Value="Transparent"/>
+    <Setter Property="BorderThickness" Value="0"/>
+    <Setter Property="Padding" Value="4"/>
+  </Style>
+  <Style Selector="Border.profileRow:pointerover Button.reorderButton">
+    <Setter Property="Opacity" Value="0.72"/>
+    <Setter Property="IsHitTestVisible" Value="True"/>
+  </Style>
+  <Style Selector="Border.profileRow Button.reorderButton:pointerover">
+    <Setter Property="Opacity" Value="1"/>
+  </Style>
+  <Style Selector="Border.profileRow Button.profilePowerButton">
+    <Setter Property="Width" Value="20"/>
+    <Setter Property="Height" Value="20"/>
+    <Setter Property="Padding" Value="4"/>
+    <Setter Property="Opacity" Value="0"/>
+    <Setter Property="IsHitTestVisible" Value="False"/>
+    <Setter Property="Background" Value="Transparent"/>
+    <Setter Property="BorderThickness" Value="0"/>
+    <Setter Property="VerticalAlignment" Value="Center"/>
+  </Style>
+  <Style Selector="Border.profileRow:pointerover Button.profilePowerButton">
+    <Setter Property="Opacity" Value="0.72"/>
+    <Setter Property="IsHitTestVisible" Value="True"/>
+  </Style>
+  <Style Selector="Border.profileRow Button.profilePowerButton:pointerover">
+    <Setter Property="Opacity" Value="1"/>
+    <Setter Property="Background" Value="#20FFFFFF"/>
+  </Style>
+
+  <!-- The executable drop-down is as wide as its ComboBox. -->
+  <Style Selector="ComboBox.executableCombo /template/ Popup">
+    <Setter Property="Width" Value="{CompiledBinding Bounds.Width,
+                           RelativeSource={RelativeSource TemplatedParent},
+                           DataType={x:Type ComboBox}}"/>
+  </Style>
+
+  <Style Selector="Border.valueBadge">
+    <Setter Property="MinWidth" Value="54"/>
+    <Setter Property="Background" Value="{DynamicResource NvFieldBackgroundBrush}"/>
+    <Setter Property="Padding" Value="8,5"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource NvBorderBrush}"/>
+    <Setter Property="BorderThickness" Value="1"/>
+    <Setter Property="CornerRadius" Value="4"/>
+    <Setter Property="HorizontalAlignment" Value="Stretch"/>
+    <Setter Property="VerticalAlignment" Value="Center"/>
+  </Style>
+  <Style Selector="Border.valueBadge TextBlock">
+    <Setter Property="HorizontalAlignment" Value="Center"/>
+    <Setter Property="VerticalAlignment" Value="Center"/>
+  </Style>
+
+  <Style Selector="Border.hotkeyField">
+    <Setter Property="Background" Value="{DynamicResource NvFieldBackgroundBrush}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource NvBorderBrush}"/>
+    <Setter Property="BorderThickness" Value="1"/>
+    <Setter Property="CornerRadius" Value="3"/>
+    <Setter Property="Padding" Value="8,4"/>
+    <Setter Property="MinHeight" Value="32"/>
+  </Style>
+  <Style Selector="Border.hotkeyField:focus">
+    <Setter Property="BorderBrush" Value="{DynamicResource NvBorderBrush}"/>
+  </Style>
+  <Style Selector="Border.hotkeyCaret">
+    <Setter Property="Width" Value="1"/>
+    <Setter Property="Height" Value="18"/>
+    <Setter Property="Background" Value="#F1F4F7"/>
+    <Setter Property="HorizontalAlignment" Value="Left"/>
+    <Setter Property="VerticalAlignment" Value="Center"/>
+  </Style>
+  <Style Selector="Border.hotkeyField.capturing">
+    <Setter Property="BorderBrush" Value="{DynamicResource TextControlBorderBrushFocused}"/>
+    <Setter Property="BorderThickness" Value="{DynamicResource TextControlBorderThemeThicknessFocused}"/>
+  </Style>
+
+  <!-- Status bar. -->
+  <Style Selector="TextBlock.status">
+    <Setter Property="FontSize" Value="12"/>
+    <Setter Property="VerticalAlignment" Value="Center"/>
+  </Style>
+  <Style Selector="TextBlock.statusLabel">
+    <Setter Property="Opacity" Value="0.62"/>
+  </Style>
+  <!-- Global switching: green when on, red when off, as in the original. -->
+  <Style Selector="TextBlock.globalSwitching">
+    <Setter Property="Foreground" Value="#52D627"/>
+  </Style>
+  <Style Selector="TextBlock.globalSwitching.off">
+    <Setter Property="Foreground" Value="#E35D6A"/>
+  </Style>
+  <!-- NVIDIA API status: green when available, red when unavailable, as in the original. -->
+  <Style Selector="Ellipse.nvApiStatus">
+    <Setter Property="Fill" Value="#52D627"/>
+  </Style>
+  <Style Selector="Ellipse.nvApiStatus.unavailable">
+    <Setter Property="Fill" Value="#E84B4B"/>
+  </Style>
+  <Style Selector="TextBlock.nvApiStatus">
+    <Setter Property="Foreground" Value="#52D627"/>
+    <Setter Property="FontWeight" Value="SemiBold"/>
+  </Style>
+  <Style Selector="TextBlock.nvApiStatus.unavailable">
+    <Setter Property="Foreground" Value="#E84B4B"/>
+  </Style>
+  <Style Selector="Border.statusSeparator">
+    <Setter Property="Width" Value="1"/>
+    <Setter Property="Height" Value="17"/>
+    <Setter Property="Margin" Value="18,0,16,0"/>
+    <Setter Property="Background" Value="{DynamicResource NvBorderBrush}"/>
+    <Setter Property="VerticalAlignment" Value="Center"/>
+  </Style>
+  <Style Selector="TextBlock.footerLink">
+    <Setter Property="Opacity" Value="0.62"/>
+  </Style>
+  <Style Selector="TextBlock.footerLink:pointerover">
+    <Setter Property="Foreground" Value="#52D627"/>
+    <Setter Property="Opacity" Value="1"/>
+  </Style>
+</Styles>

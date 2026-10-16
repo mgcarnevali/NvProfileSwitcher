@@ -1,0 +1,33 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:NvProfileSwitcher.ViewModels"
+             x:Class="NvProfileSwitcher.Views.ApplicationSettingsView"
+             x:DataType="vm:ApplicationSettingsViewModel">
+  <Border Classes="panel">
+    <Grid RowDefinitions="Auto,Auto,*,Auto">
+      <StackPanel Classes="panelHeader">
+        <Viewbox Classes="strokeIcon" Width="18" Height="18">
+          <Canvas Width="24" Height="24"><Path Classes="strokeIcon" Data="{StaticResource SettingsIcon}"/></Canvas>
+        </Viewbox>
+        <TextBlock Classes="panelTitle" Text="Application Settings"/>
+      </StackPanel>
+      <!-- Uniform spacing: each checkbox keeps its native Fluent height. -->
+      <StackPanel Grid.Row="1" Margin="0,10,0,0" Spacing="0">
+        <CheckBox Content="Start with Windows" IsChecked="{CompiledBinding StartWithWindows}"/>
+        <CheckBox Content="Start minimized" IsChecked="{CompiledBinding StartMinimized}"/>
+        <CheckBox Content="Minimize to tray" IsChecked="{CompiledBinding MinimizeToTray}"/>
+        <CheckBox Content="Always on top" IsChecked="{CompiledBinding AlwaysOnTop}"/>
+        <!-- As in the original, the tooltip is set on the disabled checkbox of development
+             builds without ShowOnDisabled. -->
+        <CheckBox Content="Check for updates automatically" IsChecked="{CompiledBinding CheckForUpdates}"
+                  IsEnabled="{CompiledBinding IsCheckForUpdatesEnabled}"
+                  ToolTip.Tip="{CompiledBinding CheckForUpdatesToolTip}"/>
+      </StackPanel>
+
+      <!-- The free space stays above the button, so it sits at the bottom of the panel,
+           in line with the Profile Settings actions when the panels share a row. -->
+      <Button Grid.Row="3" Margin="0,6,0,0" Content="Advanced..." HorizontalAlignment="Left"
+              Command="{CompiledBinding AdvancedCommand}"/>
+    </Grid>
+  </Border>
+</UserControl>

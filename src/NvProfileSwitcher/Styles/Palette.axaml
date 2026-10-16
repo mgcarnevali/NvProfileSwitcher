@@ -1,0 +1,76 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!-- Shared application palette. -->
+    <SolidColorBrush x:Key="NvWindowBackgroundBrush" Color="#0A0D10"/>
+    <SolidColorBrush x:Key="NvPanelBackgroundBrush" Color="#12161A"/>
+    <SolidColorBrush x:Key="NvSecondaryBackgroundBrush" Color="#181D22"/>
+    <SolidColorBrush x:Key="NvFieldBackgroundBrush" Color="#14181C"/>
+    <SolidColorBrush x:Key="NvBorderBrush" Color="#2D343B"/>
+    <SolidColorBrush x:Key="NvTrackBrush" Color="#3D4349"/>
+
+    <!-- Avalonia 12.1.2 Fluent CheckBox state resources.
+         Keep the native template/size and neutralize the checkbox square in every
+         normal, pointer-over and pressed checked/unchecked state. -->
+    <SolidColorBrush x:Key="CheckBoxCheckBackgroundFillUnchecked" Color="Transparent"/>
+    <SolidColorBrush x:Key="CheckBoxCheckBackgroundStrokeUnchecked" Color="#3D4349"/>
+    <SolidColorBrush x:Key="CheckBoxCheckBackgroundFillUncheckedPointerOver" Color="#181D22"/>
+    <SolidColorBrush x:Key="CheckBoxCheckBackgroundStrokeUncheckedPointerOver" Color="#50575E"/>
+    <SolidColorBrush x:Key="CheckBoxCheckBackgroundFillUncheckedPressed" Color="#181D22"/>
+    <SolidColorBrush x:Key="CheckBoxCheckBackgroundStrokeUncheckedPressed" Color="#343A40"/>
+
+    <SolidColorBrush x:Key="CheckBoxCheckBackgroundFillChecked" Color="#3D4349"/>
+    <SolidColorBrush x:Key="CheckBoxCheckBackgroundStrokeChecked" Color="#3D4349"/>
+    <SolidColorBrush x:Key="CheckBoxCheckBackgroundFillCheckedPointerOver" Color="#50575E"/>
+    <SolidColorBrush x:Key="CheckBoxCheckBackgroundStrokeCheckedPointerOver" Color="#50575E"/>
+    <SolidColorBrush x:Key="CheckBoxCheckBackgroundFillCheckedPressed" Color="#343A40"/>
+    <SolidColorBrush x:Key="CheckBoxCheckBackgroundStrokeCheckedPressed" Color="#343A40"/>
+    <SolidColorBrush x:Key="CheckBoxCheckBackgroundFillCheckedDisabled" Color="#2D343B"/>
+    <SolidColorBrush x:Key="CheckBoxCheckBackgroundStrokeCheckedDisabled" Color="#2D343B"/>
+
+    <SolidColorBrush x:Key="CheckBoxCheckGlyphForegroundChecked" Color="#FFFFFF"/>
+    <SolidColorBrush x:Key="CheckBoxCheckGlyphForegroundCheckedPointerOver" Color="#FFFFFF"/>
+    <SolidColorBrush x:Key="CheckBoxCheckGlyphForegroundCheckedPressed" Color="#FFFFFF"/>
+
+
+    <!-- Avalonia 12.1.2 Fluent control-state resources.
+         Override the resources consumed by the native TextBox/ComboBox themes; no custom templates. -->
+    <SolidColorBrush x:Key="TextControlBackgroundPointerOver" Color="#181D22"/>
+    <SolidColorBrush x:Key="TextControlBackgroundFocused" Color="#14181C"/>
+    <SolidColorBrush x:Key="TextControlBorderBrushPointerOver" Color="#2D343B"/>
+    <SolidColorBrush x:Key="TextControlBorderBrushFocused" Color="#2D343B"/>
+
+    <SolidColorBrush x:Key="ComboBoxBackgroundPointerOver" Color="#181D22"/>
+    <SolidColorBrush x:Key="ComboBoxBackgroundPressed" Color="#181D22"/>
+    <SolidColorBrush x:Key="ComboBoxBorderBrushPointerOver" Color="#2D343B"/>
+    <SolidColorBrush x:Key="ComboBoxBorderBrushPressed" Color="#2D343B"/>
+    <SolidColorBrush x:Key="ComboBoxDropDownBackground" Color="#181D22"/>
+    <SolidColorBrush x:Key="ComboBoxDropDownBorderBrush" Color="#2D343B"/>
+    <!-- Avalonia 12.1.2 Fluent: remove the native top/bottom dropdown content margin globally. -->
+    <Thickness x:Key="ComboBoxDropdownContentMargin">0</Thickness>
+
+    <!-- Native selectable-item states.
+         These are the Fluent resources consumed by ListBoxItem and ComboBoxItem in Avalonia 12.1.2. -->
+    <SolidColorBrush x:Key="SystemControlHighlightListLowBrush" Color="#181D22"/>
+    <SolidColorBrush x:Key="SystemControlHighlightListAccentLowBrush" Color="#293139"/>
+    <SolidColorBrush x:Key="SystemControlHighlightListAccentMediumBrush" Color="#293139"/>
+    <SolidColorBrush x:Key="SystemControlHighlightListAccentHighBrush" Color="#293139"/>
+
+    <SolidColorBrush x:Key="ComboBoxItemBackground" Color="#14181C"/>
+    <SolidColorBrush x:Key="ComboBoxItemBackgroundPointerOver" Color="#181D22"/>
+    <SolidColorBrush x:Key="ComboBoxItemBackgroundPressed" Color="#181D22"/>
+    <SolidColorBrush x:Key="ComboBoxItemBackgroundSelected" Color="#293139"/>
+    <SolidColorBrush x:Key="ComboBoxItemBackgroundSelectedPointerOver" Color="#293139"/>
+    <SolidColorBrush x:Key="ComboBoxItemBackgroundSelectedPressed" Color="#293139"/>
+
+    <!-- TableView Fluent resources: native templates, application-wide NvProfileSwitcher palette. -->
+    <SolidColorBrush x:Key="TableViewRowBackground" Color="#14181C"/>
+    <SolidColorBrush x:Key="TableViewRowBackgroundPointerOver" Color="#181D22"/>
+    <SolidColorBrush x:Key="TableViewRowBackgroundPressed" Color="#181D22"/>
+    <SolidColorBrush x:Key="TableViewRowBackgroundSelected" Color="#293139"/>
+    <SolidColorBrush x:Key="TableViewRowBackgroundSelectedPointerOver" Color="#293139"/>
+    <SolidColorBrush x:Key="TableViewRowBackgroundSelectedPressed" Color="#293139"/>
+    <Thickness x:Key="TableViewRowPadding">0,4</Thickness>
+    <!-- Keep the native column resizer/separator on the column boundary, but constrain it to the header height. -->
+    <Thickness x:Key="TableViewColumnResizerMargin">0,0,-6,0</Thickness>
+
+</ResourceDictionary>

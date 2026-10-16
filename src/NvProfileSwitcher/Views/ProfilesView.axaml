@@ -1,0 +1,109 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="using:NvProfileSwitcher"
+             xmlns:vm="using:NvProfileSwitcher.ViewModels"
+             x:Class="NvProfileSwitcher.Views.ProfilesView"
+             x:DataType="vm:ProfilesViewModel">
+  <Border Classes="panel">
+    <Grid RowDefinitions="Auto,Auto,*" RowSpacing="10">
+      <StackPanel Classes="panelHeader">
+        <Viewbox Classes="strokeIcon" Width="18" Height="18">
+          <Canvas Width="24" Height="24"><Path Classes="strokeIcon" Data="{StaticResource ProfilesIcon}"/></Canvas>
+        </Viewbox>
+        <TextBlock Classes="panelTitle" Text="Profiles"/>
+      </StackPanel>
+
+      <!-- Both actions share one Auto size (at least main's 115 DIP), so they keep equal width at any scale. -->
+      <Grid Grid.Row="1" ColumnSpacing="8" HorizontalAlignment="Left" Grid.IsSharedSizeScope="True">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="Auto" MinWidth="115" SharedSizeGroup="ProfileAction"/>
+          <ColumnDefinition Width="Auto" MinWidth="115" SharedSizeGroup="ProfileAction"/>
+        </Grid.ColumnDefinitions>
+        <Button HorizontalAlignment="Stretch" Command="{CompiledBinding AddCommand}">
+          <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center">
+            <Viewbox Classes="strokeIcon" Width="16" Height="16">
+              <Canvas Width="24" Height="24"><Path Classes="strokeIcon" Data="{StaticResource AddIcon}"/></Canvas>
+            </Viewbox>
+            <TextBlock Text="Add profile" VerticalAlignment="Center"/>
+          </StackPanel>
+        </Button>
+        <Button Grid.Column="1" HorizontalAlignment="Stretch" Command="{CompiledBinding RemoveCommand}">
+          <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center">
+            <Viewbox Classes="strokeIcon" Width="16" Height="16">
+              <Canvas Width="24" Height="24"><Path Classes="strokeIcon" Data="{StaticResource RemoveIcon}"/></Canvas>
+            </Viewbox>
+            <TextBlock Text="Remove" VerticalAlignment="Center"/>
+          </StackPanel>
+        </Button>
+      </Grid>
+
+      <!-- The list takes the remaining height and scrolls natively. -->
+      <ListBox Grid.Row="2" Classes="profileList" CornerRadius="7" ClipToBounds="True"
+               ItemsSource="{CompiledBinding Profiles}" SelectedItem="{CompiledBinding SelectedProfile}">
+        <ListBox.Resources>
+          <!-- Keep Fluent scrollbar behavior/geometry; only integrate the thumb color. -->
+          <SolidColorBrush x:Key="ScrollBarPanningThumbBackground" Color="#45494D"/>
+          <Color x:Key="ScrollBarThumbBackgroundColor">#45494D</Color>
+          <SolidColorBrush x:Key="ScrollBarThumbFillPointerOver" Color="#45494D"/>
+        </ListBox.Resources>
+        <ListBox.ItemTemplate>
+          <DataTemplate x:DataType="local:ProfileListItem">
+            <Border Classes="profileRow" Background="Transparent" MinHeight="50" Padding="10,5,6,5"
+                    ToolTip.Tip="{CompiledBinding Name}" ToolTip.ShowDelay="400">
+              <Grid ColumnDefinitions="36,*,Auto" ColumnSpacing="10">
+                <!-- Windows keeps its logo; application profiles show the icon of their first
+                     executable, or an accent "+" without one, as in the original. -->
+                <PathIcon Width="32" Height="32" HorizontalAlignment="Center" VerticalAlignment="Center"
+                          Foreground="#0078D7" Data="{StaticResource WindowsLogo}"
+                          IsVisible="{CompiledBinding IsWindowsProfile}"/>
+                <Image Width="32" Height="32" HorizontalAlignment="Center" VerticalAlignment="Center"
+                       Stretch="Uniform" Source="{CompiledBinding Icon}" IsVisible="{CompiledBinding HasApplicationIcon}"/>
+                <Grid Width="32" Height="32" HorizontalAlignment="Center" VerticalAlignment="Center"
+                      IsVisible="{CompiledBinding ShowFallbackIcon}">
+                  <Ellipse Margin="3" Stroke="{DynamicResource SystemAccentColor}" StrokeThickness="2.4"/>
+                  <Rectangle Width="16" Height="2.4" RadiusX="1.2" RadiusY="1.2"
+                             HorizontalAlignment="Center" VerticalAlignment="Center"
+                             Fill="{DynamicResource SystemAccentColor}"/>
+                  <Rectangle Width="2.4" Height="16" RadiusX="1.2" RadiusY="1.2"
+                             HorizontalAlignment="Center" VerticalAlignment="Center"
+                             Fill="{DynamicResource SystemAccentColor}"/>
+                </Grid>
+
+                <TextBlock Grid.Column="1" Text="{CompiledBinding Name}" FontWeight="SemiBold"
+                           VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="1" IsVisible="{CompiledBinding CanReorder}"
+                            VerticalAlignment="Center">
+                  <Button Classes="profilePowerButton" ToolTip.Tip="{CompiledBinding ProfileStateToolTip}"
+                          Command="{CompiledBinding $parent[ListBox].((vm:ProfilesViewModel)DataContext).ToggleEnabledCommand}"
+                          CommandParameter="{CompiledBinding}">
+                    <Grid Width="12" Height="12">
+                      <PathIcon Width="12" Height="12" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                Foreground="#52D627" IsVisible="{CompiledBinding Enabled}"
+                                Data="{StaticResource ProfilePowerIcon}"/>
+                      <PathIcon Width="12" Height="12" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                Foreground="#E35D6A" IsVisible="{CompiledBinding IsDisabled}"
+                                Data="{StaticResource ProfilePowerIcon}"/>
+                    </Grid>
+                  </Button>
+                  <Button Classes="reorderButton" ToolTip.Tip="Move profile up"
+                          IsEnabled="{CompiledBinding CanMoveUp}"
+                          Command="{CompiledBinding $parent[ListBox].((vm:ProfilesViewModel)DataContext).MoveUpCommand}"
+                          CommandParameter="{CompiledBinding}">
+                    <PathIcon Width="12" Height="12" Data="M 2,8 L 6,4 L 10,8 Z"/>
+                  </Button>
+                  <Button Classes="reorderButton" ToolTip.Tip="Move profile down"
+                          IsEnabled="{CompiledBinding CanMoveDown}"
+                          Command="{CompiledBinding $parent[ListBox].((vm:ProfilesViewModel)DataContext).MoveDownCommand}"
+                          CommandParameter="{CompiledBinding}">
+                    <PathIcon Width="12" Height="12" Data="M 2,4 L 6,8 L 10,4 Z"/>
+                  </Button>
+                </StackPanel>
+              </Grid>
+            </Border>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+    </Grid>
+  </Border>
+</UserControl>

@@ -1,0 +1,81 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:NvProfileSwitcher.ViewModels"
+             xmlns:b="using:NvProfileSwitcher.Behaviors"
+             x:Class="NvProfileSwitcher.Views.StatusBarView"
+             x:DataType="vm:StatusBarViewModel">
+  <UserControl.Styles>
+    <!-- Three layouts by status bar width, measured with Segoe UI for the widest values
+         ("Unavailable", an "Unknown" driver, "OFF" and the active profile at its MaxWidth):
+         wide, everything on one line; up to 896, the links move to a second line on the
+         right; up to 726, the active profile and global switching also move to the second
+         line, on the left, without their leading separator.
+         The wide layout is set by the base styles below; the container queries are
+         declared after them so their setters take precedence. -->
+    <Style Selector="StackPanel.switchingStatus">
+      <Setter Property="Grid.Column" Value="1"/>
+    </Style>
+    <Style Selector="StackPanel.links">
+      <Setter Property="Grid.Column" Value="2"/>
+      <Setter Property="Margin" Value="12,0,0,0"/>
+    </Style>
+    <ContainerQuery Name="statusBar" Query="max-width:896">
+      <Style Selector="StackPanel.links">
+        <Setter Property="Grid.Row" Value="1"/>
+        <Setter Property="Grid.Column" Value="0"/>
+        <Setter Property="Grid.ColumnSpan" Value="3"/>
+        <Setter Property="HorizontalAlignment" Value="Right"/>
+        <Setter Property="Margin" Value="0,6,0,0"/>
+      </Style>
+    </ContainerQuery>
+    <ContainerQuery Name="statusBar" Query="max-width:726">
+      <Style Selector="StackPanel.switchingStatus">
+        <Setter Property="Grid.Row" Value="1"/>
+        <Setter Property="Grid.Column" Value="0"/>
+        <Setter Property="Grid.ColumnSpan" Value="2"/>
+        <Setter Property="HorizontalAlignment" Value="Left"/>
+        <Setter Property="Margin" Value="0,6,0,0"/>
+      </Style>
+      <Style Selector="StackPanel.switchingStatus > Border.statusSeparator.leading">
+        <Setter Property="IsVisible" Value="False"/>
+      </Style>
+    </ContainerQuery>
+  </UserControl.Styles>
+
+  <!-- The active profile is trimmed with an ellipsis beyond its MaxWidth and shows its
+       full text in a tooltip. -->
+  <Grid ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto,Auto"
+        Container.Name="statusBar" Container.Sizing="Width">
+    <StackPanel Classes="nvidiaStatus" Orientation="Horizontal" VerticalAlignment="Center">
+      <Ellipse Classes="nvApiStatus" Classes.unavailable="{CompiledBinding !IsNvApiAvailable}"
+               Width="8" Height="8" VerticalAlignment="Center"/>
+      <TextBlock Classes="status statusLabel" Text="NVIDIA API:" Margin="8,0,0,0"/>
+      <TextBlock Classes="status nvApiStatus" Classes.unavailable="{CompiledBinding !IsNvApiAvailable}"
+                 Text="{CompiledBinding NvApiStatusText}" Margin="8,0,0,0"/>
+      <Border Classes="statusSeparator"/>
+      <Image Width="16" Height="16" Stretch="Uniform" RenderOptions.BitmapInterpolationMode="HighQuality"
+             Source="avares://NvProfileSwitcher/Assets/icons/nvidia.png" VerticalAlignment="Center"/>
+      <TextBlock Classes="status statusLabel" Text="Driver" Margin="7,0,0,0"/>
+      <TextBlock Classes="status" Text="{CompiledBinding DriverText}" Margin="8,0,0,0"/>
+    </StackPanel>
+    <StackPanel Classes="switchingStatus" Orientation="Horizontal" VerticalAlignment="Center">
+      <Border Classes="statusSeparator leading"/>
+      <TextBlock Classes="status statusLabel" Text="Active profile:"/>
+      <TextBlock Classes="status activeProfile" Text="{CompiledBinding ActiveProfileText}" Margin="8,0,0,0"
+                 FontWeight="SemiBold" MaxWidth="160" TextTrimming="CharacterEllipsis"
+                 ToolTip.Tip="{CompiledBinding $self.Text}"/>
+      <Border Classes="statusSeparator"/>
+      <TextBlock Classes="status statusLabel" Text="Global Switching:"/>
+      <TextBlock Classes="status globalSwitching" Classes.off="{CompiledBinding !IsGlobalSwitchingOn}"
+                 Text="{CompiledBinding GlobalSwitchingText}" Margin="8,0,0,0" FontWeight="SemiBold"/>
+    </StackPanel>
+    <StackPanel Classes="links" Orientation="Horizontal" Spacing="12" VerticalAlignment="Bottom">
+      <TextBlock Classes="status footerLink" Text="GitHub" Cursor="Hand"
+                 b:TapCommandBehavior.Command="{CompiledBinding OpenGitHubCommand}"/>
+      <TextBlock Classes="status footerLink" Text="Support" Cursor="Hand"
+                 b:TapCommandBehavior.Command="{CompiledBinding OpenSupportCommand}"/>
+      <TextBlock Classes="status footerLink" Text="About" Cursor="Hand"
+                 b:TapCommandBehavior.Command="{CompiledBinding ShowAboutCommand}"/>
+    </StackPanel>
+  </Grid>
+</UserControl>

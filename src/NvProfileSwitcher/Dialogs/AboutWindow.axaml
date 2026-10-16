@@ -1,0 +1,39 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="NvProfileSwitcher.AboutWindow"
+        Title="About NvProfileSwitcher"
+        Icon="avares://NvProfileSwitcher/Assets/branding/NvProfileSwitcher.ico"
+        Width="470"
+        SizeToContent="Height"
+        CanResize="False"
+        ShowInTaskbar="False"
+        WindowStartupLocation="CenterOwner">
+  <Grid Margin="22" RowDefinitions="Auto,16,Auto,12,Auto,20,Auto">
+    <Grid Grid.Row="0" ColumnDefinitions="40,14,*">
+      <Image Grid.Column="0"
+             Width="40" Height="40"
+             Stretch="Uniform"
+             Source="avares://NvProfileSwitcher/Assets/branding/NvProfileSwitcher.ico"/>
+      <StackPanel Grid.Column="2" Spacing="2" VerticalAlignment="Top">
+        <TextBlock Text="NvProfileSwitcher" FontSize="21" FontWeight="SemiBold"/>
+        <TextBlock x:Name="VersionText" FontSize="14"/>
+      </StackPanel>
+    </Grid>
+
+    <TextBlock Grid.Row="2"
+               Text="Automatic per-application NVIDIA display color profiles for Windows"
+               TextWrapping="Wrap"/>
+    <TextBlock Grid.Row="4"
+               Text="Copyright © 2026 Maximiliano Carnevali"
+               TextWrapping="Wrap"/>
+
+    <StackPanel Grid.Row="6"
+                Orientation="Horizontal"
+                HorizontalAlignment="Right"
+                Spacing="12">
+      <Button Classes="actionButton" Width="100" Height="36" Content="GitHub" Click="GitHub_Click"/>
+      <Button Classes="actionButton" Width="100" Height="36" Content="Support" Click="Support_Click"/>
+      <Button Classes="actionButton" Width="100" Height="36" Content="Close" Click="Close_Click"/>
+    </StackPanel>
+  </Grid>
+</Window>

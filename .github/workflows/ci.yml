@@ -1,0 +1,87 @@
+name: Build & UI Tests
+
+run-name: >-
+  ${{ github.event_name == 'workflow_dispatch'
+      && format('{0} — {1}', github.ref_name, inputs.description)
+      || format('PR #{0} — {1}', github.event.pull_request.number, github.event.pull_request.title) }}
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      description:
+        description: 'Build description'
+        required: true
+        type: string
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore application
+        run: dotnet restore src/NvProfileSwitcher/NvProfileSwitcher.csproj
+
+      - name: Build application
+        run: dotnet build src/NvProfileSwitcher/NvProfileSwitcher.csproj -c Release --no-restore
+
+      - name: Restore Core tests
+        run: dotnet restore tests/NvProfileSwitcher.Core.Tests/NvProfileSwitcher.Core.Tests.csproj
+
+      - name: Run Core tests
+        run: dotnet test tests/NvProfileSwitcher.Core.Tests/NvProfileSwitcher.Core.Tests.csproj -c Release --no-restore
+
+      - name: Restore UI tests
+        run: dotnet restore tests/NvProfileSwitcher.UiTests/NvProfileSwitcher.UiTests.csproj
+
+      - name: Run UI tests
+        run: dotnet test tests/NvProfileSwitcher.UiTests/NvProfileSwitcher.UiTests.csproj -c Release --no-restore
+
+      # Validates that the NativeAOT publish succeeds and starts. The release files are built by
+      # release.yml, with the build version; this executable is not uploaded.
+      - name: Publish portable win-x64 (NativeAOT)
+        run: >
+          dotnet publish src/NvProfileSwitcher/NvProfileSwitcher.csproj
+          -c Release
+          -r win-x64
+          --self-contained true
+          -p:PublishAot=true
+          -p:IsAotCompatible=true
+          -p:PublishSingleFile=true
+          -o publish
+
+      - name: Create portable folder
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path portable\NvProfileSwitcher -Force | Out-Null
+          Copy-Item `
+            -Path publish\NvProfileSwitcher.exe `
+            -Destination portable\NvProfileSwitcher\NvProfileSwitcher.exe
+
+      # Starts the portable executable alone in its folder, as it is shipped, and fails if it
+      # exits within 15 seconds (a missing native library, resource or AOT code path).
+      - name: Smoke test portable executable
+        shell: pwsh
+        run: |
+          $exe = Resolve-Path portable\NvProfileSwitcher\NvProfileSwitcher.exe
+          $process = Start-Process -FilePath $exe -WorkingDirectory (Split-Path $exe) -PassThru
+          Start-Sleep -Seconds 15
+          if ($process.HasExited) {
+            throw "NvProfileSwitcher exited during startup with code $($process.ExitCode)."
+          }
+          Stop-Process -Id $process.Id -Force
+          $process.WaitForExit()
+          Write-Host "NvProfileSwitcher was still running after 15 seconds."

@@ -1,0 +1,171 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="using:NvProfileSwitcher"
+             xmlns:nvidia="using:NvProfileSwitcher.Nvidia"
+             xmlns:vm="using:NvProfileSwitcher.ViewModels"
+             xmlns:b="using:NvProfileSwitcher.Behaviors"
+             x:Class="NvProfileSwitcher.Views.ProfileSettingsView"
+             x:DataType="vm:ProfileSettingsViewModel">
+  <Border Classes="panel">
+    <!-- App-specific content and actions measure naturally (Auto);
+         the common Display + color section uses the remaining space. -->
+    <Grid RowDefinitions="Auto,Auto,*,Auto">
+      <StackPanel Classes="panelHeader">
+        <Viewbox Classes="strokeIcon" Width="18" Height="18">
+          <Canvas Width="24" Height="24"><Path Classes="strokeIcon" Data="{StaticResource ProfileSettingsIcon}"/></Canvas>
+        </Viewbox>
+        <TextBlock Classes="panelTitle" Text="Profile Settings"/>
+      </StackPanel>
+
+      <!-- App-only fields are hidden for the fixed Windows profile. -->
+      <Grid Grid.Row="1" IsVisible="{CompiledBinding IsApplicationProfile}" Margin="0,7,0,0"
+            RowDefinitions="Auto,Auto,Auto,Auto,Auto" RowSpacing="6">
+        <TextBlock Grid.Row="0" Text="Profile name"/>
+        <TextBox Grid.Row="1" Text="{CompiledBinding Name}"/>
+
+        <TextBlock Grid.Row="2" Text="Executable"/>
+        <Grid Grid.Row="3" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+          <ComboBox Classes="executableCombo" HorizontalAlignment="Stretch" PlaceholderText="Select executable"
+                    ItemsSource="{CompiledBinding ExecutableItems}" SelectedItem="{CompiledBinding SelectedExecutableItem}">
+            <ComboBox.SelectionBoxItemTemplate>
+              <DataTemplate x:DataType="local:ExecutableComboItem">
+                <TextBlock Text="{CompiledBinding Text}" TextTrimming="PathSegmentEllipsis" VerticalAlignment="Center"/>
+              </DataTemplate>
+            </ComboBox.SelectionBoxItemTemplate>
+            <ComboBox.ItemTemplate>
+              <DataTemplate x:DataType="local:ExecutableComboItem">
+                <Grid ColumnDefinitions="*,Auto">
+                  <TextBlock Text="{CompiledBinding Text}" TextTrimming="PathSegmentEllipsis" VerticalAlignment="Center"/>
+                  <Button Grid.Column="1"
+                          Content="×"
+                          Foreground="#E35D6A"
+                          IsVisible="{CompiledBinding CanRemove}"
+                          Command="{CompiledBinding $parent[ComboBox].((vm:ProfileSettingsViewModel)DataContext).RemoveExecutableCommand}"
+                          CommandParameter="{CompiledBinding}"
+                          Padding="7,0"
+                          MinWidth="0"
+                          MinHeight="0"
+                          Background="Transparent"
+                          BorderThickness="0"
+                          VerticalAlignment="Center"
+                          ToolTip.Tip="Remove executable"/>
+                </Grid>
+              </DataTemplate>
+            </ComboBox.ItemTemplate>
+          </ComboBox>
+          <Button Grid.Column="1" Content="Running apps..." VerticalAlignment="Center" Command="{CompiledBinding RunningAppsCommand}"/>
+          <Button Grid.Column="2" Content="Browse..." VerticalAlignment="Center" Command="{CompiledBinding BrowseCommand}"/>
+        </Grid>
+
+        <Grid Grid.Row="4" ColumnSpacing="8">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto"/>
+            <ColumnDefinition Width="Auto" MinWidth="140" SharedSizeGroup="HotkeyField"/>
+            <ColumnDefinition Width="*"/>
+          </Grid.ColumnDefinitions>
+          <TextBlock Text="Profile hotkey" VerticalAlignment="Center"/>
+          <Border Grid.Column="1" Classes="hotkeyField" Classes.capturing="{CompiledBinding IsCapturing}" Focusable="True"
+                  HorizontalAlignment="Stretch" DataContext="{CompiledBinding ProfileHotkey}"
+                  ToolTip.Tip="Click to change · Press Esc to clear" ToolTip.ShowDelay="400"
+                  x:DataType="vm:HotkeyFieldViewModel" b:HotkeyCaptureBehavior.Field="{CompiledBinding}">
+            <Grid>
+              <TextBlock Text="{CompiledBinding Text}" IsVisible="{CompiledBinding !IsCapturing}" VerticalAlignment="Center"/>
+              <Border Classes="hotkeyCaret" IsVisible="{CompiledBinding IsCaretVisible}"/>
+            </Grid>
+          </Border>
+        </Grid>
+      </Grid>
+
+      <!-- Common section: identical structure for Windows and application profiles. -->
+      <Grid Grid.Row="2" Margin="0,7,0,0" RowDefinitions="Auto,*" RowSpacing="11">
+        <Grid RowDefinitions="Auto,Auto" RowSpacing="6">
+          <StackPanel Orientation="Horizontal" Spacing="7">
+            <Viewbox Classes="strokeIcon" Width="18" Height="18">
+              <Canvas Width="24" Height="24"><Path Classes="strokeIcon" Data="{StaticResource DisplayIcon}"/></Canvas>
+            </Viewbox>
+            <TextBlock Text="Display" VerticalAlignment="Center"/>
+          </StackPanel>
+          <ComboBox Grid.Row="1" HorizontalAlignment="Stretch"
+                    ItemsSource="{CompiledBinding Displays}" SelectedItem="{CompiledBinding SelectedDisplay}">
+            <ComboBox.SelectionBoxItemTemplate>
+              <DataTemplate x:DataType="nvidia:NvidiaDisplay">
+                <TextBlock Text="{CompiledBinding SelectorLabel}" VerticalAlignment="Center"/>
+              </DataTemplate>
+            </ComboBox.SelectionBoxItemTemplate>
+            <ComboBox.ItemTemplate>
+              <DataTemplate x:DataType="nvidia:NvidiaDisplay">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                  <CheckBox IsChecked="{CompiledBinding IsSelected,
+                                            RelativeSource={RelativeSource AncestorType=ComboBoxItem},
+                                            DataType={x:Type ComboBoxItem}}"
+                            IsHitTestVisible="False" Focusable="False" VerticalAlignment="Center"/>
+                  <TextBlock Text="{CompiledBinding SelectorLabel}" VerticalAlignment="Center"/>
+                </StackPanel>
+              </DataTemplate>
+            </ComboBox.ItemTemplate>
+          </ComboBox>
+        </Grid>
+
+        <!-- Equal star rows share the available height; MinHeight keeps rows from overlapping. -->
+        <Grid Grid.Row="1" ColumnDefinitions="22,Auto,*,Auto" ColumnSpacing="8">
+          <Grid.RowDefinitions>
+            <RowDefinition Height="*" MinHeight="40"/>
+            <RowDefinition Height="*" MinHeight="40"/>
+            <RowDefinition Height="*" MinHeight="40"/>
+            <RowDefinition Height="*" MinHeight="40"/>
+            <RowDefinition Height="*" MinHeight="40"/>
+          </Grid.RowDefinitions>
+
+          <Image Grid.Row="0" Width="22" Height="22" VerticalAlignment="Center" Stretch="Uniform"
+                 RenderOptions.BitmapInterpolationMode="HighQuality"
+                 Source="avares://NvProfileSwitcher/Assets/icons/brightness.png"/>
+          <TextBlock Grid.Row="0" Grid.Column="1" Margin="0,0,4,0" VerticalAlignment="Center" Text="Brightness"/>
+          <Slider Grid.Row="0" Grid.Column="2" VerticalAlignment="Center"
+                  Minimum="80" Maximum="120" Value="{CompiledBinding Brightness}" TickFrequency="1"/>
+          <Border Grid.Row="0" Grid.Column="3" Classes="valueBadge"><TextBlock Text="{CompiledBinding BrightnessText}"/></Border>
+
+          <Image Grid.Row="1" Width="22" Height="22" VerticalAlignment="Center" Stretch="Uniform"
+                 RenderOptions.BitmapInterpolationMode="HighQuality"
+                 Source="avares://NvProfileSwitcher/Assets/icons/contrast.png"/>
+          <TextBlock Grid.Row="1" Grid.Column="1" Margin="0,0,4,0" VerticalAlignment="Center" Text="Contrast"/>
+          <Slider Grid.Row="1" Grid.Column="2" VerticalAlignment="Center"
+                  Minimum="80" Maximum="120" Value="{CompiledBinding Contrast}" TickFrequency="1"/>
+          <Border Grid.Row="1" Grid.Column="3" Classes="valueBadge"><TextBlock Text="{CompiledBinding ContrastText}"/></Border>
+
+          <Image Grid.Row="2" Width="22" Height="22" VerticalAlignment="Center" Stretch="Uniform"
+                 RenderOptions.BitmapInterpolationMode="HighQuality"
+                 Source="avares://NvProfileSwitcher/Assets/icons/gamma.png"/>
+          <TextBlock Grid.Row="2" Grid.Column="1" Margin="0,0,4,0" VerticalAlignment="Center" Text="Gamma"/>
+          <Slider Grid.Row="2" Grid.Column="2" VerticalAlignment="Center"
+                  Minimum="0.3" Maximum="2.8" Value="{CompiledBinding Gamma}" TickFrequency="0.05"/>
+          <Border Grid.Row="2" Grid.Column="3" Classes="valueBadge"><TextBlock Text="{CompiledBinding GammaText}"/></Border>
+
+          <Image Grid.Row="3" Width="22" Height="22" VerticalAlignment="Center" Stretch="Uniform"
+                 RenderOptions.BitmapInterpolationMode="HighQuality"
+                 Source="avares://NvProfileSwitcher/Assets/icons/vibrance.png"/>
+          <TextBlock Grid.Row="3" Grid.Column="1" Margin="0,0,4,0" VerticalAlignment="Center" Text="Digital Vibrance (%)"/>
+          <Slider Grid.Row="3" Grid.Column="2" VerticalAlignment="Center"
+                  Minimum="0" Maximum="100" Value="{CompiledBinding Vibrance}" TickFrequency="1"/>
+          <Border Grid.Row="3" Grid.Column="3" Classes="valueBadge"><TextBlock Text="{CompiledBinding VibranceText}"/></Border>
+
+          <Image Grid.Row="4" Width="22" Height="22" VerticalAlignment="Center" Stretch="Uniform"
+                 RenderOptions.BitmapInterpolationMode="HighQuality"
+                 Source="avares://NvProfileSwitcher/Assets/icons/hue.png"/>
+          <TextBlock Grid.Row="4" Grid.Column="1" Margin="0,0,4,0" VerticalAlignment="Center" Text="Hue"/>
+          <Slider Grid.Row="4" Grid.Column="2" VerticalAlignment="Center"
+                  Minimum="0" Maximum="359" Value="{CompiledBinding Hue}" TickFrequency="1"/>
+          <Border Grid.Row="4" Grid.Column="3" Classes="valueBadge"><TextBlock Text="{CompiledBinding HueText}"/></Border>
+        </Grid>
+      </Grid>
+
+      <Grid Grid.Row="3" Margin="0,11,0,0" ColumnDefinitions="Auto,*,Auto,Auto,Auto" ColumnSpacing="8">
+        <Button Grid.Column="0" Content="Copy settings" Command="{CompiledBinding CopySettingsCommand}"/>
+        <Button Grid.Column="2" Content="Reset" ToolTip.Tip="Reset to NVIDIA defaults" ToolTip.ShowDelay="400"
+                Command="{CompiledBinding ResetCommand}"/>
+        <Button Grid.Column="3" Content="Cancel" IsVisible="{CompiledBinding CanCancel}" IsEnabled="{CompiledBinding CanCancel}"
+                Command="{CompiledBinding CancelCommand}"/>
+        <Button Grid.Column="4" Content="Save profile" Command="{CompiledBinding SaveCommand}"/>
+      </Grid>
+    </Grid>
+  </Border>
+</UserControl>

@@ -1,0 +1,21 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="NvProfileSwitcher.UpdateAvailableWindow"
+        Title="NvProfileSwitcher Update"
+        Icon="avares://NvProfileSwitcher/Assets/branding/NvProfileSwitcher.ico"
+        Width="470"
+        SizeToContent="Height"
+        CanResize="False"
+        ShowInTaskbar="False"
+        WindowStartupLocation="CenterOwner">
+  <Grid Margin="22" RowDefinitions="Auto,12,Auto,6,Auto,10,Auto,16,Auto">
+    <TextBlock x:Name="HeadingText" Grid.Row="0" FontSize="20" FontWeight="SemiBold" TextWrapping="Wrap"/>
+    <TextBlock x:Name="CurrentVersionText" Grid.Row="2" TextWrapping="Wrap"/>
+    <TextBlock Grid.Row="4" Text="A newer version is available." TextWrapping="Wrap"/>
+    <TextBlock x:Name="ProgressText" Grid.Row="6" IsVisible="False" TextWrapping="Wrap"/>
+    <StackPanel Grid.Row="8" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="12">
+      <Button x:Name="UpdateButton" Classes="actionButton" Width="100" Height="36" Content="Update" Click="Update_Click"/>
+      <Button x:Name="LaterButton" Classes="actionButton" Width="100" Height="36" Content="Later" Click="Later_Click"/>
+    </StackPanel>
+  </Grid>
+</Window>

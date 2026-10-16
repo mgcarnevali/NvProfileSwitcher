@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Avalonia.Headless.XUnit" Version="12.1.2" />
+    <PackageReference Include="Avalonia.Skia" Version="12.1.2" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="12.1.2" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit.v3" Version="3.2.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5" />
+  </ItemGroup>
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/NvProfileSwitcher/NvProfileSwitcher.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- The test doubles are shared with the Core tests. -->
+    <Compile Include="../NvProfileSwitcher.Core.Tests/FakeDisplayBackend.cs" Link="FakeDisplayBackend.cs" />
+    <Compile Include="../NvProfileSwitcher.Core.Tests/FakeForegroundMonitor.cs" Link="FakeForegroundMonitor.cs" />
+    <Compile Include="../NvProfileSwitcher.Core.Tests/FakeDialogService.cs" Link="FakeDialogService.cs" />
+    <Compile Include="../NvProfileSwitcher.Core.Tests/FakeReleaseSource.cs" Link="FakeReleaseSource.cs" />
+    <Compile Include="../NvProfileSwitcher.Core.Tests/FakeStartupRegistry.cs" Link="FakeStartupRegistry.cs" />
+    <Compile Include="../NvProfileSwitcher.Core.Tests/FakeHotkeyRegistrar.cs" Link="FakeHotkeyRegistrar.cs" />
+    <Compile Include="../NvProfileSwitcher.Core.Tests/FakeUpdateInstaller.cs" Link="FakeUpdateInstaller.cs" />
+  </ItemGroup>
+</Project>

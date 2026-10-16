@@ -1,0 +1,80 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:NvProfileSwitcher.ViewModels"
+             xmlns:b="using:NvProfileSwitcher.Behaviors"
+             x:Class="NvProfileSwitcher.Views.HotkeysView"
+             x:DataType="vm:HotkeysViewModel">
+  <Border Classes="panel">
+    <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto">
+      <StackPanel Classes="panelHeader">
+        <Viewbox Classes="strokeIcon" Width="18" Height="18">
+          <Canvas Width="24" Height="24"><Path Classes="strokeIcon" Data="{StaticResource HotkeysIcon}"/></Canvas>
+        </Viewbox>
+        <TextBlock Classes="panelTitle" Text="Hotkeys"/>
+      </StackPanel>
+
+      <!-- Hotkey fields share one width with the profile hotkey field (SharedSizeGroup).
+           Each row takes its field ViewModel as DataContext. While capturing, the field
+           hides its text and shows a blinking caret, as in the original. -->
+      <Grid Grid.Row="1" Margin="0,7,0,0" RowDefinitions="Auto,Auto" DataContext="{CompiledBinding ShowHide}">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="Auto" MinWidth="140" SharedSizeGroup="HotkeyField"/>
+        </Grid.ColumnDefinitions>
+        <TextBlock Text="Show / hide window" Opacity="0.72"/>
+        <Border Grid.Row="1" Classes="hotkeyField" Classes.capturing="{CompiledBinding IsCapturing}" Focusable="True"
+                ToolTip.Tip="Click to change · Press Esc to clear" ToolTip.ShowDelay="400"
+                x:DataType="vm:HotkeyFieldViewModel" b:HotkeyCaptureBehavior.Field="{CompiledBinding}">
+          <Grid>
+            <TextBlock Text="{CompiledBinding Text}" IsVisible="{CompiledBinding !IsCapturing}" VerticalAlignment="Center"/>
+            <Border Classes="hotkeyCaret" IsVisible="{CompiledBinding IsCaretVisible}"/>
+          </Grid>
+        </Border>
+      </Grid>
+
+      <Grid Grid.Row="2" Margin="0,6,0,0" RowDefinitions="Auto,Auto" DataContext="{CompiledBinding WindowsOverride}">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="Auto" MinWidth="140" SharedSizeGroup="HotkeyField"/>
+        </Grid.ColumnDefinitions>
+        <TextBlock Text="Windows Override" Opacity="0.72"/>
+        <Border Grid.Row="1" Classes="hotkeyField" Classes.capturing="{CompiledBinding IsCapturing}" Focusable="True"
+                ToolTip.Tip="Click to change · Press Esc to clear" ToolTip.ShowDelay="400"
+                x:DataType="vm:HotkeyFieldViewModel" b:HotkeyCaptureBehavior.Field="{CompiledBinding}">
+          <Grid>
+            <TextBlock Text="{CompiledBinding Text}" IsVisible="{CompiledBinding !IsCapturing}" VerticalAlignment="Center"/>
+            <Border Classes="hotkeyCaret" IsVisible="{CompiledBinding IsCaretVisible}"/>
+          </Grid>
+        </Border>
+      </Grid>
+
+      <Grid Grid.Row="3" Margin="0,6,0,0" RowDefinitions="Auto,Auto" DataContext="{CompiledBinding ResumeAutomatic}">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="Auto" MinWidth="140" SharedSizeGroup="HotkeyField"/>
+        </Grid.ColumnDefinitions>
+        <TextBlock Text="Resume auto switching" Opacity="0.72"/>
+        <Border Grid.Row="1" Classes="hotkeyField" Classes.capturing="{CompiledBinding IsCapturing}" Focusable="True"
+                ToolTip.Tip="Click to change · Press Esc to clear" ToolTip.ShowDelay="400"
+                x:DataType="vm:HotkeyFieldViewModel" b:HotkeyCaptureBehavior.Field="{CompiledBinding}">
+          <Grid>
+            <TextBlock Text="{CompiledBinding Text}" IsVisible="{CompiledBinding !IsCapturing}" VerticalAlignment="Center"/>
+            <Border Classes="hotkeyCaret" IsVisible="{CompiledBinding IsCaretVisible}"/>
+          </Grid>
+        </Border>
+      </Grid>
+
+      <Grid Grid.Row="4" Margin="0,6,0,0" RowDefinitions="Auto,Auto" DataContext="{CompiledBinding GlobalSwitching}">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="Auto" MinWidth="140" SharedSizeGroup="HotkeyField"/>
+        </Grid.ColumnDefinitions>
+        <TextBlock Text="Global Switching" Opacity="0.72"/>
+        <Border Grid.Row="1" Classes="hotkeyField" Classes.capturing="{CompiledBinding IsCapturing}" Focusable="True"
+                ToolTip.Tip="Click to change · Press Esc to clear" ToolTip.ShowDelay="400"
+                x:DataType="vm:HotkeyFieldViewModel" b:HotkeyCaptureBehavior.Field="{CompiledBinding}">
+          <Grid>
+            <TextBlock Text="{CompiledBinding Text}" IsVisible="{CompiledBinding !IsCapturing}" VerticalAlignment="Center"/>
+            <Border Classes="hotkeyCaret" IsVisible="{CompiledBinding IsCaretVisible}"/>
+          </Grid>
+        </Border>
+      </Grid>
+    </Grid>
+  </Border>
+</UserControl>

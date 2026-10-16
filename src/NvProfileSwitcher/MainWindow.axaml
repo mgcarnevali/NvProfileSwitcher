@@ -1,0 +1,145 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="using:NvProfileSwitcher"
+        xmlns:views="using:NvProfileSwitcher.Views"
+        xmlns:vm="using:NvProfileSwitcher.ViewModels"
+        x:Class="NvProfileSwitcher.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
+        Title="NvProfileSwitcher"
+        Icon="avares://NvProfileSwitcher/Assets/branding/NvProfileSwitcher.ico"
+        Width="1180" Height="720" MinWidth="640" MinHeight="480"
+        WindowStartupLocation="CenterScreen">
+  <!-- Responsive layout. Panel placement is defined only by styles: three columns by
+       default, reorganized by container queries on the "content" area (the window minus
+       its 18 DIP padding):
+         content width >= 1144 (window 1180): three columns, as the original layout
+         684 .. 1143: two columns; Hotkeys and Application Settings move below
+         < 684: one column
+       684 is the narrowest two-column width: Profiles minimum (270) + spacing (14) +
+       Profile Settings minimum (400). The body never scrolls horizontally; it scrolls
+       vertically when the reorganized panels do not fit, while the header and status
+       bar stay visible. -->
+  <Window.Styles>
+    <!-- Three columns (default). -->
+    <Style Selector="ScrollViewer.body">
+      <Setter Property="VerticalScrollBarVisibility" Value="Auto"/>
+    </Style>
+    <Style Selector="views|ProfileSettingsView">
+      <Setter Property="Grid.Column" Value="1"/>
+    </Style>
+    <Style Selector="Grid.side">
+      <Setter Property="Grid.Column" Value="2"/>
+    </Style>
+    <Style Selector="Grid.side > views|HotkeysView">
+      <Setter Property="Grid.ColumnSpan" Value="2"/>
+    </Style>
+    <Style Selector="Grid.side > views|ApplicationSettingsView">
+      <Setter Property="Grid.Row" Value="1"/>
+      <Setter Property="Grid.ColumnSpan" Value="2"/>
+      <Setter Property="Margin" Value="0,14,0,0"/>
+    </Style>
+
+    <!-- When the body has the original height (571 DIP: the body at the 1180x720 window),
+         it fits the window as the original layout, so the profile list scrolls instead of
+         the body. This applies to three columns only: the two-column query below, declared
+         later, enables body scrolling again. A single "min-width:... and min-height:..."
+         query is not used: in Avalonia 12.1.2 a container query "A and B" is applied
+         whenever its last condition alone is met (verified with a minimal reproduction). -->
+    <ContainerQuery Name="body" Query="min-height:571">
+      <Style Selector="ScrollViewer.body">
+        <Setter Property="VerticalScrollBarVisibility" Value="Disabled"/>
+      </Style>
+    </ContainerQuery>
+
+    <!-- Two columns: Profiles | Profile Settings, with Hotkeys | Application Settings below. -->
+    <ContainerQuery Name="content" Query="max-width:1143">
+      <Style Selector="ScrollViewer.body">
+        <Setter Property="VerticalScrollBarVisibility" Value="Auto"/>
+      </Style>
+      <Style Selector="views|ProfileSettingsView">
+        <Setter Property="Grid.ColumnSpan" Value="2"/>
+      </Style>
+      <Style Selector="Grid.side">
+        <Setter Property="Grid.Row" Value="1"/>
+        <Setter Property="Grid.Column" Value="0"/>
+        <Setter Property="Grid.ColumnSpan" Value="3"/>
+        <Setter Property="Margin" Value="0,14,0,0"/>
+      </Style>
+      <Style Selector="Grid.side > views|HotkeysView">
+        <Setter Property="Grid.ColumnSpan" Value="1"/>
+        <Setter Property="Margin" Value="0,0,7,0"/>
+      </Style>
+      <Style Selector="Grid.side > views|ApplicationSettingsView">
+        <Setter Property="Grid.Row" Value="0"/>
+        <Setter Property="Grid.Column" Value="1"/>
+        <Setter Property="Grid.ColumnSpan" Value="1"/>
+        <Setter Property="Margin" Value="7,0,0,0"/>
+      </Style>
+    </ContainerQuery>
+
+    <!-- One column: every panel below the previous one, at full width. -->
+    <ContainerQuery Name="content" Query="max-width:683">
+      <Style Selector="views|ProfilesView">
+        <Setter Property="Grid.ColumnSpan" Value="3"/>
+      </Style>
+      <Style Selector="views|ProfileSettingsView">
+        <Setter Property="Grid.Row" Value="1"/>
+        <Setter Property="Grid.Column" Value="0"/>
+        <Setter Property="Grid.ColumnSpan" Value="3"/>
+        <Setter Property="Margin" Value="0,14,0,0"/>
+      </Style>
+      <Style Selector="Grid.side">
+        <Setter Property="Grid.Row" Value="2"/>
+      </Style>
+      <Style Selector="Grid.side > views|HotkeysView">
+        <Setter Property="Grid.ColumnSpan" Value="2"/>
+        <Setter Property="Margin" Value="0"/>
+      </Style>
+      <Style Selector="Grid.side > views|ApplicationSettingsView">
+        <Setter Property="Grid.Row" Value="1"/>
+        <Setter Property="Grid.Column" Value="0"/>
+        <Setter Property="Grid.ColumnSpan" Value="2"/>
+        <Setter Property="Margin" Value="0,14,0,0"/>
+      </Style>
+    </ContainerQuery>
+  </Window.Styles>
+
+  <Border Padding="18">
+    <Grid RowDefinitions="Auto,*,Auto" Grid.IsSharedSizeScope="True"
+          Container.Name="content" Container.Sizing="WidthAndHeight">
+      <Grid Grid.Row="0" Margin="9,0,9,14">
+        <Image Height="58" HorizontalAlignment="Left" VerticalAlignment="Center" Stretch="Uniform"
+               RenderOptions.BitmapInterpolationMode="HighQuality"
+               Source="avares://NvProfileSwitcher/Assets/branding/header.png"/>
+        <TextBlock Text="{x:Static local:BuildInfo.DisplayVersion}"
+                   HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,0,5"
+                   FontSize="12" Opacity="0.62"/>
+      </Grid>
+
+      <!-- A container query does not style the container itself (verified with a minimal
+           reproduction), so the body height is queried on this panel around the ScrollViewer. -->
+      <Panel Grid.Row="1" Container.Name="body" Container.Sizing="Height">
+        <ScrollViewer Classes="body" HorizontalScrollBarVisibility="Disabled">
+          <!-- Proportional columns as in the original. Only the Profiles column needs a
+               minimum (its two 115 DIP buttons); the others get at least their content
+               width at every breakpoint. -->
+          <Grid ColumnSpacing="14" RowDefinitions="*,Auto,Auto">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="1.28*" MinWidth="270"/>
+              <ColumnDefinition Width="2.35*"/>
+              <ColumnDefinition Width="0.82*"/>
+            </Grid.ColumnDefinitions>
+            <views:ProfilesView DataContext="{CompiledBinding Profiles}"/>
+            <views:ProfileSettingsView DataContext="{CompiledBinding ProfileSettings}"/>
+            <Grid Classes="side" RowDefinitions="Auto,*" ColumnDefinitions="*,*">
+              <views:HotkeysView DataContext="{CompiledBinding Hotkeys}"/>
+              <views:ApplicationSettingsView DataContext="{CompiledBinding ApplicationSettings}"/>
+            </Grid>
+          </Grid>
+        </ScrollViewer>
+      </Panel>
+
+      <views:StatusBarView Grid.Row="2" Margin="4,12,4,0" DataContext="{CompiledBinding StatusBar}"/>
+    </Grid>
+  </Border>
+</Window>

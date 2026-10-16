@@ -1,0 +1,33 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <!-- Base application styling shared by every Window/dialog. -->
+  <Style Selector="Window">
+    <Setter Property="Background" Value="{DynamicResource NvWindowBackgroundBrush}"/>
+  </Style>
+  <Style Selector="TextBox">
+    <Setter Property="Background" Value="{DynamicResource NvFieldBackgroundBrush}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource NvBorderBrush}"/>
+    <Setter Property="SelectionBrush" Value="#45494D"/>
+  </Style>
+  <Style Selector="ComboBox">
+    <Setter Property="Background" Value="{DynamicResource NvFieldBackgroundBrush}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource NvBorderBrush}"/>
+  </Style>
+  <Style Selector="Button">
+    <Setter Property="Background" Value="{DynamicResource NvSecondaryBackgroundBrush}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource NvBorderBrush}"/>
+    <Setter Property="HorizontalContentAlignment" Value="Center"/>
+    <Setter Property="VerticalContentAlignment" Value="Center"/>
+  </Style>
+  <Style Selector="ListBox">
+    <Setter Property="Background" Value="{DynamicResource NvFieldBackgroundBrush}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource NvBorderBrush}"/>
+  </Style>
+  <Style Selector="TextBlock.dialogMessage">
+    <Setter Property="TextAlignment" Value="Left"/>
+  </Style>
+  <Style Selector="TableView">
+    <Setter Property="Background" Value="{DynamicResource NvFieldBackgroundBrush}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource NvBorderBrush}"/>
+  </Style>
+</Styles>

@@ -1,0 +1,36 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="NvProfileSwitcher.AdvancedSettingsWindow"
+        Title="Advanced Settings"
+        Icon="avares://NvProfileSwitcher/Assets/branding/NvProfileSwitcher.ico"
+        Width="390"
+        SizeToContent="Height"
+        CanResize="False"
+        ShowInTaskbar="False"
+        WindowStartupLocation="CenterOwner">
+  <Grid Margin="20" RowDefinitions="Auto,Auto,12,Auto,Auto,12,Auto,Auto,12,Auto,Auto,20,Auto" RowSpacing="8">
+    <TextBlock Grid.Row="0" Text="Updates" FontSize="17" FontWeight="SemiBold"/>
+    <Button x:Name="CheckNowButton" Grid.Row="1" Classes="actionButton" Content="Check for updates" HorizontalAlignment="Left" Click="CheckNow_Click"/>
+
+    <TextBlock Grid.Row="3" Text="State" FontSize="17" FontWeight="SemiBold"/>
+    <!-- Same spacing as the Application Settings checkboxes: each keeps its native height. -->
+    <StackPanel Grid.Row="4" Spacing="0">
+      <CheckBox x:Name="RememberGlobalSwitchingCheckBox" Content="Remember Global Switching state"/>
+      <CheckBox x:Name="RememberOverrideCheckBox" Content="Remember Windows Override state"/>
+    </StackPanel>
+
+    <TextBlock Grid.Row="6" Text="Displays" FontSize="17" FontWeight="SemiBold"/>
+    <Button Grid.Row="7" Classes="actionButton" Content="Manage displays..." HorizontalAlignment="Left" Click="ManageDisplays_Click"/>
+
+    <TextBlock Grid.Row="9" Text="Backup" FontSize="17" FontWeight="SemiBold"/>
+    <StackPanel Grid.Row="10" Orientation="Horizontal" Spacing="8">
+      <Button Classes="actionButton" MinWidth="92" Content="Import..." Click="Import_Click"/>
+      <Button Classes="actionButton" MinWidth="92" Content="Export..." Click="Export_Click"/>
+    </StackPanel>
+
+    <StackPanel Grid.Row="12" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+      <Button Classes="actionButton" MinWidth="92" Content="Cancel" Click="Cancel_Click"/>
+      <Button Classes="actionButton" MinWidth="92" Content="Save" Click="Save_Click"/>
+    </StackPanel>
+  </Grid>
+</Window>

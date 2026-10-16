@@ -1,0 +1,417 @@
+name: Build NvProfileSwitcher
+
+run-name: >-
+  ${{ inputs.publish != 'none'
+      && format('Publish NvProfileSwitcher {0} ({1}) — {2}', inputs.version, inputs.publish, inputs.description)
+      || startsWith(github.ref, 'refs/tags/v')
+      && format('Build NvProfileSwitcher {0}', github.ref_name)
+      || github.event_name == 'workflow_dispatch'
+      && format('{0} — {1}', github.ref_name, inputs.description)
+      || format('{0} — Development build', github.ref_name) }}
+
+# With publish set to none (the default) this is the development build it always was. With
+# draft or prerelease-draft it builds `version` from main as a stable build and creates a draft
+# release with the installer, the portable ZIP and their SHA-256 files in this repository,
+# where it is published by hand. The workflow creates no tag itself: the tag v<version> is
+# created by GitHub on the commit that was built. No Actions artifacts are uploaded: the draft
+# takes its files straight from the workspace.
+on:
+  workflow_dispatch:
+    inputs:
+      description:
+        description: 'Build description'
+        required: true
+        type: string
+      version:
+        description: 'Version to publish (MAJOR.MINOR.PATCH); only with a publish option'
+        required: false
+        default: ''
+        type: string
+      publish:
+        description: 'Create a draft release'
+        required: true
+        default: none
+        type: choice
+        options:
+          - none
+          - draft
+          - prerelease-draft
+
+# Write access is used only by the draft release step, through GITHUB_TOKEN.
+permissions:
+  contents: write
+
+# Publications run one at a time; development builds are not queued behind them.
+concurrency:
+  group: ${{ inputs.publish != 'none' && 'public-release' || format('build-{0}', github.run_id) }}
+  cancel-in-progress: false
+
+env:
+  PUBLISH: ${{ inputs.publish }}
+  REQUESTED_VERSION: ${{ inputs.version }}
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Validate publication request
+        shell: pwsh
+        run: |
+          if ($env:PUBLISH -eq 'none') {
+            if ($env:REQUESTED_VERSION) {
+              throw "A version is only used to publish. Choose a publish option or leave the version empty."
+            }
+            Write-Host "Development build: nothing will be published."
+            exit 0
+          }
+
+          if ($env:REQUESTED_VERSION -notmatch '^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$') {
+            throw "The version must use the MAJOR.MINOR.PATCH format. Got: '$($env:REQUESTED_VERSION)'"
+          }
+
+          if ($env:GITHUB_REF -ne 'refs/heads/main') {
+            throw "Releases are published only from main. This run uses $($env:GITHUB_REF)."
+          }
+
+          Write-Host "Publishing $($env:REQUESTED_VERSION) as $($env:PUBLISH) from $($env:GITHUB_SHA)."
+
+      # Fails before building when the version was already used or is not newer than every
+      # release of this repository (drafts included), so a release is never duplicated.
+      - name: Check existing tags and releases
+        if: inputs.publish != 'none'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $repo = $env:GITHUB_REPOSITORY
+          $tag = "v$env:REQUESTED_VERSION"
+
+          $refs = gh api "repos/$repo/git/matching-refs/tags/$tag" | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0) { throw "Could not read the tags of $repo." }
+          if ($refs | Where-Object { $_.ref -eq "refs/tags/$tag" }) {
+            throw ("The tag $tag already exists in $repo. If it was left by a draft that was " +
+              "deleted, delete the tag in $repo before publishing this version.")
+          }
+
+          $releases = @(gh api --paginate "repos/$repo/releases?per_page=100" --jq '.[] | {tag_name, draft}' |
+            ForEach-Object { $_ | ConvertFrom-Json })
+          if ($LASTEXITCODE -ne 0) { throw "Could not read the releases of $repo." }
+          if ($releases | Where-Object { $_.tag_name -ieq $tag }) {
+            throw "A release or draft for $tag already exists in $repo."
+          }
+
+          $requested = [version]$env:REQUESTED_VERSION
+          foreach ($release in $releases) {
+            if ($release.tag_name -match '^v(\d+\.\d+\.\d+)$' -and [version]$Matches[1] -ge $requested) {
+              throw "$tag is not newer than the existing release $($release.tag_name) in $repo."
+            }
+          }
+
+          Write-Host "$tag is new and newer than every release in $repo."
+
+      - name: Generate build version
+        shell: pwsh
+        run: |
+          $isTag = "${{ github.ref }}".StartsWith("refs/tags/v")
+
+          if ($env:PUBLISH -ne 'none') {
+            $version = $env:REQUESTED_VERSION
+            $developmentBuild = "false"
+            $developmentRevision = ""
+            $artifactName = "NvProfileSwitcher-v$version"
+            $setupSuffix = "v$version"
+          }
+          elseif ($isTag) {
+            $tag = "${{ github.ref_name }}"
+
+            if ($tag -notmatch '^v(\d+)\.(\d+)\.(\d+)$') {
+              throw "Release tag must use vMAJOR.MINOR.PATCH format. Got: $tag"
+            }
+
+            $version = "$($Matches[1]).$($Matches[2]).$($Matches[3])"
+            $developmentBuild = "false"
+            $developmentRevision = ""
+            $artifactName = "NvProfileSwitcher-$tag"
+            $setupSuffix = $tag
+          }
+          else {
+            $shortSha = "${{ github.sha }}".Substring(0, 7)
+            $latestTag = git tag --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-version:refname | Select-Object -First 1
+
+            if ($latestTag -and $latestTag -match '^v(\d+)\.(\d+)\.(\d+)$') {
+              $version = "$($Matches[1]).$($Matches[2]).$($Matches[3])"
+            }
+            else {
+              $version = "0.0.0"
+            }
+
+            $developmentBuild = "true"
+            $developmentRevision = $shortSha
+            $artifactName = "NvProfileSwitcher-dev-$shortSha"
+            $setupSuffix = "dev-$shortSha"
+          }
+
+          "BUILD_VERSION=$version" >> $env:GITHUB_ENV
+          "DEVELOPMENT_BUILD=$developmentBuild" >> $env:GITHUB_ENV
+          "DEVELOPMENT_REVISION=$developmentRevision" >> $env:GITHUB_ENV
+          "ARTIFACT_NAME=$artifactName" >> $env:GITHUB_ENV
+          "SETUP_SUFFIX=$setupSuffix" >> $env:GITHUB_ENV
+
+          Write-Host "Version: $version"
+          Write-Host "Development build: $developmentBuild"
+          if ($developmentRevision) {
+            Write-Host "Development revision: $developmentRevision"
+          }
+          Write-Host "Artifact: $artifactName"
+          Write-Host "Setup suffix: $setupSuffix"
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore
+        run: dotnet restore src/NvProfileSwitcher/NvProfileSwitcher.csproj
+
+      - name: Build
+        run: >
+          dotnet build src/NvProfileSwitcher/NvProfileSwitcher.csproj
+          -c Release
+          --no-restore
+          -p:Version=${{ env.BUILD_VERSION }}
+          -p:DevelopmentBuild=${{ env.DEVELOPMENT_BUILD }}
+          -p:DevelopmentRevision=${{ env.DEVELOPMENT_REVISION }}
+
+      - name: Core Tests
+        run: >
+          dotnet test tests/NvProfileSwitcher.Core.Tests/NvProfileSwitcher.Core.Tests.csproj
+          -c Release
+          -p:Version=${{ env.BUILD_VERSION }}
+          -p:DevelopmentBuild=${{ env.DEVELOPMENT_BUILD }}
+          -p:DevelopmentRevision=${{ env.DEVELOPMENT_REVISION }}
+
+      - name: UI Tests
+        run: >
+          dotnet test tests/NvProfileSwitcher.UiTests/NvProfileSwitcher.UiTests.csproj
+          -c Release
+          -p:Version=${{ env.BUILD_VERSION }}
+          -p:DevelopmentBuild=${{ env.DEVELOPMENT_BUILD }}
+          -p:DevelopmentRevision=${{ env.DEVELOPMENT_REVISION }}
+
+      - name: Publish win-x64
+        run: >
+          dotnet publish src/NvProfileSwitcher/NvProfileSwitcher.csproj
+          -c Release
+          -r win-x64
+          --self-contained true
+          -p:Version=${{ env.BUILD_VERSION }}
+          -p:DevelopmentBuild=${{ env.DEVELOPMENT_BUILD }}
+          -p:DevelopmentRevision=${{ env.DEVELOPMENT_REVISION }}
+          -p:PublishAot=true
+          -p:IsAotCompatible=true
+          -p:PublishSingleFile=true
+          -o publish
+
+      - name: Create portable folder
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path release\NvProfileSwitcher -Force | Out-Null
+          Copy-Item `
+            -Path publish\NvProfileSwitcher.exe `
+            -Destination release\NvProfileSwitcher\NvProfileSwitcher.exe
+
+      # Starts the portable executable alone in its folder, as it is shipped, and fails if it
+      # exits within 15 seconds (a missing native library, resource or AOT code path).
+      - name: Smoke test portable executable
+        shell: pwsh
+        run: |
+          $exe = Resolve-Path release\NvProfileSwitcher\NvProfileSwitcher.exe
+          $process = Start-Process -FilePath $exe -WorkingDirectory (Split-Path $exe) -PassThru
+          Start-Sleep -Seconds 15
+          if ($process.HasExited) {
+            throw "NvProfileSwitcher exited during startup with code $($process.ExitCode)."
+          }
+          Stop-Process -Id $process.Id -Force
+          $process.WaitForExit()
+          Write-Host "NvProfileSwitcher was still running after 15 seconds."
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: choco install innosetup -y --no-progress
+
+      - name: Build installer
+        shell: pwsh
+        run: |
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" `
+            "/DMyAppVersion=${{ env.BUILD_VERSION }}" `
+            "/DMySetupSuffix=${{ env.SETUP_SUFFIX }}" `
+            "installer\NvProfileSwitcher.iss"
+
+      - name: Create installer SHA-256 checksum
+        if: inputs.publish != 'none'
+        shell: pwsh
+        run: |
+          $installer = "installer\output\NvProfileSwitcher-Setup-${{ env.SETUP_SUFFIX }}.exe"
+          $hash = (Get-FileHash -Algorithm SHA256 -Path $installer).Hash.ToLowerInvariant()
+          "$hash  NvProfileSwitcher-Setup-${{ env.SETUP_SUFFIX }}.exe" | Set-Content -Path "$installer.sha256" -Encoding ascii
+
+      - name: Create release ZIP
+        if: inputs.publish != 'none'
+        shell: pwsh
+        run: |
+          Compress-Archive `
+            -Path release\NvProfileSwitcher `
+            -DestinationPath "${{ env.ARTIFACT_NAME }}.zip" `
+            -Force
+
+      - name: Create SHA-256 checksum
+        if: inputs.publish != 'none'
+        shell: pwsh
+        run: |
+          $zip = "${{ env.ARTIFACT_NAME }}.zip"
+          $hash = (Get-FileHash -Algorithm SHA256 -Path $zip).Hash.ToLowerInvariant()
+          "$hash  $zip" | Set-Content -Path "$zip.sha256" -Encoding ascii
+
+      # Gathers the four files into public-release and checks them against what the updater
+      # expects (UpdateService): the names for this version, a stable build of this version, a
+      # ZIP with only NvProfileSwitcher\NvProfileSwitcher.exe (the executable that passed the
+      # smoke test) and a checksum file per package whose hash matches the package.
+      - name: Verify release files
+        if: inputs.publish != 'none'
+        shell: pwsh
+        run: |
+          $version = $env:BUILD_VERSION
+          if ($version -ne $env:REQUESTED_VERSION -or $env:DEVELOPMENT_BUILD -ne 'false') {
+            throw "This is not a stable build of $($env:REQUESTED_VERSION)."
+          }
+
+          $zipName = "NvProfileSwitcher-v$version.zip"
+          $setupName = "NvProfileSwitcher-Setup-v$version.exe"
+          $expected = @($zipName, "$zipName.sha256", $setupName, "$setupName.sha256")
+
+          $dir = New-Item -ItemType Directory -Path public-release -Force
+          Copy-Item -Path $zipName, "$zipName.sha256" -Destination $dir
+          Copy-Item -Path "installer\output\$setupName", "installer\output\$setupName.sha256" -Destination $dir
+
+          $actual = @(Get-ChildItem -Path $dir -File | ForEach-Object Name)
+          if (Compare-Object ($expected | Sort-Object) ($actual | Sort-Object)) {
+            throw "Unexpected release files: $($actual -join ', ')"
+          }
+
+          foreach ($package in $zipName, $setupName) {
+            $line = (Get-Content -Raw -Path (Join-Path $dir "$package.sha256")).Trim()
+            if (-not ($line -cmatch "^([0-9a-f]{64})  $([regex]::Escape($package))$")) {
+              throw "$package.sha256 does not have the expected format."
+            }
+            $hash = (Get-FileHash -Algorithm SHA256 -Path (Join-Path $dir $package)).Hash.ToLowerInvariant()
+            if ($hash -ne $Matches[1]) { throw "The SHA-256 of $package does not match $package.sha256." }
+          }
+
+          function Assert-Version([string]$path, [string]$what) {
+            $info = (Get-Item $path).VersionInfo
+            $fileVersion = [version]$info.FileVersion
+            if ("$($fileVersion.Major).$($fileVersion.Minor).$($fileVersion.Build)" -ne $version -or
+                -not $info.ProductVersion.StartsWith($version)) {
+              throw "$what reports version $($info.FileVersion) / $($info.ProductVersion), not $version."
+            }
+          }
+
+          $executable = 'release\NvProfileSwitcher\NvProfileSwitcher.exe'
+          Assert-Version $executable 'NvProfileSwitcher.exe'
+
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $archive = [System.IO.Compression.ZipFile]::OpenRead((Join-Path $dir $zipName))
+          try {
+            $entries = @($archive.Entries | Where-Object Name)
+            if ($entries.Count -ne 1 -or $entries[0].FullName.Replace('\', '/') -ne 'NvProfileSwitcher/NvProfileSwitcher.exe') {
+              throw "$zipName must contain only NvProfileSwitcher/NvProfileSwitcher.exe; it contains: $($entries.FullName -join ', ')"
+            }
+            $extracted = Join-Path $env:RUNNER_TEMP 'zip-check.exe'
+            [System.IO.Compression.ZipFileExtensions]::ExtractToFile($entries[0], $extracted, $true)
+          }
+          finally {
+            $archive.Dispose()
+          }
+          if ((Get-FileHash $extracted).Hash -ne (Get-FileHash $executable).Hash) {
+            throw "The executable in $zipName is not the one that was built and tested."
+          }
+
+          $installer = (Get-Item (Join-Path $dir $setupName)).VersionInfo
+          if ($installer.ProductVersion -ne $version) {
+            throw "$setupName reports product version $($installer.ProductVersion), not $version."
+          }
+
+          Get-ChildItem -Path $dir -File | ForEach-Object { Write-Host "$($_.Name) ($($_.Length) bytes)" }
+
+      # Creates a draft only, visible to the repository's collaborators and not to the updater,
+      # with the four verified files. gh sends a single request with draft: true and
+      # target_commitish set to the commit that was built, and creates no tag itself; whether and
+      # when GitHub creates the tag v<version> is not assumed: the run checks it afterwards and
+      # reports it in the summary.
+      - name: Create draft release
+        if: inputs.publish != 'none'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $repo = $env:GITHUB_REPOSITORY
+          $version = $env:BUILD_VERSION
+          $tag = "v$version"
+
+          # Checked again in case a release or draft was created by hand while this run was building.
+          $existing = @(gh api --paginate "repos/$repo/releases?per_page=100" --jq '.[].tag_name')
+          if ($LASTEXITCODE -ne 0) { throw "Could not read the releases of $repo." }
+          if ($existing -icontains $tag) { throw "A release or draft for $tag already exists in $repo." }
+
+          $files = @(
+            "public-release\NvProfileSwitcher-Setup-v$version.exe",
+            "public-release\NvProfileSwitcher-Setup-v$version.exe.sha256",
+            "public-release\NvProfileSwitcher-v$version.zip",
+            "public-release\NvProfileSwitcher-v$version.zip.sha256"
+          )
+          $arguments = @(
+            'release', 'create', $tag,
+            '--repo', $repo,
+            '--draft',
+            '--target', $env:GITHUB_SHA,
+            '--title', "NvProfileSwitcher $version",
+            '--notes', "NvProfileSwitcher $version"
+          )
+          if ($env:PUBLISH -eq 'prerelease-draft') { $arguments += '--prerelease' }
+
+          $url = gh @arguments @files
+          if ($LASTEXITCODE -ne 0) { throw "The draft release could not be created." }
+
+          $tagRef = gh api "repos/$repo/git/matching-refs/tags/$tag" | ConvertFrom-Json |
+            Where-Object { $_.ref -eq "refs/tags/$tag" }
+          if ($LASTEXITCODE -ne 0) { throw "Could not read the tags of $repo." }
+          $tagState = if ($tagRef) {
+            "exists in $repo ($($tagRef.object.sha)); if the draft is deleted instead of published, delete this tag too"
+          } else {
+            "not created yet in $repo"
+          }
+
+          $summary = @(
+            "### Draft release created in $repo",
+            "",
+            "- Version: $version ($($env:PUBLISH))",
+            "- Built from: $($env:GITHUB_SHA)",
+            "- Draft: $url",
+            "- Tag ${tag}: $tagState",
+            "",
+            "| File | SHA-256 |",
+            "|---|---|"
+          )
+          foreach ($file in $files) {
+            $summary += "| $(Split-Path $file -Leaf) | $((Get-FileHash -Algorithm SHA256 $file).Hash.ToLowerInvariant()) |"
+          }
+          $summary += "", "Review the draft, edit its notes and publish it on GitHub. Until then the release is visible only to collaborators and the updater does not see it."
+          $summary | Add-Content -Path $env:GITHUB_STEP_SUMMARY -Encoding utf8
+          Write-Host "Draft release: $url"
+          Write-Host "Tag ${tag}: $tagState"

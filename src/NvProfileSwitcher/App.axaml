@@ -1,0 +1,56 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="NvProfileSwitcher.App"
+             RequestedThemeVariant="Dark">
+  <Application.Resources>
+    <ResourceDictionary>
+      <ResourceDictionary.MergedDictionaries>
+        <ResourceInclude Source="avares://NvProfileSwitcher/Styles/Palette.axaml"/>
+        <ResourceInclude Source="avares://NvProfileSwitcher/Styles/Icons.axaml"/>
+      </ResourceDictionary.MergedDictionaries>
+
+      <!-- TableViewColumn applies the cell alignment to its generated header as a local value.
+           Keep cells left-aligned and center only the header by customizing the supported HeaderTheme template.
+           Dialogs resolve this theme through Application.Resources by key, so it stays in this dictionary. -->
+      <ControlTheme x:Key="CenteredTableViewColumnHeaderTheme"
+                    TargetType="TableViewColumnHeader"
+                    BasedOn="{StaticResource {x:Type TableViewColumnHeader}}">
+        <Setter Property="Template">
+          <ControlTemplate>
+            <Panel>
+              <ContentPresenter Name="PART_ContentPresenter"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="{TemplateBinding CornerRadius}"
+                                ContentTemplate="{TemplateBinding ContentTemplate}"
+                                Content="{TemplateBinding Content}"
+                                Padding="{TemplateBinding Padding}"
+                                VerticalContentAlignment="Center"
+                                HorizontalContentAlignment="Center" />
+              <Thumb Name="PART_Resizer"
+                     Template="{StaticResource TableViewColumnHeaderResizerTemplate}"
+                     Width="{DynamicResource TableViewColumnResizerWidth}"
+                     HorizontalAlignment="Right"
+                     Cursor="SizeWestEast"
+                     Margin="{DynamicResource TableViewColumnResizerMargin}"
+                     IsEnabled="{CompiledBinding Column.CanUserEffectivelyResize,
+                                 RelativeSource={RelativeSource TemplatedParent},
+                                 DataType={x:Type TableViewColumnHeader},
+                                 FallbackValue=False}" />
+            </Panel>
+          </ControlTemplate>
+        </Setter>
+      </ControlTheme>
+    </ResourceDictionary>
+  </Application.Resources>
+  <Application.Styles>
+    <FluentTheme>
+      <FluentTheme.Palettes>
+        <ColorPaletteResources x:Key="Dark" Accent="#52D627"/>
+      </FluentTheme.Palettes>
+    </FluentTheme>
+    <StyleInclude Source="avares://NvProfileSwitcher/Styles/Controls.axaml"/>
+    <StyleInclude Source="avares://NvProfileSwitcher/Styles/Panels.axaml"/>
+  </Application.Styles>
+</Application>
