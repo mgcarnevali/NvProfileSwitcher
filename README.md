@@ -159,6 +159,16 @@ While NvProfileSwitcher is hidden in the system tray, its icon menu provides **O
 
 **Closing the window with X exits NvProfileSwitcher** and restores the Windows Profile. Use minimize-to-tray when you want the application to keep running out of sight.
 
+## Advanced Settings
+
+Manage update checks, remember switching and override states, organize saved displays, and import or export your configuration.
+
+<div align="center">
+  <img src="assets/screenshots/nvprofileswitcher-advanced-settings.png"
+       alt="NvProfileSwitcher v3 - Advanced Settings"
+       width="100%">
+</div>
+
 ## Updates, configuration, and backups
 
 ### Updates
