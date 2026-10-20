@@ -1,30 +1,53 @@
 <div align="center">
 
+[![NvProfileSwitcher — Automatic Profile Switcher](assets/readme-banner.png)](https://mgcarnevali.github.io/NvProfileSwitcher/)
+
 # NvProfileSwitcher
 
 ### Your display. Your colors. Your rules.
 
-**Automatic NVIDIA color profiles for Windows — tailored to every game, app, and monitor.**
+**Automatic NVIDIA display color profiles for Windows — tailored to every game, application, and monitor.**
 
 Set your favorite colors once. NvProfileSwitcher takes care of the rest.
 
-[**Download**](https://github.com/mgcarnevali/NvProfileSwitcher/releases) · [**Report an issue**](https://github.com/mgcarnevali/NvProfileSwitcher/issues) · [**Support development**](https://ko-fi.com/mgcarnevali)
+[![Windows 10 / 11](https://img.shields.io/badge/Windows-10%20%2F%2011-0078D4?logo=windows&logoColor=white)](#requirements)
+[![C%23](https://img.shields.io/badge/C%23-.NET%20%2F%20Avalonia-512BD4?logo=dotnet&logoColor=white)](https://github.com/mgcarnevali/NvProfileSwitcher)
+[![Latest release](https://img.shields.io/github/v/release/mgcarnevali/NvProfileSwitcher?label=latest%20release)](https://github.com/mgcarnevali/NvProfileSwitcher/releases/latest)
+[![Windows CI](https://github.com/mgcarnevali/NvProfileSwitcher/actions/workflows/ci.yml/badge.svg)](https://github.com/mgcarnevali/NvProfileSwitcher/actions/workflows/ci.yml)
+[![GPLv3](https://img.shields.io/github/license/mgcarnevali/NvProfileSwitcher)](LICENSE)
 
-**Windows 10 / 11** · **NVIDIA GPU** · **Free & Open Source**
+[**Official website ↗**](https://mgcarnevali.github.io/NvProfileSwitcher/) · [**GitHub Releases ↗**](https://github.com/mgcarnevali/NvProfileSwitcher/releases/latest) · [**Report an issue ↗**](https://github.com/mgcarnevali/NvProfileSwitcher/issues) · [**Support development ☕**](https://ko-fi.com/mgcarnevali)
 
 </div>
+
+---
+
+## Download
+
+**Get the latest stable release for Windows 10 / 11 (x64).** Both editions include the required .NET runtime.
+
+| Windows Installer — recommended | Portable ZIP |
+|:---:|:---:|
+| [**⬇ Download Installer**](https://github.com/mgcarnevali/NvProfileSwitcher/releases/latest) | [**⬇ Download Portable**](https://github.com/mgcarnevali/NvProfileSwitcher/releases/latest) |
+| Install and uninstall through Windows. | Extract the ZIP and run `NvProfileSwitcher.exe`. |
+
+> **Note:** Both buttons open the latest GitHub release, where you can select the installer or ZIP. This keeps the links valid when new versions are published.
+
+## NvProfileSwitcher at a glance
 
 <div align="center">
-  <img src="assets/screenshots/nvprofileswitcher-main-window.png"
-       alt="NvProfileSwitcher v3 - Main Window"
-       width="100%">
+  <img src="assets/screenshots/nvprofileswitcher-main-window.png" alt="NvProfileSwitcher main window" width="100%">
 </div>
 
-## Made for every game and app
+NvProfileSwitcher watches the foreground application and automatically applies the color profile you've saved for it. Switch games, applications, or return to the desktop — your colors follow you.
 
-Every game and application looks different. Your display settings should adapt automatically.
+**Five NVIDIA color controls:** Digital Vibrance · Hue · Brightness · Contrast · Gamma.
 
-NvProfileSwitcher watches which application is in the foreground and applies the color profile you've configured for it. Switch between games, work apps, and the desktop — your colors follow you automatically. Prefer manual control? Activate a profile with a hotkey whenever you want.
+### Quick navigation
+
+[Highlights](#highlights) · [Getting started](#getting-started) · [Profiles](#profiles-and-editing) · [Color controls](#color-controls) · [Switching & overrides](#automatic-switching-global-switching-and-overrides) · [Hotkeys](#keyboard-shortcuts) · [Multiple monitors](#multiple-monitors) · [Updates & backups](#updates-configuration-and-backups) · [FAQ](#frequently-asked-questions)
+
+---
 
 ## Highlights
 
@@ -40,10 +63,10 @@ NvProfileSwitcher watches which application is in the foreground and applies the
 | **Manual overrides and hotkeys** | Force your Windows colors or a specific application profile, then return to automatic switching. |
 | **Display awareness** | Recognizes monitor connections, disconnections, and known display identities. |
 | **Sleep and hibernation recovery** | Refreshes NVIDIA and display state and reapplies the appropriate colors after Windows resumes. |
-| **Portable and installed editions** | Choose a standalone executable or a conventional Windows installer. |
+| **Portable and installed editions** | Choose a portable executable or a conventional Windows installer. |
 | **Built-in updates and backups** | Check for updates, verify downloads, and export or import your configuration. |
 
-## How automatic switching works
+## Getting started
 
 1. **Configure your Windows Profile.** This is your baseline for the desktop and any application without a matching profile.
 2. **Create an Application Profile.** Give it a name and select an executable using **Running apps...** or **Browse...**.
@@ -66,9 +89,7 @@ Your always-available baseline profile. It is the first entry in the list and ca
 New profiles start with your Windows Profile's color settings for the connected displays, so you can fine-tune only what needs to change.
 
 <div align="center">
-  <img src="assets/screenshots/nvprofileswitcher-windows-profile.png"
-       alt="NvProfileSwitcher v3 - Windows Profile"
-       width="100%">
+  <img src="assets/screenshots/nvprofileswitcher-windows-profile.png" alt="NvProfileSwitcher v3 - Windows Profile" width="100%">
 </div>
 
 ### Application Profiles
@@ -84,9 +105,7 @@ Each application profile has its own name, executable associations, enabled stat
 - **Save profile** commits your edits; **Cancel** discards them. NvProfileSwitcher asks before discarding unsaved changes.
 
 <div align="center">
-  <img src="assets/screenshots/nvprofileswitcher-application-profile.png"
-       alt="NvProfileSwitcher v3 - Application Profile"
-       width="100%">
+  <img src="assets/screenshots/nvprofileswitcher-application-profile.png" alt="NvProfileSwitcher v3 - Application Profile" width="100%">
 </div>
 
 ### Color controls
@@ -152,9 +171,7 @@ Existing saved monitor settings are preserved. Newly created application profile
 Use **Advanced Settings → Manage displays...** to review saved displays and remove disconnected displays you no longer use.
 
 <div align="center">
-  <img src="assets/screenshots/nvprofileswitcher-manage-displays.png"
-       alt="NvProfileSwitcher v3 - Manage Displays"
-       width="100%">
+  <img src="assets/screenshots/nvprofileswitcher-manage-displays.png" alt="NvProfileSwitcher v3 - Manage Displays" width="100%">
 </div>
 
 ## Recovery after sleep or hibernation
@@ -179,9 +196,7 @@ While NvProfileSwitcher is hidden in the system tray, its icon menu provides **O
 Manage update checks, remember switching and override states, organize saved displays, and import or export your configuration.
 
 <div align="center">
-  <img src="assets/screenshots/nvprofileswitcher-advanced-settings.png"
-       alt="NvProfileSwitcher v3 - Advanced Settings"
-       width="100%">
+  <img src="assets/screenshots/nvprofileswitcher-advanced-settings.png" alt="NvProfileSwitcher v3 - Advanced Settings" width="100%">
 </div>
 
 ## Updates, configuration, and backups
@@ -204,14 +219,16 @@ The active configuration is stored locally at:
 
 ## Download and installation
 
-Get official builds from [**GitHub Releases**](https://github.com/mgcarnevali/NvProfileSwitcher/releases).
+Get official builds from [**GitHub Releases**](https://github.com/mgcarnevali/NvProfileSwitcher/releases/latest).
 
 | Windows installer | Portable ZIP |
 |---|---|
 | Install and uninstall through Windows as usual. | Extract the ZIP and run `NvProfileSwitcher.exe`. |
 | Suitable for a standard desktop installation. | Suitable when you prefer not to install the application. |
 
-**Requirements:** Windows 10 or Windows 11, 64-bit (x64), a compatible NVIDIA GPU, and an NVIDIA display driver. The v3 executable is self-contained; **no separate .NET runtime installation** is needed.
+### Requirements
+
+**Windows 10 or Windows 11, 64-bit (x64)**, a compatible NVIDIA GPU, and an NVIDIA display driver. The v3 executable is self-contained; **no separate .NET runtime installation** is needed.
 
 ## Frequently asked questions
 
@@ -254,5 +271,7 @@ Copyright © 2026 Maximiliano Carnevali.
 **Your display. Your colors. Your rules.**
 
 *NvProfileSwitcher is an independent project and is not affiliated with, endorsed by, or sponsored by NVIDIA Corporation. NVIDIA is a trademark of NVIDIA Corporation.*
+
+[Official website](https://mgcarnevali.github.io/NvProfileSwitcher/) · [Releases](https://github.com/mgcarnevali/NvProfileSwitcher/releases/latest) · [GitHub Issues](https://github.com/mgcarnevali/NvProfileSwitcher/issues) · [☕ Ko-fi](https://ko-fi.com/mgcarnevali)
 
 </div>
