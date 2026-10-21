@@ -11,10 +11,10 @@
 Set your favorite colors once. NvProfileSwitcher takes care of the rest.
 
 [![Windows 10 / 11](https://img.shields.io/badge/Windows-10%20%2F%2011-0078D4?logo=windows&logoColor=white)](#requirements)
-[![C%23](https://img.shields.io/badge/C%23-.NET%20%2F%20Avalonia-512BD4?logo=dotnet&logoColor=white)](https://github.com/mgcarnevali/NvProfileSwitcher)
-[![Latest release](https://img.shields.io/github/v/release/mgcarnevali/NvProfileSwitcher?label=latest%20release)](https://github.com/mgcarnevali/NvProfileSwitcher/releases/latest)
-[![Windows CI](https://github.com/mgcarnevali/NvProfileSwitcher/actions/workflows/ci.yml/badge.svg)](https://github.com/mgcarnevali/NvProfileSwitcher/actions/workflows/ci.yml)
-[![GPLv3](https://img.shields.io/github/license/mgcarnevali/NvProfileSwitcher)](LICENSE)
+[![Latest release](https://img.shields.io/github/v/release/mgcarnevali/NvProfileSwitcher?label=release)](https://github.com/mgcarnevali/NvProfileSwitcher/releases/latest)
+[![GPLv3](https://img.shields.io/github/license/mgcarnevali/NvProfileSwitcher?label=license)](LICENSE)
+[![Last commit](https://img.shields.io/github/last-commit/mgcarnevali/NvProfileSwitcher?label=last%20commit)](https://github.com/mgcarnevali/NvProfileSwitcher/commits/main/)
+[![Build & UI Tests](https://github.com/mgcarnevali/NvProfileSwitcher/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/mgcarnevali/NvProfileSwitcher/actions/workflows/ci.yml)
 
 [**Official website ↗**](https://mgcarnevali.github.io/NvProfileSwitcher/) · [**GitHub Releases ↗**](https://github.com/mgcarnevali/NvProfileSwitcher/releases/latest) · [**Report an issue ↗**](https://github.com/mgcarnevali/NvProfileSwitcher/issues) · [**Support development ☕**](https://ko-fi.com/mgcarnevali)
 
