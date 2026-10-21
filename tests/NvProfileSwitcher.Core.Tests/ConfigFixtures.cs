@@ -146,7 +146,7 @@ internal sealed class ConfigSession : IDisposable
 {
     private readonly string directory = Path.Combine(Path.GetTempPath(), "NvProfileSwitcher.Tests", Guid.NewGuid().ToString("N"));
 
-    public ConfigSession(string? json = null, bool isDevelopmentBuild = false, bool createDirectory = true)
+    public ConfigSession(string? json = null, bool isDevelopmentBuild = false, bool createDirectory = true, TimeProvider? time = null)
     {
         Profiles = new ProfileStore(Switching);
         if (createDirectory)
@@ -154,7 +154,7 @@ internal sealed class ConfigSession : IDisposable
         if (json is not null)
             File.WriteAllText(ConfigPath, json);
 
-        Service = new ConfigurationService(ConfigPath, Profiles, Settings, Switching, isDevelopmentBuild, Dialogs);
+        Service = new ConfigurationService(ConfigPath, Profiles, Settings, Switching, isDevelopmentBuild, Dialogs, time);
     }
 
     public string ConfigPath => Path.Combine(directory, "config.json");

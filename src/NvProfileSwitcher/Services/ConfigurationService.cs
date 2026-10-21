@@ -18,7 +18,8 @@ internal sealed class ConfigurationService(
     AppSettings settings,
     SwitchingState switching,
     bool isDevelopmentBuild,
-    IDialogService dialogs)
+    IDialogService dialogs,
+    TimeProvider? timeProvider = null)
 {
     private const string MessageTitle = "NvProfileSwitcher";
     private const string SaveFailedMessage =
@@ -33,6 +34,9 @@ internal sealed class ConfigurationService(
     private bool pendingChanges;
 
     private string? loadProblem;
+
+    // The local time that names the copy of an invalid configuration; the system clock except in tests.
+    private readonly TimeProvider time = timeProvider ?? TimeProvider.System;
 
     public static string DefaultConfigPath { get; } =
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
@@ -197,7 +201,7 @@ internal sealed class ConfigurationService(
         try
         {
             var directory = Path.GetDirectoryName(ConfigPath) ?? string.Empty;
-            var stamp = DateTime.Now.ToString("yyyyMMdd-HHmmss", System.Globalization.CultureInfo.InvariantCulture);
+            var stamp = time.GetLocalNow().DateTime.ToString("yyyyMMdd-HHmmss", System.Globalization.CultureInfo.InvariantCulture);
             for (var attempt = 0; ; attempt++)
             {
                 var name = attempt == 0 ? $"config.invalid-{stamp}.json" : $"config.invalid-{stamp}-{attempt}.json";

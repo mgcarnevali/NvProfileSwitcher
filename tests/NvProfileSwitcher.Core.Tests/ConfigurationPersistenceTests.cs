@@ -20,12 +20,23 @@ public sealed class ConfigurationPersistenceTests
     {
         var now = DateTime.Now;
         for (var second = 0; second < 3; second++)
-        {
-            var stamp = now.AddSeconds(second).ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture);
-            for (var attempt = 0; attempt < suffixes; attempt++)
-                yield return Path.Combine(session.ConfigDirectory,
-                    attempt == 0 ? $"config.invalid-{stamp}.json" : $"config.invalid-{stamp}-{attempt}.json");
-        }
+            foreach (var name in BackupNames(session, now.AddSeconds(second), suffixes))
+                yield return name;
+    }
+
+    // The backup names the load can use at the local time <paramref name="time"/>.
+    private static IEnumerable<string> BackupNames(ConfigSession session, DateTime time, int suffixes)
+    {
+        var stamp = time.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture);
+        for (var attempt = 0; attempt < suffixes; attempt++)
+            yield return Path.Combine(session.ConfigDirectory,
+                attempt == 0 ? $"config.invalid-{stamp}.json" : $"config.invalid-{stamp}-{attempt}.json");
+    }
+
+    // A clock stopped at one instant, far from the real time.
+    private sealed class FixedTime(DateTimeOffset now) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => now;
     }
 
     [Theory]
@@ -79,15 +90,21 @@ public sealed class ConfigurationPersistenceTests
         Assert.Equal("{ not json", File.ReadAllText(backup));
     }
 
-    // Without a copy, the invalid file is the only one left: nothing is saved over it.
+    // Without a copy, the invalid file is the only one left: nothing is saved over it. The clock
+    // is fixed, so every name the load can use is taken however long the setup takes.
     [Fact]
     public void WithoutACopyTheInvalidFileIsNeverSavedOver()
     {
-        using var session = new ConfigSession("{ not json");
-        foreach (var path in PossibleBackupNames(session, suffixes: 101))
+        var clock = new FixedTime(new DateTimeOffset(2001, 2, 3, 4, 5, 6, TimeSpan.Zero));
+        using var session = new ConfigSession("{ not json", time: clock);
+        var taken = BackupNames(session, clock.GetLocalNow().DateTime, suffixes: 101).ToList();
+        foreach (var path in taken)
             File.WriteAllText(path, "taken");
 
         session.Service.Load();
+
+        Assert.Equal(taken.Order(), Backups(session).Order());
+        Assert.All(taken, path => Assert.Equal("taken", File.ReadAllText(path)));
         session.Settings.AlwaysOnTop = true;
 
         Assert.False(session.Service.Save());
