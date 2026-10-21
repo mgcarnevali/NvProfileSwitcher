@@ -31,7 +31,7 @@ Set your favorite colors once. NvProfileSwitcher takes care of the rest.
 | [**⬇ Download Installer**](https://mgcarnevali.github.io/NvProfileSwitcher/download/installer/) | [**⬇ Download Portable**](https://mgcarnevali.github.io/NvProfileSwitcher/download/portable/) |
 | Install and uninstall through Windows. | Extract the ZIP and run `NvProfileSwitcher.exe`. |
 
-> **Note:** Each button resolves the matching file from the latest stable GitHub release and starts its download. If automatic redirection is unavailable, a link to GitHub Releases is provided.
+> **Note:** Note: Download buttons automatically fetch the latest stable release from GitHub. If the download doesn't start, a manual download link is available.
 
 ## NvProfileSwitcher at a glance
 
