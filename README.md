@@ -16,7 +16,7 @@ Set your favorite colors once. NvProfileSwitcher takes care of the rest.
 [![Last commit](https://img.shields.io/github/last-commit/mgcarnevali/NvProfileSwitcher?label=last%20commit)](https://github.com/mgcarnevali/NvProfileSwitcher/commits/main/)
 [![Build & UI Tests](https://github.com/mgcarnevali/NvProfileSwitcher/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/mgcarnevali/NvProfileSwitcher/actions/workflows/ci.yml)
 
-[**Official website ↗**](https://mgcarnevali.github.io/NvProfileSwitcher/) · [**GitHub Releases ↗**](https://github.com/mgcarnevali/NvProfileSwitcher/releases/latest) · [**Report an issue ↗**](https://github.com/mgcarnevali/NvProfileSwitcher/issues) · [**Support development ☕**](https://ko-fi.com/mgcarnevali)
+[**Official website ↗**](https://mgcarnevali.github.io/NvProfileSwitcher/) · [**Report an issue ↗**](https://github.com/mgcarnevali/NvProfileSwitcher/issues) · [**Support development ☕**](https://ko-fi.com/mgcarnevali)
 
 </div>
 
