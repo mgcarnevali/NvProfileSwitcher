@@ -17,7 +17,6 @@ Set your favorite colors once. NvProfileSwitcher takes care of the rest.
 [![Build & UI Tests](https://github.com/mgcarnevali/NvProfileSwitcher/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/mgcarnevali/NvProfileSwitcher/actions/workflows/ci.yml)
 
 [**Official website ↗**](https://mgcarnevali.github.io/NvProfileSwitcher/) · [**Report an issue ↗**](https://github.com/mgcarnevali/NvProfileSwitcher/issues) · [**Support development ☕**](https://ko-fi.com/mgcarnevali)
-
 </div>
 
 ---
@@ -32,6 +31,8 @@ Set your favorite colors once. NvProfileSwitcher takes care of the rest.
 | Install and uninstall through Windows. | Extract the ZIP and run `NvProfileSwitcher.exe`. |
 
 > **Note:** Note: Download buttons automatically fetch the latest stable release from GitHub. If the download doesn't start, a manual download link is available.
+
+**Code signing policy:** See [CODE_SIGNING.md](CODE_SIGNING.md) for release provenance, maintainer roles, privacy, and signature verification. Current releases are not claimed to be signed. SignPath Foundation signing is planned, subject to approval.
 
 ## NvProfileSwitcher at a glance
 

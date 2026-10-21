@@ -1,5 +1,8 @@
 # Code signing policy
 
+**Planned signing attribution (not yet active):** Free code signing provided by SignPath.io, certificate by SignPath Foundation.
+The project has not yet been approved for SignPath Foundation signing. This attribution describes the intended service, not a claim that current releases are signed.
+
 NvProfileSwitcher is an open-source Windows utility distributed through its
 [official GitHub repository](https://github.com/mgcarnevali/NvProfileSwitcher).
 
@@ -28,6 +31,22 @@ maintains the repository and build workflows, and prepares releases.
 **Maximiliano Carnevali** reviews and approves official releases.
 
 NvProfileSwitcher is currently maintained by a single developer.
+
+## Privacy policy
+
+NvProfileSwitcher does not intentionally collect or transmit telemetry, analytics,
+profile configurations, or display settings. Its optional update checker contacts
+GitHub to retrieve release information and download updates at the user's request.
+Automatic update checks can be disabled in the application settings.
+No other user information is intentionally transferred to networked systems.
+
+## System changes and removal
+
+The installer writes application files, registers the application for Windows
+uninstallation, and creates Start Menu shortcuts. A desktop shortcut is optional.
+The portable edition runs without installation. NVIDIA color settings are changed
+only as directed by the user's profile configuration and controls.
+The installed edition can be removed through Windows Installed apps.
 
 ## Build and release process
 
