@@ -60,7 +60,7 @@ The commit hashes and Windows CI run numbers in this document belong to the arch
 | 10 | Integral refactor (§21): behavior tests, shared service graph, list consistency in the store and hotkeys per profile (R2 retired), preview event, editor and use-case services, single discard confirmation, clean drafts on display changes, deferred icons, update flow | `a361d40`, `5adda63`, `aaddf16`, `2dd06d8`, `a16465f`, `d97be46`, `9e5e5b1`, `a800928`, `886c958`, `245c6d5` | Windows CI #80 |
 | 11 | Displays and colors (§22): monitor identity, one color writer in batches, saved values that never come from written colors, one retry for monitors without identity | `bc53720` (superseded by `93fdf2a`), `4b869a9`, `93fdf2a`, `4127598`, `6f04236` and this document | Windows CI #81; hardware test of the preview while disconnecting a monitor |
 | 12 | Recovery after resume (§22.4) | `1b746b9`, `9ad94d3` | Windows CI #82; resume simulation on hardware pending (§20) |
-| 13 | Installed driver version (§22.5) | `c54ecef`, `e96e57e` (read on display changes) and this document | Local suites (§18); Windows CI and the driver update on hardware pending (§20) |
+| 13 | Installed driver version (§22.5) | `c54ecef`, `e96e57e` (read on display changes), the registry as its source and this document | Local suites (§18); Windows CI and the driver update on hardware pending (§20) |
 
 ---
 
@@ -1259,18 +1259,28 @@ shows may no longer be valid. Windows sends `WM_POWERBROADCAST` with `PBT_APMRES
 
 The NVIDIA API library (`nvapi64.dll`) a process loads stays loaded until it ends: initializing the
 API again (on `Opened` or after resume) gets the same library from Windows, which keeps reporting the
-driver it came with after another one is installed. The status bar therefore shows the driver
-installed in Windows:
+driver it came with after another one is installed. Reading the file version of that library did
+not help either: with 617 loaded and 621 installed, the running application kept showing 617 on
+display changes and on activation, and a new one showed 621 at once. The likely reason, not yet
+verified on Windows: the installation replaces the file by renaming the loaded one, and the version
+query (`GetFileVersionInfo`, through `FileVersionInfo`) for a path already loaded in the process is
+answered from the loaded image. The status bar therefore shows the driver Windows records as
+installed:
 
-- `InstalledDriverVersion.Read` (Platform) reads the file version of `nvapi64.dll` in the system
-  folder without loading it, and `DriverVersionCore.FromFileVersion` converts it to the NVIDIA form:
-  the last digit of the third part and the four digits of the fourth (32.0.16.1742 is 617.42).
+- `InstalledDriverVersion.Read` (Platform) reads `DriverVersion` of the display adapters device class
+  (`HKLM\SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}\NNNN`),
+  which Windows writes when a driver is installed on the device and which needs no elevation; subkeys
+  that cannot be read, such as `Properties`, are skipped. `DriverVersionCore.FromDisplayAdapters`
+  keeps the adapters whose `ProviderName` is NVIDIA and converts the newest version with
+  `DriverVersionCore.FromFileVersion`: the last digit of the third part and the four digits of the
+  fourth (32.0.16.2101 is 621.01).
+- Without a version there, it reads the file version of `nvapi64.dll` in the system folder, correct
+  at start; the version the API reports is the last fallback.
 - `NvidiaService` uses it when the API is initialized and in `RefreshDriverVersion`, which runs every
   time the window is activated and on every display topology change (`WM_DISPLAYCHANGE`, §8):
   installing a driver restarts the display adapter, which changes the display mode, so the new
-  version is read then even while the window is not active. The version the API reports is the
-  fallback when the file cannot be read. Without an initialized API nothing is read, and "Unknown"
-  never replaces a known version.
+  version is read then even while the window is not active. Without an initialized API nothing is
+  read, and "Unknown" never replaces a known version.
 - There is no polling. The session of the API itself stays the one loaded at start until the
   application is restarted.
 
