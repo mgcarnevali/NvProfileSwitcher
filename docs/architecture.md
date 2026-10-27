@@ -1100,11 +1100,12 @@ draft, and Exit from the tray twice while the confirmation is open; second insta
 - `ci.yml` runs on pull requests to `main` and manually: it builds, runs the Core and UI tests,
   validates the NativeAOT publish of the portable win-x64 executable and runs a 15-second smoke
   test of it. It uploads nothing.
-- `release.yml` runs only manually; pushing a tag starts nothing. No workflow uploads Actions
-  artifacts. Its `publish` input chooses the run:
+- `release.yml` runs only manually; pushing a tag starts nothing. Only its development builds
+  upload Actions artifacts. Its `publish` input chooses the run:
   - `none` (default): a development build, `NvProfileSwitcher-dev-<sha>` (the latest tag's
     version, "Dev" and the revision in About): build, Core and UI tests, NativeAOT publish,
-    smoke test and installer. Nothing is kept after the run.
+    smoke test and installer. The installer (`NvProfileSwitcher-Setup-dev-<sha>`) and the portable
+    folder (`NvProfileSwitcher-dev-<sha>`) are uploaded as artifacts of the run.
   - `draft` or `prerelease-draft` with `version` `MAJOR.MINOR.PATCH`, only from `main`: the
     release build of that version. Before building, the run fails when the tag `v<version>` or a
     release or draft for it already exists in this repository, or when the version is not newer
@@ -1116,8 +1117,8 @@ draft, and Exit from the tray twice while the confirmation is open; second insta
   - The draft is published by hand. The workflow creates no tag: GitHub creates `v<version>` on
     the commit that was built, and the run summary says whether it already exists. A draft that
     is deleted instead of published may leave that tag, which must then be deleted too.
-- Hardware tests use a local build or the files of a draft release; development runs of
-  `release.yml` keep nothing to download.
+- Hardware tests use a local build, the artifacts of a development run of `release.yml` or the
+  files of a draft release.
 - The JSON configuration uses the source-generated `NvProfileSwitcherJsonContext`; bindings are
   compiled; the toolkit is used only through its source generators.
 

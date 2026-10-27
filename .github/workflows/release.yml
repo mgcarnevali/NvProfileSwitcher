@@ -13,8 +13,9 @@ run-name: >-
 # draft or prerelease-draft it builds `version` from main as a stable build and creates a draft
 # release with the installer, the portable ZIP and their SHA-256 files in this repository,
 # where it is published by hand. The workflow creates no tag itself: the tag v<version> is
-# created by GitHub on the commit that was built. No Actions artifacts are uploaded: the draft
-# takes its files straight from the workspace.
+# created by GitHub on the commit that was built. Only development builds upload Actions
+# artifacts (the installer and the portable folder); the draft takes its files straight from the
+# workspace.
 on:
   workflow_dispatch:
     inputs:
@@ -252,6 +253,23 @@ jobs:
             "/DMyAppVersion=${{ env.BUILD_VERSION }}" `
             "/DMySetupSuffix=${{ env.SETUP_SUFFIX }}" `
             "installer\NvProfileSwitcher.iss"
+
+      # Development builds only: the installer and the portable folder, to download from the run.
+      - name: Upload installer artifact
+        if: inputs.publish == 'none'
+        uses: actions/upload-artifact@v7
+        with:
+          name: NvProfileSwitcher-Setup-${{ env.SETUP_SUFFIX }}
+          path: installer/output/NvProfileSwitcher-Setup-${{ env.SETUP_SUFFIX }}.exe
+          if-no-files-found: error
+
+      - name: Upload portable artifact
+        if: inputs.publish == 'none'
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ env.ARTIFACT_NAME }}
+          path: release
+          if-no-files-found: error
 
       - name: Create installer SHA-256 checksum
         if: inputs.publish != 'none'
