@@ -4,11 +4,11 @@ All notable changes to NvProfileSwitcher will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project follows [Semantic Versioning](https://semver.org/).
 
-## Unreleased
+## 3.1.0 --- 2026-11-08
 
 ### Added
 
-- Added Sort by Name (A–Z and Z–A) to the Profiles panel. It orders the application profiles permanently, as the move arrows do, so it also sets the priority of automatic switching; it asks for confirmation first. The Windows Profile stays first and an unsaved new profile stays last.
+- Added Sort by Name (A–Z and Z–A) to the Profiles panel. It asks for confirmation first, then orders the application profiles at once, as the move arrows do: the new order is saved and kept after restarting, and it sets the priority of automatic switching. The Windows Profile stays first and an unsaved new profile stays last.
 
 ## 3.0.1 --- 2026-11-08
 
