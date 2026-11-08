@@ -60,7 +60,7 @@ The commit hashes and Windows CI run numbers in this document belong to the arch
 | 10 | Integral refactor (§21): behavior tests, shared service graph, list consistency in the store and hotkeys per profile (R2 retired), preview event, editor and use-case services, single discard confirmation, clean drafts on display changes, deferred icons, update flow | `a361d40`, `5adda63`, `aaddf16`, `2dd06d8`, `a16465f`, `d97be46`, `9e5e5b1`, `a800928`, `886c958`, `245c6d5` | Windows CI #80 |
 | 11 | Displays and colors (§22): monitor identity, one color writer in batches, saved values that never come from written colors, one retry for monitors without identity | `bc53720` (superseded by `93fdf2a`), `4b869a9`, `93fdf2a`, `4127598`, `6f04236` and this document | Windows CI #81; hardware test of the preview while disconnecting a monitor |
 | 12 | Recovery after resume (§22.4) | `1b746b9`, `9ad94d3` | Windows CI #82; resume simulation on hardware pending (§20) |
-| 13 | Installed driver version (§22.5) | `c54ecef`, `e96e57e` (read on display changes), the registry as its source and this document | Local suites (§18); Windows CI and the driver update on hardware pending (§20) |
+| 13 | Installed driver version (§22.5) | `c54ecef`, `e96e57e` (read on display changes), the registry as its source and this document | Local suites (§18); Windows CI in this repository; driver update while the application runs, on hardware (GeForce RTX 3090) |
 
 ---
 
@@ -1127,8 +1127,7 @@ draft, and Exit from the tray twice while the confirmation is open; second insta
 ## 20. Open items
 
 - Windows CI and the hardware checklist (§18), with a local build or a draft release (§19), for
-  phases 10 and 11; for phase 12, the resume simulation (§22.4) on hardware; for phase 13, the
-  Windows CI and a driver update while the application runs.
+  phases 10 and 11; for phase 12, the resume simulation (§22.4) on hardware.
 - The body scrollbar stays pending; it is not touched.
 - Possible later improvement, outside the migration: ignore the automatic update check while
   another one runs or the update dialog is open (§16).
@@ -1284,6 +1283,10 @@ installed:
   read, and "Unknown" never replaces a known version.
 - There is no polling. The session of the API itself stays the one loaded at start until the
   application is restarted.
+- Validated on hardware (GeForce RTX 3090): during a real driver update with the application open,
+  the status bar showed the new version by itself, without activating the window or restarting the
+  application. The loader behavior described above, the likely cause of the original problem,
+  remains unverified.
 
 ### 22.6 Initial values from the NVIDIA Control Panel
 
