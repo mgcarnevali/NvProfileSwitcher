@@ -139,8 +139,10 @@ internal sealed class ProfileListService(
         using (colors.Batch())
         {
             preview.Discard();
-            // The list keeps its selected item through the moves; nothing is selected anew.
             store.Reorder(order);
+            // The list drops its selected item when that item is moved: the editor's selection,
+            // which the reorder kept, is shown again. Nothing is selected anew.
+            editor.SetSelection(editor.SelectedProfile);
             // As moving, sorting registers the hotkeys again, which reports any that cannot be enabled.
             hotkeys.Refresh(showAggregateMessage: true);
 

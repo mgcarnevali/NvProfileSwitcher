@@ -128,6 +128,35 @@ public sealed class ProfileViewsTests
         window.Close();
     }
 
+    // The selected profile is itself moved by the sort (Notepad goes from the last row to the
+    // first): the list must still show it selected, as the editor does, with its draft.
+    [AvaloniaFact]
+    public void SortingKeepsAMovedSelectedRowSelected()
+    {
+        var (app, window) = Show();
+        using var _ = app;
+        ProfileList(window).SelectedIndex = 2;
+        Dispatcher.UIThread.RunJobs();
+        var notepad = app.Profiles.Profiles[2];
+        Assert.Same(notepad, app.Editor.SelectedProfile);
+        app.ProfileSettings.Name = "Changed";
+
+        app.ProfilesPanel.SortByNameDescendingCommand.Execute(null);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal(["Windows", "Notepad", "Game"], app.Profiles.Profiles.Select(p => p.Name));
+        Assert.Same(notepad, app.Editor.SelectedProfile);
+        Assert.Same(notepad, app.Editor.Session!.Source);
+        Assert.Equal("Changed", app.ProfileSettings.Name);
+        Assert.Same(notepad, ProfileList(window).SelectedItem);
+        Assert.Equal(1, ProfileList(window).SelectedIndex);
+        // The row shown selected is Notepad's: after a move the containers' visual order is not
+        // their index, so each profile's own container is checked.
+        Assert.Equal([false, true, false], app.Profiles.Profiles.Select(p =>
+            Assert.IsType<ListBoxItem>(ProfileList(window).ContainerFromItem(p)).IsSelected));
+        window.Close();
+    }
+
     // Choosing an action item keeps the current executable selected.
     [AvaloniaFact]
     public void ChoosingAnExecutableActionKeepsTheSelectedExecutable()
