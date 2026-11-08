@@ -112,6 +112,40 @@ internal sealed class ProfileStore
         UpdateMoveState();
     }
 
+    /// <summary>
+    /// Puts the application profiles in <paramref name="applicationOrder"/>, which holds each of
+    /// them once; the Windows profile stays first, and a profile override follows its profile.
+    /// False when the order did not change.
+    /// </summary>
+    public bool Reorder(IReadOnlyList<ProfileListItem> applicationOrder)
+    {
+        var current = ApplicationProfiles;
+        if (applicationOrder.Count != current.Count ||
+            applicationOrder.Distinct(ReferenceEqualityComparer.Instance).Count() != current.Count ||
+            !applicationOrder.All(p => current.Any(c => ReferenceEquals(c, p))))
+            throw new ArgumentException("The order must hold each application profile once.", nameof(applicationOrder));
+
+        if (applicationOrder.SequenceEqual(current, ReferenceEqualityComparer.Instance))
+            return false;
+
+        var overridden = switching.OverrideMode == OverrideMode.Profile
+            ? current.ElementAtOrDefault(switching.OverrideProfileIndex)
+            : null;
+
+        var first = profiles.Count - current.Count;
+        for (var i = 0; i < applicationOrder.Count; i++)
+        {
+            var from = profiles.IndexOf(applicationOrder[i]);
+            if (from != first + i)
+                profiles.Move(from, first + i);
+        }
+
+        if (overridden is not null)
+            switching.OverrideProfileIndex = applicationOrder.ToList().IndexOf(overridden);
+        UpdateMoveState();
+        return true;
+    }
+
     // The Windows profile and its first follower never move up; the last profile never moves down.
     private void UpdateMoveState()
     {

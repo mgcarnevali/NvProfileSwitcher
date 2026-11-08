@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
 using System.ComponentModel;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -40,9 +41,13 @@ internal sealed partial class ProfilesViewModel : ObservableObject
         this.editing = editing;
         this.profileList = profileList;
         editor.PropertyChanged += OnEditorPropertyChanged;
+        ((INotifyCollectionChanged)store.Profiles).CollectionChanged += (_, _) => OnPropertyChanged(nameof(CanSortByName));
     }
 
     public ReadOnlyObservableCollection<ProfileListItem> Profiles => store.Profiles;
+
+    /// <summary>Whether Sort by Name has two application profiles to order.</summary>
+    public bool CanSortByName => store.ApplicationProfiles.Count >= 2;
 
     /// <summary>
     /// The list selection. A new selection is confirmed by the editing service, which may keep
@@ -78,6 +83,12 @@ internal sealed partial class ProfilesViewModel : ObservableObject
 
     [RelayCommand(AllowConcurrentExecutions = true)]
     private Task MoveDownAsync(ProfileListItem? profile) => profileList.MoveAsync(profile, 1);
+
+    [RelayCommand(AllowConcurrentExecutions = true)]
+    private Task SortByNameAscendingAsync() => profileList.SortByNameAsync(descending: false);
+
+    [RelayCommand(AllowConcurrentExecutions = true)]
+    private Task SortByNameDescendingAsync() => profileList.SortByNameAsync(descending: true);
 
     [RelayCommand]
     private void ToggleEnabled(ProfileListItem? profile) => profileList.ToggleEnabled(profile);

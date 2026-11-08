@@ -6,12 +6,28 @@
              x:DataType="vm:ProfilesViewModel">
   <Border Classes="panel">
     <Grid RowDefinitions="Auto,Auto,*" RowSpacing="10">
-      <StackPanel Classes="panelHeader">
-        <Viewbox Classes="strokeIcon" Width="18" Height="18">
-          <Canvas Width="24" Height="24"><Path Classes="strokeIcon" Data="{StaticResource ProfilesIcon}"/></Canvas>
-        </Viewbox>
-        <TextBlock Classes="panelTitle" Text="Profiles"/>
-      </StackPanel>
+      <Grid ColumnDefinitions="*,Auto">
+        <StackPanel Classes="panelHeader">
+          <Viewbox Classes="strokeIcon" Width="18" Height="18">
+            <Canvas Width="24" Height="24"><Path Classes="strokeIcon" Data="{StaticResource ProfilesIcon}"/></Canvas>
+          </Viewbox>
+          <TextBlock Classes="panelTitle" Text="Profiles"/>
+        </StackPanel>
+        <!-- Sort by Name: a permanent order, as the arrows give, so it changes the switching
+             priority. Its negative margin keeps the header as tall as the title. -->
+        <Button Grid.Column="1" Classes="sortButton" ToolTip.Tip="Sort profiles"
+                IsEnabled="{CompiledBinding CanSortByName}">
+          <Viewbox Classes="strokeIcon" Width="16" Height="16">
+            <Canvas Width="24" Height="24"><Path Classes="strokeIcon" Data="{StaticResource SortIcon}"/></Canvas>
+          </Viewbox>
+          <Button.Flyout>
+            <MenuFlyout Placement="BottomEdgeAlignedRight">
+              <MenuItem Header="Sort by Name (A–Z)" Command="{CompiledBinding SortByNameAscendingCommand}"/>
+              <MenuItem Header="Sort by Name (Z–A)" Command="{CompiledBinding SortByNameDescendingCommand}"/>
+            </MenuFlyout>
+          </Button.Flyout>
+        </Button>
+      </Grid>
 
       <!-- Both actions share one Auto size (at least main's 115 DIP), so they keep equal width at any scale. -->
       <Grid Grid.Row="1" ColumnSpacing="8" HorizontalAlignment="Left" Grid.IsSharedSizeScope="True">

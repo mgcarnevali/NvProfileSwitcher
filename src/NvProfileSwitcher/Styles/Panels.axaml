@@ -19,6 +19,11 @@
     <Setter Property="FontWeight" Value="SemiBold"/>
     <Setter Property="VerticalAlignment" Value="Center"/>
   </Style>
+  <Style Selector="Button.sortButton">
+    <Setter Property="Padding" Value="5"/>
+    <Setter Property="Margin" Value="0,-3,0,-3"/>
+    <Setter Property="VerticalAlignment" Value="Center"/>
+  </Style>
   <Style Selector="Viewbox.strokeIcon">
     <Setter Property="Stretch" Value="Uniform"/>
     <Setter Property="VerticalAlignment" Value="Center"/>

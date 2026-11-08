@@ -87,8 +87,8 @@ Each invariant has one owner, and a test verifies it.
 
 1. **The profile list is consistent by construction.** `ProfileStore` exposes the list read-only,
    so nothing else can change it. Its only changes (`Load`, `AddUnsaved`, `MarkSaved`, `Remove`,
-   `Move`) keep the ▲▼ state, the unsaved new profile and the profile override (a position in the
-   list) on their profiles. No caller has to remember any of it.
+   `Move`, `Reorder`) keep the ▲▼ state, the unsaved new profile and the profile override (a
+   position in the list) on their profiles. No caller has to remember any of it.
 2. **Hotkeys do not depend on positions.** `HotkeyService` remembers which IDs it registered and
    the profile of each profile hotkey ID, and looks up the profile's position when the key is
    pressed. Registering again after a change is a consequence of the change, never an order to
@@ -201,7 +201,7 @@ Dialogs: About · AdvancedSettings · UpdateAvailable · RunningApps · ManageDi
     that does not throw could not write a display, and the composition makes the active profile
     forget its name, so the next check applies it again.
 - `ProfileListService` uses `ProfileEditingService` (Add confirms the discard; Move selects
-  another profile); `ProfileEditingService` never uses `ProfileListService`, because discarding the
+  another profile; Sort by Name selects nothing); `ProfileEditingService` never uses `ProfileListService`, because discarding the
   unsaved profile only needs the store.
 - Window conditions reach services as plain facts (`Func<bool>`, `Action<bool>`) passed in the
   `ServiceEnvironment`, so services never depend on the Shell.
@@ -271,7 +271,7 @@ reference Core tests run unchanged. New code uses the namespace of its folder.
 
 | Class | Owns | Main API | From MW |
 |---|---|---|---|
-| `ProfileStore` | the list (Windows first), `UnsavedNewProfile`, the physical monitor identities found shared | read-only `Profiles`, `Windows`, `ApplicationProfiles`, `NonUniqueMonitorIds`; `Load`, `AddUnsaved`, `MarkSaved`, `Remove`, `Move`, each keeping the ▲▼ state, the unsaved profile and the profile override consistent (§11); `LoadNonUniqueMonitorIds`, `MarkNonUnique` (§22.1) | 290–372, 2050 |
+| `ProfileStore` | the list (Windows first), `UnsavedNewProfile`, the physical monitor identities found shared | read-only `Profiles`, `Windows`, `ApplicationProfiles`, `NonUniqueMonitorIds`; `Load`, `AddUnsaved`, `MarkSaved`, `Remove`, `Move`, `Reorder` (Sort by Name, 3.1-1), each keeping the ▲▼ state, the unsaved profile and the profile override consistent (§11); `LoadNonUniqueMonitorIds`, `MarkNonUnique` (§22.1) | 290–372, 2050 |
 | `AppSettings` | the five checkboxes, the two "Remember" flags, the four global hotkeys | INPC properties | `loadedConfig`, checkboxes |
 | `SwitchingState` | `OverrideMode`, `OverrideProfileIndex`, `GlobalPaused`, `ActiveProfileName`, `DisplayedActiveProfile` | INPC properties | fields 28–30, 49 |
 | `ConfigurationService` | config path, `savingBlocked`, `pendingChanges`, the pending load notice | `Load`, `ReportLoadProblem`, `Save`, `Save(profile, replacement, reportFailure)`, `SaveIfPending`, `ImportAsync`, `ExportAsync` (§12) | 326, 1647, 1945–2077 |
@@ -285,7 +285,7 @@ reference Core tests run unchanged. New code uses the namespace of its folder.
 | `ProfileEditorSession` | source, draft | `HasChanges`, `HasUnsavedColorChanges` (pure) | — |
 | `ProfileEditor` | `SelectedProfile`, session, `SelectedDisplay`, slider values, draft hotkey | `BeginFirstProfile`, `SetSelection`, `Begin`, `AddUnsaved`, `Commit`, `Discard`, `StopEditing`, `SelectDisplay`, `RefreshDisplays(displays, remaps)` (the draft follows moved monitor ids), `SetName`, `AddExecutable`, `ReplaceExecutable`, `RemoveExecutable`, `SetDraftHotkey`, `SetCurrentValues`, `ResetValues`, `CopyColorsFrom`, `CompleteDraft`, `AcceptValues`; `IsDirty`, `HasUnsavedColorChanges`, `IsEditingUnsavedProfile`; events `EditingTargetChanging`, `DisplayChanged`, `EditingStarted`, `ValuesLoaded`, `DraftChanged`. Every draft change announces itself; no dialogs and no effects outside its state and the store; it never reads a display (§22.3) | 168–250, 1176–1196, 1494–1612 |
 | `ProfileEditingService` | whether a discard confirmation is open | `ConfirmAndDiscardAsync` (the single discard confirmation), `RequestSelectionAsync`, `SetValues`, `Reset`, `CopySettingsAsync`, `CancelAsync`, `SaveAsync` | 168–250, 1302–1612 |
-| `ProfileListService` | — | `AddAsync`, `RemoveSelectedAsync`, `MoveAsync(profile, direction)`, `ToggleEnabled` | 265–316, 1176–1260 |
+| `ProfileListService` | — | `AddAsync`, `RemoveSelectedAsync`, `MoveAsync(profile, direction)`, `SortByNameAsync(descending)` (3.1-1), `ToggleEnabled` | 265–316, 1176–1260 |
 | `LivePreviewController` | `IsActive` | `Preview` (begin and show), `Accept`, `Discard`, `Suspend`, `Resume`, `ReapplyIfPreviewing`. Writes nothing itself: the preview is the controller's layer over the base profile | 1605–1612, 2193–2300 |
 | `HotkeyService` | window handle, "registered", the registered IDs and the profile of each profile hotkey ID, `IsMessageDialogOpen` | `Attach`, `RegisterAll`, `UnregisterAll`, `Refresh`, `TryTest`, `HandleMessage`, `ShowMessageAsync`, `Format`; event `Triggered` | 551–597, 835–924 |
 | `HotkeyCaptureController` | field in capture, caret timer | `Begin`, `End`, `EndUnlessMessageOpen`, `FocusLost`, `KeyPressed`, `StoredHotkey`, `CaptureTarget` | 698–1003 |
@@ -298,7 +298,7 @@ reference Core tests run unchanged. New code uses the namespace of its folder.
   in `OverrideCore`), saving when the override is remembered;
 - `ActiveProfileService.Check`: an invalid profile override returns to Automatic, as the reference did;
 - `ProfileStore`: the index follows its profile when the list changes (`OverrideCore.AfterRemove`
-  and `AfterMove`);
+  and `AfterMove`; `Reorder` finds the overridden profile in its new place);
 - `ConfigurationService`: the load and the import restore it (`ConfigMappingCore.ApplyState`).
 
 No ViewModel writes it.
@@ -515,9 +515,10 @@ cause instead:
   the profile's current position when the key is pressed and ignores a profile no longer in the
   list. A list change can no longer make a hotkey trigger another profile, whatever the order of
   the calls.
-- **`ProfileStore` keeps the list consistent.** The list is read-only outside the store; `Remove`
-  and `Move` keep the profile override on its profile (`OverrideCore.AfterRemove`, `AfterMove`)
-  and every change updates the ▲▼ state and the unsaved new profile.
+- **`ProfileStore` keeps the list consistent.** The list is read-only outside the store; `Remove`,
+  `Move` and `Reorder` keep the profile override on its profile (`OverrideCore.AfterRemove`,
+  `AfterMove`; `Reorder` by the profile itself) and every change updates the ▲▼ state and the
+  unsaved new profile.
 - **Registering again is a consequence, not a protocol.** After a change of what should be
   registered, its owner calls `HotkeyService.Refresh(showAggregateMessage)`:
 
@@ -525,6 +526,7 @@ cause instead:
 |---|---|---|
 | Remove | `ProfileListService.RemoveSelectedAsync` | after the change, with the message |
 | Move | `ProfileListService.MoveAsync` | after the change, with the message (as the reference, which reported hotkeys that cannot be enabled) |
+| Sort by Name | `ProfileListService.SortByNameAsync` | after the change, with the message, as Move |
 | Enable or disable | `ProfileListService.ToggleEnabled` | after the change, with the message |
 | A profile hotkey | `ProfileEditingService.SaveAsync` (through `ProfileEditor.Commit`) | after the save, with the message |
 | Global hotkeys | `HotkeyCaptureController` | when the capture ends |
@@ -903,6 +905,20 @@ supersede an earlier decision; that is noted in place.
 - **3.0-2 New monitors start from the NVIDIA Control Panel settings** (§22.6). The brightness,
   contrast and gamma of a monitor new to the Windows profile come from the NVIDIA Control Panel
   when they can be used; the reference, and earlier versions, started them at 100, 100 and 1.00.
+
+**Version 3.1**
+- **3.1-1 Sort by Name.** A compact button right of the Profiles title opens a menu with Sort by
+  Name (A–Z) and Sort by Name (Z–A). It orders the application profiles as the ▲▼ arrows do, at
+  once and permanently: the list order is the priority of automatic switching and the order of
+  `"Application Profiles"` in `config.json`, saved with `ConfigurationService.Save`; there is no
+  sort preference. It asks first, since it changes that priority, and does nothing when the
+  profiles are already in that order. Names compare ignoring case and following the current
+  culture (`ProfileOrderCore.ByName`); equal names keep their order. The Windows profile stays
+  first and the unsaved new profile goes last, out of the sort and still unsaved. Unlike the
+  arrows it selects nothing: the selection, its draft and preview and a profile override stay
+  as they were (`ProfileStore.Reorder`). As moving, it registers the hotkeys again and does not
+  reevaluate the active profile, which follows the new priority at the next check. The button is
+  enabled with two application profiles or more. The reference had no sort.
 ---
 
 ## 16. Reference behavior kept on purpose

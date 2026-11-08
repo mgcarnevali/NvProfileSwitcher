@@ -96,6 +96,38 @@ public sealed class ProfileViewsTests
         window.Close();
     }
 
+    // Sort by Name sits in the panel header, right of the title, as a compact button whose menu
+    // offers A–Z and Z–A; the selected row stays selected in the list after the sort.
+    [AvaloniaFact]
+    public void TheSortMenuSortsAndKeepsTheSelectedRowSelected()
+    {
+        var (app, window) = Show();
+        using var _ = app;
+        ProfileList(window).SelectedIndex = 1;
+        Dispatcher.UIThread.RunJobs();
+
+        var sort = Single<ProfilesView>(window).GetVisualDescendants().OfType<Button>()
+            .Single(b => b.Classes.Contains("sortButton"));
+        Assert.Equal("Sort profiles", ToolTip.GetTip(sort));
+        Assert.True(sort.IsEnabled);
+        Assert.Equal(1, Grid.GetColumn(sort));
+        var flyout = Assert.IsType<MenuFlyout>(sort.Flyout);
+        var items = flyout.Items.OfType<MenuItem>().ToList();
+        Assert.Equal(["Sort by Name (A–Z)", "Sort by Name (Z–A)"], items.Select(i => i.Header));
+
+        // Opened from its button, the menu's items reach the panel's commands.
+        flyout.ShowAt(sort);
+        Dispatcher.UIThread.RunJobs();
+        Assert.True(flyout.IsOpen);
+        items[1].Command!.Execute(null);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal(["Windows", "Notepad", "Game"], app.Profiles.Profiles.Select(p => p.Name));
+        Assert.Equal(2, ProfileList(window).SelectedIndex);
+        Assert.Same(app.Profiles.Profiles[2], ProfileList(window).SelectedItem);
+        window.Close();
+    }
+
     // Choosing an action item keeps the current executable selected.
     [AvaloniaFact]
     public void ChoosingAnExecutableActionKeepsTheSelectedExecutable()

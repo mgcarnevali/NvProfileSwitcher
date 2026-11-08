@@ -63,6 +63,9 @@ public sealed class ProfileEditingIntegrationTests
 
     private static List<string> Names(TestComposition app) => app.Profiles.Profiles.Select(p => p.Name).ToList();
 
+    private static string MoveState(TestComposition app) =>
+        string.Join(" ", app.Profiles.Profiles.Select(p => $"{p.Name}:{(p.CanMoveUp ? "U" : "-")}{(p.CanMoveDown ? "D" : "-")}"));
+
     private static string SavedJson(TestComposition app) => File.Exists(app.ConfigPath) ? File.ReadAllText(app.ConfigPath) : string.Empty;
 
     [AvaloniaFact]
@@ -490,6 +493,164 @@ public sealed class ProfileEditingIntegrationTests
         await app.ProfilesPanel.MoveUpCommand.ExecuteAsync(app.Profiles.Windows);
 
         Assert.Equal(["Windows", "Game", "Notepad", "Editor"], Names(app));
+    }
+
+    // Sort by Name: a permanent order, as the arrows give, confirmed first because it changes
+    // the switching priority. The Windows profile stays first.
+    [AvaloniaTheory]
+    [InlineData(false, new[] { "Windows", "Editor", "Game", "Notepad" })]
+    [InlineData(true, new[] { "Windows", "Notepad", "Game", "Editor" })]
+    public async Task SortByNameIsConfirmedAndSaved(bool descending, string[] expected)
+    {
+        using var app = Create();
+
+        await (descending
+            ? app.ProfilesPanel.SortByNameDescendingCommand.ExecuteAsync(null)
+            : app.ProfilesPanel.SortByNameAscendingCommand.ExecuteAsync(null));
+
+        Assert.Equal([descending], app.Dialogs.SortRequests);
+        Assert.Equal(expected, Names(app));
+        var json = SavedJson(app);
+        var positions = expected.Skip(1).Select(name => json.IndexOf($"\"{name}\"", StringComparison.Ordinal)).ToList();
+        Assert.All(positions, position => Assert.True(position >= 0));
+        Assert.Equal(positions.Order(), positions);
+        Assert.Equal("Windows:-- " + string.Join(" ", expected.Skip(1).Select((name, i) =>
+            $"{name}:{(i > 0 ? "U" : "-")}{(i < expected.Length - 2 ? "D" : "-")}")), MoveState(app));
+    }
+
+    [AvaloniaFact]
+    public async Task ACancelledSortChangesAndSavesNothing()
+    {
+        using var app = Create();
+        var saved = SavedJson(app);
+        app.Dialogs.SortAnswer = false;
+
+        await app.ProfilesPanel.SortByNameAscendingCommand.ExecuteAsync(null);
+
+        Assert.Equal([false], app.Dialogs.SortRequests);
+        Assert.Equal(["Windows", "Game", "Notepad", "Editor"], Names(app));
+        Assert.Equal(saved, SavedJson(app));
+    }
+
+    // Profiles already in that order: nothing to ask and nothing to save.
+    [AvaloniaFact]
+    public async Task SortingIntoTheCurrentOrderAsksAndSavesNothing()
+    {
+        using var app = Create();
+        await app.ProfilesPanel.SortByNameAscendingCommand.ExecuteAsync(null);
+        File.Delete(app.ConfigPath);
+
+        await app.ProfilesPanel.SortByNameAscendingCommand.ExecuteAsync(null);
+
+        Assert.Single(app.Dialogs.SortRequests);
+        Assert.False(File.Exists(app.ConfigPath));
+    }
+
+    // Unlike the arrows, sorting selects nothing: the selection, its draft and preview stay as
+    // they were, with no question about unsaved changes.
+    [AvaloniaFact]
+    public async Task SortingKeepsTheSelectionDraftAndPreview()
+    {
+        using var app = Create();
+        await Select(app, "Game");
+        app.ProfileSettings.Name = "Changed";
+        app.ProfileSettings.Brightness = 90;
+        var backend = app.Factory.Created[^1];
+        backend.Applied.Clear();
+
+        await app.ProfilesPanel.SortByNameDescendingCommand.ExecuteAsync(null);
+
+        Assert.Empty(app.Dialogs.DiscardRequests);
+        Assert.Equal(["Windows", "Notepad", "Game", "Editor"], Names(app));
+        Assert.Same(Named(app, "Game"), app.ProfilesPanel.SelectedProfile);
+        Assert.Same(Named(app, "Game"), app.Editor.Session!.Source);
+        Assert.Equal("Changed", app.ProfileSettings.Name);
+        Assert.Equal(90, app.ProfileSettings.Brightness);
+        Assert.True(app.ProfileSettings.CanCancel);
+        Assert.True(app.Preview.IsActive);
+        Assert.Equal((Dell, 90.0), (Assert.Single(backend.Applied).MonitorId, backend.Applied[0].Brightness));
+        Assert.DoesNotContain("\"Changed\"", SavedJson(app));
+    }
+
+    [AvaloniaFact]
+    public async Task SortingKeepsTheProfileOverrideAndHotkeysOnTheirProfiles()
+    {
+        using var app = Create();
+        Assert.True(app.PressHotkey(GameHotkey));
+
+        await app.ProfilesPanel.SortByNameDescendingCommand.ExecuteAsync(null);
+
+        Assert.Equal(["Windows", "Notepad", "Game", "Editor"], Names(app));
+        Assert.Equal((OverrideMode.Profile, 1), (app.Switching.OverrideMode, app.Switching.OverrideProfileIndex));
+        Assert.Contains("\"OverrideProfileId\": \"11111111-1111-1111-1111-111111111111\"", SavedJson(app));
+        Assert.True(app.PressHotkey(NotepadHotkey));
+        Assert.Equal((OverrideMode.Profile, 0), (app.Switching.OverrideMode, app.Switching.OverrideProfileIndex));
+    }
+
+    // The unsaved new profile takes no part: it goes last, still unsaved, and is not written.
+    [AvaloniaFact]
+    public async Task SortingLeavesTheUnsavedProfileLastAndUnsaved()
+    {
+        using var app = Create();
+        await app.ProfilesPanel.AddCommand.ExecuteAsync(null);
+        app.ProfileSettings.Name = "Racing";
+        var added = app.Profiles.UnsavedNewProfile!;
+        await app.ProfilesPanel.MoveUpCommand.ExecuteAsync(added);
+        await app.ProfilesPanel.MoveUpCommand.ExecuteAsync(added);
+
+        await app.ProfilesPanel.SortByNameAscendingCommand.ExecuteAsync(null);
+
+        Assert.Equal(["Windows", "Editor", "Game", "Notepad", "New Profile"], Names(app));
+        Assert.Same(added, app.Profiles.UnsavedNewProfile);
+        Assert.Same(added, app.ProfilesPanel.SelectedProfile);
+        Assert.Equal("Racing", app.ProfileSettings.Name);
+        Assert.DoesNotContain("New Profile", SavedJson(app));
+        Assert.DoesNotContain("Racing", SavedJson(app));
+    }
+
+    // The new order is the switching priority: the first matching profile is applied.
+    [AvaloniaFact]
+    public async Task SortingChangesTheSwitchingPriority()
+    {
+        var config = $$"""
+            {
+              "Windows Profiles":[{{Values(Dell, 50, 100)}},{{Values(Lg, 51, 100)}}],
+              "Application Profiles":[
+                {{Profile("11111111-1111-1111-1111-111111111111", "Zeta", "game.exe", true, 0, 70)}},
+                {{Profile("22222222-2222-2222-2222-222222222222", "Alpha", "game.exe", true, 0, 60)}}
+              ]
+            }
+            """;
+        using var app = Create(config);
+        app.Foreground = "game.exe";
+        app.Monitor.RaiseChanged();
+        Assert.Equal("Zeta", app.Switching.ActiveProfileName);
+
+        await app.ProfilesPanel.SortByNameAscendingCommand.ExecuteAsync(null);
+        app.Foreground = "explorer.exe";
+        app.Monitor.RaiseChanged();
+        app.Foreground = "game.exe";
+        app.Monitor.RaiseChanged();
+
+        Assert.Equal(["Windows", "Alpha", "Zeta"], Names(app));
+        Assert.Equal("Alpha", app.Switching.ActiveProfileName);
+    }
+
+    [AvaloniaFact]
+    public void SortByNameNeedsTwoApplicationProfiles()
+    {
+        var config = $$"""
+            {
+              "Windows Profiles":[{{Values(Dell, 50, 100)}},{{Values(Lg, 51, 100)}}],
+              "Application Profiles":[{{Profile("11111111-1111-1111-1111-111111111111", "Game", "game.exe", true, 0, 70)}}]
+            }
+            """;
+        using var app = Create(config);
+
+        Assert.False(app.ProfilesPanel.CanSortByName);
+        app.ProfilesPanel.AddCommand.Execute(null);
+        Dispatcher.UIThread.RunJobs();
+        Assert.True(app.ProfilesPanel.CanSortByName);
     }
 
     [AvaloniaFact]

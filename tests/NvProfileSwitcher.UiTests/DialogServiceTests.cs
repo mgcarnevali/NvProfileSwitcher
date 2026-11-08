@@ -53,6 +53,33 @@ public sealed class DialogServiceTests
         main.Close();
     }
 
+    // Sort by Name asks first, saying that the list order is the switching priority.
+    [AvaloniaTheory]
+    [InlineData(false, "Sort", true)]
+    [InlineData(true, "Cancel", false)]
+    public void TheSortConfirmationNamesTheSwitchingPriority(bool descending, string button, bool expected)
+    {
+        var (main, dialogs) = Create();
+        main.Show();
+
+        var shown = dialogs.ConfirmSortProfilesAsync(descending);
+        Dispatcher.UIThread.RunJobs();
+
+        var dialog = OwnedDialog<CenteredDialogWindow>(main);
+        Assert.Equal("Sort profiles?", dialog.Title);
+        var text = string.Join("\n", dialog.GetVisualDescendants().OfType<TextBlock>().Select(t => t.Text));
+        Assert.Contains(descending ? "(Z–A)" : "(A–Z)", text);
+        Assert.Contains("priority of automatic switching", text);
+        Assert.Contains("The Windows Profile stays first.", text);
+        var buttons = dialog.GetVisualDescendants().OfType<Button>().ToList();
+        Assert.Equal(["Cancel", "Sort"], buttons.Select(b => b.Content));
+
+        buttons.Single(b => (string?)b.Content == button).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Assert.True(TestComposition.RunUntil(() => shown.IsCompleted, TimeSpan.FromSeconds(5)));
+        Assert.Equal(expected, shown.Result);
+        main.Close();
+    }
+
     // Hotkey messages use the same dialog: modal over the visible main window, standalone
     // and centered on screen while it is minimized or hidden (deliberate deviation: the
     // original was always modal).

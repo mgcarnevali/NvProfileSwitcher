@@ -29,6 +29,9 @@ internal interface IDialogService
     /// <summary>Asks whether to remove the profile.</summary>
     Task<bool> ConfirmRemoveProfileAsync(string profileName);
 
+    /// <summary>Asks whether to sort the application profiles by name, which changes the switching priority.</summary>
+    Task<bool> ConfirmSortProfilesAsync(bool descending);
+
     /// <summary>Asks which profile to copy color settings from; the chosen index, or null.</summary>
     Task<int?> ChooseCopySourceAsync(IReadOnlyList<string> profileNames);
 
@@ -156,6 +159,23 @@ internal sealed class DialogService(MainWindowHost host) : IDialogService
             "Remove profile?", $"Are you sure you want to remove profile '{profileName}'?", cancel, remove);
         var confirmed = false;
         remove.Click += (_, _) => { confirmed = true; dialog.Close(); };
+        cancel.Click += (_, _) => dialog.Close();
+        await ShowDialogOrStandaloneAsync(dialog);
+        return confirmed;
+    }
+
+    public async Task<bool> ConfirmSortProfilesAsync(bool descending)
+    {
+        var sort = new Button { Content = "Sort", MinWidth = 100 };
+        var cancel = new Button { Content = "Cancel", MinWidth = 100 };
+        var dialog = ConfirmationDialog(
+            "Sort profiles?",
+            $"Sort the application profiles by name ({(descending ? "Z–A" : "A–Z")})?\n\n" +
+            "The order of the list is the priority of automatic switching, so this changes which " +
+            "profile is applied when several match. The Windows Profile stays first.",
+            cancel, sort);
+        var confirmed = false;
+        sort.Click += (_, _) => { confirmed = true; dialog.Close(); };
         cancel.Click += (_, _) => dialog.Close();
         await ShowDialogOrStandaloneAsync(dialog);
         return confirmed;

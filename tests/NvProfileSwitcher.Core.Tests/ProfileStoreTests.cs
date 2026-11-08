@@ -127,4 +127,73 @@ public sealed class ProfileStoreTests
 
         Assert.Equal((OverrideMode.Windows, -1), (switching.OverrideMode, switching.OverrideProfileIndex));
     }
+
+    // Sort by Name reorders the application profiles at once: the Windows profile stays first,
+    // the ▲▼ state follows, and a profile override stays on its profile.
+    [Fact]
+    public void ReorderPutsTheApplicationProfilesInTheGivenOrder()
+    {
+        var store = Store("A", "B", "C");
+        var app = store.ApplicationProfiles;
+
+        Assert.True(store.Reorder([app[2], app[0], app[1]]));
+
+        Assert.Equal(["Windows", "C", "A", "B"], Names(store));
+        Assert.Equal("Windows:-- C:-D A:UD B:U-", MoveState(store));
+    }
+
+    [Fact]
+    public void ReorderKeepsTheProfileOverrideOnItsProfile()
+    {
+        var store = Store("A", "B", "C");
+        var app = store.ApplicationProfiles;
+        OverrideOn(0);
+
+        store.Reorder([app[1], app[2], app[0]]);
+
+        Assert.Equal((OverrideMode.Profile, 2), (switching.OverrideMode, switching.OverrideProfileIndex));
+        Assert.Same(app[0], store.ApplicationProfiles[switching.OverrideProfileIndex]);
+    }
+
+    [Theory]
+    [InlineData((int)OverrideMode.Automatic)]
+    [InlineData((int)OverrideMode.Windows)]
+    public void ReorderLeavesAnotherOverrideAlone(int modeValue)
+    {
+        var mode = (OverrideMode)modeValue;
+        var store = Store("A", "B", "C");
+        var app = store.ApplicationProfiles;
+        switching.OverrideMode = mode;
+        switching.OverrideProfileIndex = 0;
+
+        store.Reorder([app[2], app[1], app[0]]);
+
+        Assert.Equal((mode, 0), (switching.OverrideMode, switching.OverrideProfileIndex));
+    }
+
+    [Fact]
+    public void ReorderingIntoTheSameOrderChangesNothing()
+    {
+        var store = Store("A", "B");
+        var changes = 0;
+        ((System.Collections.Specialized.INotifyCollectionChanged)store.Profiles).CollectionChanged += (_, _) => changes++;
+
+        Assert.False(store.Reorder(store.ApplicationProfiles));
+
+        Assert.Equal(0, changes);
+        Assert.Equal(["Windows", "A", "B"], Names(store));
+    }
+
+    [Fact]
+    public void ReorderRejectsAnOrderWithoutEachApplicationProfileOnce()
+    {
+        var store = Store("A", "B");
+        var app = store.ApplicationProfiles;
+
+        Assert.Throws<ArgumentException>(() => store.Reorder([app[0]]));
+        Assert.Throws<ArgumentException>(() => store.Reorder([app[0], app[0]]));
+        Assert.Throws<ArgumentException>(() => store.Reorder([app[0], new ProfileListItem("B")]));
+        Assert.Throws<ArgumentException>(() => store.Reorder([app[0], app[1], store.Windows!]));
+        Assert.Equal(["Windows", "A", "B"], Names(store));
+    }
 }

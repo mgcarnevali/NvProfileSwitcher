@@ -51,6 +51,9 @@ internal sealed class FakeDialogService : IDialogService
     public TaskCompletionSource<bool>? PendingDiscard { get; set; }
     public List<string> RemoveRequests { get; } = [];
     public bool RemoveAnswer { get; set; } = true;
+    public List<bool> SortRequests { get; } = [];
+    public bool SortAnswer { get; set; } = true;
+    public TaskCompletionSource<bool>? PendingSort { get; set; }
     public List<IReadOnlyList<string>> CopyRequests { get; } = [];
     public int? CopyAnswer { get; set; } = 0;
     public int RunningAppRequests { get; private set; }
@@ -68,6 +71,12 @@ internal sealed class FakeDialogService : IDialogService
     {
         RemoveRequests.Add(profileName);
         return Task.FromResult(RemoveAnswer);
+    }
+
+    public Task<bool> ConfirmSortProfilesAsync(bool descending)
+    {
+        SortRequests.Add(descending);
+        return PendingSort?.Task ?? Task.FromResult(SortAnswer);
     }
 
     public Task<int?> ChooseCopySourceAsync(IReadOnlyList<string> profileNames)

@@ -5,7 +5,7 @@ using NvProfileSwitcher.Shell;
 namespace NvProfileSwitcher.Services;
 
 /// <summary>
-/// The profile list actions: add, remove, move and enable or disable a profile, each with the
+/// The profile list actions: add, remove, move, sort by name and enable or disable a profile, each with the
 /// original sequence. The store keeps the list consistent; these actions add what follows a
 /// change: the editor's selection, the hotkeys registered again, the save and the reevaluation of
 /// the active profile. A failed save is reported by the configuration service (deliberate
@@ -113,6 +113,48 @@ internal sealed class ProfileListService(
         }
 
         await selection;
+    }
+
+    /// <summary>
+    /// Sorts the application profiles by name, A–Z or Z–A (<paramref name="descending"/>), once
+    /// confirmed: their order is the priority of automatic switching. It is permanent, as moving
+    /// with the arrows: the Windows profile stays first, the unsaved new profile goes last, and
+    /// the selection, its draft and preview and a profile override stay as they were. Nothing
+    /// is asked or saved when the profiles are already in that order.
+    /// </summary>
+    public async Task SortByNameAsync(bool descending)
+    {
+        if (!OrderChanges(descending, out _))
+            return;
+
+        if (!await dialogs.ConfirmSortProfilesAsync(descending))
+            return;
+
+        // The list may have changed while the confirmation was open.
+        if (!OrderChanges(descending, out var order))
+            return;
+
+        // One operation, as moving the edited profile: the preview resumes without its display
+        // showing the real colors in between.
+        using (colors.Batch())
+        {
+            preview.Discard();
+            // The list keeps its selected item through the moves; nothing is selected anew.
+            store.Reorder(order);
+            // As moving, sorting registers the hotkeys again, which reports any that cannot be enabled.
+            hotkeys.Refresh(showAggregateMessage: true);
+
+            configuration.Save();
+            preview.Resume();
+        }
+    }
+
+    // The sorted order; false when the profiles are already in it.
+    private bool OrderChanges(bool descending, out IReadOnlyList<ProfileListItem> order)
+    {
+        var current = store.ApplicationProfiles;
+        order = ProfileOrderCore.ByName(current, store.UnsavedNewProfile, descending);
+        return !order.SequenceEqual(current, ReferenceEqualityComparer.Instance);
     }
 
     /// <summary>Enables or disables an application profile; disabled profiles have no registered hotkey.</summary>
