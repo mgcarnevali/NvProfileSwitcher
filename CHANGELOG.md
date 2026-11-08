@@ -4,7 +4,18 @@ All notable changes to NvProfileSwitcher will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project follows [Semantic Versioning](https://semver.org/).
 
-## 3.0.0 --- Unreleased
+## 3.0.1 --- Unreleased
+
+### Fixed
+
+- Fixed the NVIDIA driver version in the status bar not updating after a new driver was installed while NvProfileSwitcher was running. The version is now read from the driver Windows records for the NVIDIA display adapter, so the status bar shows the new driver without restarting the application.
+
+### Changed
+
+- Redesigned the README with direct download links to the latest release.
+- Development builds now provide the installer and portable executable as downloadable workflow artifacts.
+
+## 3.0.0 --- 2026-10-16
 
 ### Added
 
