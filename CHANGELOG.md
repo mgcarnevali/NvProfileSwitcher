@@ -4,7 +4,7 @@ All notable changes to NvProfileSwitcher will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project follows [Semantic Versioning](https://semver.org/).
 
-## 3.0.1 --- Unreleased
+## 3.0.1 --- 2026-11-08
 
 ### Fixed
 
