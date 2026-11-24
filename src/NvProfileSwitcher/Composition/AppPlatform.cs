@@ -17,6 +17,7 @@ internal sealed record AppPlatform(
     string ConfigPath,
     bool IsDevelopmentBuild,
     Func<IDisplayColorBackend> CreateDisplayBackend,
+    IDisplayModeBackend DisplayModes,
     Func<string?> InstalledDriverVersion,
     Func<uint, IReadOnlyList<NvTweakValue?>?> ReadNvTweakColors,
     IForegroundMonitor ForegroundMonitor,

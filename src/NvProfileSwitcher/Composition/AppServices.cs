@@ -16,6 +16,7 @@ internal sealed record ServiceEnvironment(
     string ConfigPath,
     bool IsDevelopmentBuild,
     Func<IDisplayColorBackend> CreateDisplayBackend,
+    IDisplayModeBackend DisplayModes,
     Func<string?> InstalledDriverVersion,
     Func<uint, IReadOnlyList<NvTweakValue?>?> ReadNvTweakColors,
     IForegroundMonitor ForegroundMonitor,
@@ -48,6 +49,9 @@ internal sealed class AppServices
             environment.ConfigPath, Profiles, Settings, Switching, environment.IsDevelopmentBuild, Dialogs);
         Nvidia = new NvidiaService(environment.CreateDisplayBackend, environment.InstalledDriverVersion);
         Colors = new DisplayColorController(Nvidia, Profiles, Switching);
+        Modes = new DisplayModeController(
+            environment.DisplayModes, Nvidia, Switching,
+            new DisplayModeRecoveryStore(Path.Combine(Path.GetDirectoryName(environment.ConfigPath) ?? string.Empty, "display-modes.json")));
         DisplaySync = new DisplayProfileSyncService(Profiles, Nvidia, Colors, Configuration, environment.ReadNvTweakColors);
         Topology = new DisplayTopologyService();
         Hotkeys = new HotkeyService(environment.HotkeyRegistrar, Settings, Profiles, Dialogs);
@@ -56,13 +60,18 @@ internal sealed class AppServices
         // The preview gives its display back to the real colors, which the active profile
         // chooses; the active profile tells it before a switch so it ends first.
         ActiveProfile = new ActiveProfileService(
-            Colors, Nvidia, Profiles, Switching, environment.ForegroundExecutable, Editor, environment.IsWindowActive);
+            Colors, Modes, Nvidia, Profiles, Switching, environment.ForegroundExecutable, Editor, environment.IsWindowActive);
         // A display a batch could not write is written again by the next check, as after a failed switch.
         Colors.WriteFailed += ActiveProfile.Invalidate;
+        // A mode change may invalidate the NVIDIA display handles and reset the colors: the displays
+        // are enumerated again and every color written again, as after a display change. A target that
+        // arrived during a mode change is checked once that change is over.
+        Modes.ModesChanged += Topology.RequestRefresh;
+        Modes.RecheckRequested += () => Avalonia.Threading.Dispatcher.UIThread.Post(ActiveProfile.Reevaluate);
         Preview = new LivePreviewController(
             Editor, ActiveProfile, Colors, Switching, environment.IsWindowShownNormally);
         AutomaticSwitching = new AutomaticSwitchingService(
-            environment.ForegroundMonitor, ActiveProfile, Colors, Switching, Settings, Configuration, Profiles, Preview);
+            environment.ForegroundMonitor, ActiveProfile, Colors, Modes, Switching, Settings, Configuration, Profiles, Preview);
 
         Capture = new HotkeyCaptureController(Hotkeys, Settings, Profiles, Configuration, Editor, environment.IsWindowActive);
         Editing = new ProfileEditingService(Editor, Profiles, Preview, Configuration, Hotkeys, ActiveProfile, Capture, Colors, Dialogs);
@@ -87,6 +96,7 @@ internal sealed class AppServices
     public DisplayProfileSyncService DisplaySync { get; }
     public DisplayTopologyService Topology { get; }
     public DisplayColorController Colors { get; }
+    public DisplayModeController Modes { get; }
     public HotkeyService Hotkeys { get; }
     public ProfileEditor Editor { get; }
     public ProfileEditingService Editing { get; }

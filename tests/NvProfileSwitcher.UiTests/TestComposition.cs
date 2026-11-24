@@ -42,6 +42,7 @@ internal sealed class TestComposition : IDisposable
             ConfigPath,
             isDevelopmentBuild,
             Factory.Create,
+            DisplayModes,
             () => InstalledDriverVersion,
             deviceId => NvTweakColors.GetValueOrDefault(deviceId),
             Monitor,
@@ -66,6 +67,7 @@ internal sealed class TestComposition : IDisposable
 
     public string ConfigPath => Path.Combine(directory, "config.json");
     public FakeBackendFactory Factory { get; } = new();
+    public FakeDisplayModeBackend DisplayModes { get; } = new();
     public FakeForegroundMonitor Monitor { get; }
     public FakeDialogService Dialogs { get; }
     public FakeReleaseSource Releases { get; } = new();

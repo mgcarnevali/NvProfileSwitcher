@@ -25,6 +25,7 @@
   <ItemGroup>
     <!-- The test doubles are shared with the Core tests. -->
     <Compile Include="../NvProfileSwitcher.Core.Tests/FakeDisplayBackend.cs" Link="FakeDisplayBackend.cs" />
+    <Compile Include="../NvProfileSwitcher.Core.Tests/FakeDisplayModeBackend.cs" Link="FakeDisplayModeBackend.cs" />
     <Compile Include="../NvProfileSwitcher.Core.Tests/FakeForegroundMonitor.cs" Link="FakeForegroundMonitor.cs" />
     <Compile Include="../NvProfileSwitcher.Core.Tests/FakeDialogService.cs" Link="FakeDialogService.cs" />
     <Compile Include="../NvProfileSwitcher.Core.Tests/FakeReleaseSource.cs" Link="FakeReleaseSource.cs" />

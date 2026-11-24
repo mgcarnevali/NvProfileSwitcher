@@ -25,6 +25,7 @@ internal sealed class SwitchingFixture : IDisposable
             Path.Combine(directory, "config.json"),
             IsDevelopmentBuild: false,
             Factory.Create,
+            DisplayModes,
             () => InstalledDriverVersion,
             ReadNvTweakColors,
             Monitor,
@@ -82,6 +83,7 @@ internal sealed class SwitchingFixture : IDisposable
     public AppServices Services { get; }
     public FixtureSession Session { get; }
     public FakeBackendFactory Factory { get; } = new();
+    public FakeDisplayModeBackend DisplayModes { get; } = new();
     public FakeReleaseSource Releases { get; } = new();
     public NvidiaService Nvidia => Services.Nvidia;
     public DisplayColorController Colors => Services.Colors;

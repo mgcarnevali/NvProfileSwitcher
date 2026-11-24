@@ -15,6 +15,7 @@ internal sealed class AutomaticSwitchingService : IDisposable
     private readonly IForegroundMonitor monitor;
     private readonly ActiveProfileService activeProfile;
     private readonly DisplayColorController colors;
+    private readonly DisplayModeController modes;
     private readonly SwitchingState switching;
     private readonly AppSettings settings;
     private readonly ConfigurationService configuration;
@@ -29,6 +30,7 @@ internal sealed class AutomaticSwitchingService : IDisposable
         IForegroundMonitor monitor,
         ActiveProfileService activeProfile,
         DisplayColorController colors,
+        DisplayModeController modes,
         SwitchingState switching,
         AppSettings settings,
         ConfigurationService configuration,
@@ -38,6 +40,7 @@ internal sealed class AutomaticSwitchingService : IDisposable
         this.monitor = monitor;
         this.activeProfile = activeProfile;
         this.colors = colors;
+        this.modes = modes;
         this.switching = switching;
         this.settings = settings;
         this.configuration = configuration;
@@ -80,6 +83,7 @@ internal sealed class AutomaticSwitchingService : IDisposable
         if (!enabled)
         {
             Stop();
+            modes.RestoreOriginals();
             colors.RestoreWindows(force: true);
             activeProfile.PublishActiveProfile();
             return;
@@ -109,6 +113,7 @@ internal sealed class AutomaticSwitchingService : IDisposable
         if (switching.GlobalPaused)
         {
             Stop();
+            modes.RestoreOriginals();
             colors.RestoreWindows(force: true);
             activeProfile.PublishActiveProfile();
             return;

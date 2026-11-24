@@ -142,13 +142,15 @@ App ──► AppHost (composition root: AppServices + Shell + coordinators + Vi
    │  │    DisplayColorController ───── NvidiaService, ProfileStore, SwitchingState (the only color writer)
    │  │    DisplayProfileSyncService ── ProfileStore, NvidiaService, DisplayColorController, ConfigurationService
    │  │    DisplayTopologyService       (WM_DISPLAYCHANGE debounce, one retry)
+   │  │    DisplayModeController ────── IDisplayModeBackend, NvidiaService, SwitchingState,
+   │  │                                 DisplayModeRecoveryStore (the only display mode writer)
    │  │    HotkeyService ────────────── IHotkeyRegistrar, AppSettings, ProfileStore, IDialogService
    │  │    ProfileEditor ────────────── ProfileStore                           (state of the edited profile)
-   │  │    ActiveProfileService ─────── DisplayColorController, NvidiaService, ProfileStore, SwitchingState,
+   │  │    ActiveProfileService ─────── DisplayColorController, DisplayModeController, NvidiaService, ProfileStore, SwitchingState,
    │  │                                 ProfileEditor + foreground executable, "window is active"
    │  │    LivePreviewController ────── ProfileEditor, ActiveProfileService, DisplayColorController, SwitchingState
    │  │                                 + "window shown normally"
-   │  │    AutomaticSwitchingService ── IForegroundMonitor, ActiveProfileService, DisplayColorController,
+   │  │    AutomaticSwitchingService ── IForegroundMonitor, ActiveProfileService, DisplayColorController, DisplayModeController,
    │  │                                 SwitchingState, AppSettings, ConfigurationService, ProfileStore,
    │  │                                 LivePreviewController
    │  │    HotkeyCaptureController ──── HotkeyService, AppSettings, ProfileStore, ConfigurationService,
@@ -232,9 +234,11 @@ src/NvProfileSwitcher/
   Platform/     ForegroundWatcher  IForegroundMonitor  ForegroundProcess  ProfileIconLoader
                 SingleInstanceService  Win32HotkeyRegistrar  IHotkeyRegistrar
                 StartupRegistry  IStartupRegistry
+                DisplayModes (IDisplayModeBackend, Win32DisplayModeBackend)
   Services/     ConfigurationService  ConfigurationBackupService  ProfileStore  ProfileListService
                 NvidiaService  DisplayProfileSyncService  DisplayTopologyService
                 DisplayColorController  ActiveProfileService  AutomaticSwitchingService
+                DisplayModeController  DisplayModeRecoveryStore
                 HotkeyService  HotkeyCaptureController  StartupRegistrationService
                 UpdateService  UpdateInstaller (+ IUpdateInstaller)  UpdateCheckService
                 SavedDisplaysService
@@ -280,6 +284,7 @@ reference Core tests run unchanged. New code uses the namespace of its folder.
 | `DisplayProfileSyncService` | — | `Synchronize(newlySharedIds)`: records the shared identities, `DisplayProfileSyncCore` (adoption, shared identities, values for every display, §22.1), reads a display only when it was never written (§22.3), saves if anything changed; returns the moved monitor ids (`DisplayRemap`) | 1879–1922 |
 | `DisplayTopologyService` | debounce timer, whether the change was retried, whether a resume is being settled | `HandleMessage` (WM_DISPLAYCHANGE and the resume notifications of WM_POWERBROADCAST, never marked handled), `RetryOnce` (§22.1), `TopologyChanged`, `Resumed` (§22.4), `Stop` | 572–575, 1857–1877 |
 | `DisplayColorController` | base profile, preview layer, displays to write, displays written | `Batch(throwOnFailure)`, `SetBase(profile, allDisplays)`, `RestoreWindows(force)`, `SetPreview`, `ClearPreview`, `RefreshAll`, `HasWritten`; event `WriteFailed`. The only writer of display colors (§22.2) | 1838–1856, 2193–2300 |
+| `DisplayModeController` | monitors whose mode it changed (desktop mode, target, mode read back), the target applied, the monitors handled for it | `Apply(profile)`, `RestoreOriginals`, `OnDisplaysChanged`, `OfferedModes(display)`; events `ModesChanged`, `RecheckRequested`. The only writer of display modes (§22.7) | — |
 | `ActiveProfileService` | — | `Check`, `ReapplyRealColors(allDisplays)`, `Invalidate`, `Reevaluate` (invalidate and check), `PublishActiveProfile`; event `ProfileSwitching`. The only writer of `ActiveProfileName` and `DisplayedActiveProfile`; chooses the base profile of `DisplayColorController`; holds the rule that the preview owns the display; normalizes an invalid override in `Check`, as the reference did | 1741–1752, 1792–1832, 2227–2268 |
 | `AutomaticSwitchingService` | foreground monitor, "monitor created" | `Start`, `Stop`, `Dispose`, `IsSwitchingActive`, `SetGlobalEnabled`, `ToggleGlobal`, `ToggleWindowsOverride`, `ResumeAutomatic`, `ToggleProfileOverride`, `ApplyImportedState` | 598–676, 1782–1790, 2028–2039 |
 | `ProfileEditorSession` | source, draft | `HasChanges`, `HasUnsavedColorChanges` (pure) | — |
@@ -1327,3 +1332,45 @@ same scale as this application. The NVIDIA API does not report them.
   another type, different channels or a value out of range leave the neutral 100, 100 and 1.00.
 - There is no polling and nothing is written to the registry. The reader is passed through
   `AppPlatform.ReadNvTweakColors`, so tests use a fake registry.
+
+### 22.7 Display resolution per profile
+
+An application profile may give each monitor a resolution
+(`ProfileDisplaySettings.Resolution`, width and height; absent means "Don't change"). It follows the
+same focus rules as the colors: while the profile is the one switching applies, its monitors show
+that resolution; Windows, a profile without resolutions, the Windows Override, Global Switching off
+and closing the application show each monitor's desktop mode again.
+
+- **One writer.** `DisplayModeController` is the only caller of `IDisplayModeBackend.Apply`
+  (`ChangeDisplaySettingsExW`, tested with `CDS_TEST` first). Changes are dynamic: never
+  `CDS_UPDATEREGISTRY`, so the registry keeps the desktop mode. `ActiveProfileService` calls
+  `Apply(profile)` before `DisplayColorController.SetBase`, in the same batch, and
+  `ReapplyRealColors` does the same, so turning Global Switching on or leaving an override
+  applies the resolution of the real target. The call is synchronous on the UI thread.
+- **Refresh rate.** The resolution is applied at the refresh rate of the monitor's desktop mode
+  when it supports it, and otherwise at its highest one (`DisplayModeCore.ChooseMode`). The desktop
+  mode is read right before the first change of a monitor and kept until it is restored, so a
+  profile that follows another one never takes the previous profile's rate as its reference.
+- **Ownership.** For each monitor the controller keeps the desktop mode, the mode requested and the
+  mode read back. It restores a monitor only while it still shows one of those two: a mode a game
+  or the user set since is left alone, and the entry dropped. Modes change only when the target
+  changes; a display change (`OnDisplaysChanged`, called by `DisplayRefreshCoordinator.Refresh`
+  after the enumeration) applies the target only to monitors not handled for it yet, and restores
+  monitors still waiting for it. A change Windows rejects is not retried and shows no message.
+- **Re-entry.** A target that arrives while a change runs (Windows sends messages during it) is
+  not applied inside it; `RecheckRequested` posts a reevaluation of the active profile.
+- **NVIDIA handles.** After an effective change, `ModesChanged` requests a display refresh
+  (`DisplayTopologyService.RequestRefresh`, the WM_DISPLAYCHANGE debounce), which enumerates the
+  displays again, so vibrance and hue use valid handles, and writes every color again.
+- **Recovery.** `DisplayModeRecoveryStore` keeps `display-modes.json` next to `config.json`. Each
+  change is recorded before it is made, and not made when it cannot be recorded; an entry is
+  removed only after the desktop mode is read back. Each write goes to a temporary file, flushed to
+  disk and moved over the previous one. The first display enumeration of a session takes over the
+  entries left by a previous one, and the monitors connected are restored; the others keep their
+  entries until they are connected.
+- **No cost without resolutions.** Without a resolution in the target and nothing owned, no call
+  reaches the backend: not at startup (only the file's existence is checked), switching, overrides,
+  display changes or exit. The editor reads a display's modes only when the Resolution list is
+  opened (`OfferedModes`); until then it shows the saved value.
+- **Independent from the colors.** Comparing, copying and previewing colors ignore the resolution;
+  saving, cancelling and the unsaved-changes check include it.

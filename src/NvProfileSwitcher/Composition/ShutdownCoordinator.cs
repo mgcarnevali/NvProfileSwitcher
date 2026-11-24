@@ -15,6 +15,7 @@ internal sealed class ShutdownCoordinator
     private readonly NvidiaService nvidia;
     private readonly AutomaticSwitchingService automaticSwitching;
     private readonly DisplayColorController colors;
+    private readonly DisplayModeController modes;
     private readonly TrayService tray;
     private readonly SingleInstanceService? singleInstance;
     private readonly HotkeyService hotkeys;
@@ -29,6 +30,7 @@ internal sealed class ShutdownCoordinator
         NvidiaService nvidia,
         AutomaticSwitchingService automaticSwitching,
         DisplayColorController colors,
+        DisplayModeController modes,
         TrayService tray,
         SingleInstanceService? singleInstance,
         HotkeyService hotkeys,
@@ -42,6 +44,7 @@ internal sealed class ShutdownCoordinator
         this.nvidia = nvidia;
         this.automaticSwitching = automaticSwitching;
         this.colors = colors;
+        this.modes = modes;
         this.tray = tray;
         this.singleInstance = singleInstance;
         this.hotkeys = hotkeys;
@@ -62,6 +65,9 @@ internal sealed class ShutdownCoordinator
     {
         configuration.SaveIfPending();
         automaticSwitching.Stop();
+        // The desktop modes first, then the colors. A monitor that cannot be restored keeps its
+        // recovery entry for the next start.
+        modes.RestoreOriginals();
         // One operation; a failed write propagates, as in the original.
         using (colors.Batch(throwOnFailure: true))
         {

@@ -78,13 +78,17 @@
 
       <!-- Common section: identical structure for Windows and application profiles. -->
       <Grid Grid.Row="2" Margin="0,7,0,0" RowDefinitions="Auto,*" RowSpacing="11">
-        <Grid RowDefinitions="Auto,Auto" RowSpacing="6">
+        <!-- Resolution shares the Display row so the color section keeps its height; it is
+             shown for application profiles only. -->
+        <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="*,Auto" RowSpacing="6" ColumnSpacing="8">
           <StackPanel Orientation="Horizontal" Spacing="7">
             <Viewbox Classes="strokeIcon" Width="18" Height="18">
               <Canvas Width="24" Height="24"><Path Classes="strokeIcon" Data="{StaticResource DisplayIcon}"/></Canvas>
             </Viewbox>
             <TextBlock Text="Display" VerticalAlignment="Center"/>
           </StackPanel>
+          <TextBlock Grid.Column="1" Text="Resolution" VerticalAlignment="Center"
+                     IsVisible="{CompiledBinding IsApplicationProfile}"/>
           <ComboBox Grid.Row="1" HorizontalAlignment="Stretch"
                     ItemsSource="{CompiledBinding Displays}" SelectedItem="{CompiledBinding SelectedDisplay}">
             <ComboBox.SelectionBoxItemTemplate>
@@ -101,6 +105,18 @@
                             IsHitTestVisible="False" Focusable="False" VerticalAlignment="Center"/>
                   <TextBlock Text="{CompiledBinding SelectorLabel}" VerticalAlignment="Center"/>
                 </StackPanel>
+              </DataTemplate>
+            </ComboBox.ItemTemplate>
+          </ComboBox>
+          <ComboBox Grid.Row="1" Grid.Column="1" Classes="resolutionCombo" Width="180"
+                    IsVisible="{CompiledBinding IsApplicationProfile}"
+                    ToolTip.Tip="Resolution of this display while the profile is active"
+                    ItemsSource="{CompiledBinding ResolutionItems}"
+                    SelectedItem="{CompiledBinding SelectedResolutionItem}"
+                    IsDropDownOpen="{CompiledBinding IsResolutionListOpen, Mode=TwoWay}">
+            <ComboBox.ItemTemplate>
+              <DataTemplate x:DataType="local:ResolutionComboItem">
+                <TextBlock Text="{CompiledBinding Text}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
               </DataTemplate>
             </ComboBox.ItemTemplate>
           </ComboBox>

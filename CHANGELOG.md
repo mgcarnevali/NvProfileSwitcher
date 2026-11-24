@@ -4,6 +4,12 @@ All notable changes to NvProfileSwitcher will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project follows [Semantic Versioning](https://semver.org/).
 
+## Unreleased
+
+### Added
+
+- Added an optional resolution per monitor to application profiles (Profile Settings → Resolution, "Don't change" by default). While the profile's application is in the foreground its monitors switch to that resolution, keeping the desktop refresh rate when the monitor supports it; switching to another application, the Windows Override, turning Global Switching off or closing NvProfileSwitcher returns them to their desktop mode. The changes are never saved to Windows' display settings, and a resolution changed by a game or by the user is left alone. If NvProfileSwitcher ends without restoring a monitor, the next start restores it.
+
 ## 3.1.0 --- 2026-11-08
 
 ### Added

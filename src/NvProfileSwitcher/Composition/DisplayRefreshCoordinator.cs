@@ -19,6 +19,7 @@ internal sealed class DisplayRefreshCoordinator
     private readonly ActiveProfileService activeProfile;
     private readonly LivePreviewController preview;
     private readonly DisplayColorController colors;
+    private readonly DisplayModeController modes;
     private readonly ProfileEditor editor;
     private readonly SwitchingState switching;
 
@@ -31,6 +32,7 @@ internal sealed class DisplayRefreshCoordinator
         ActiveProfileService activeProfile,
         LivePreviewController preview,
         DisplayColorController colors,
+        DisplayModeController modes,
         ProfileEditor editor,
         SwitchingState switching)
     {
@@ -42,6 +44,7 @@ internal sealed class DisplayRefreshCoordinator
         this.activeProfile = activeProfile;
         this.preview = preview;
         this.colors = colors;
+        this.modes = modes;
         this.editor = editor;
         this.switching = switching;
         topology.TopologyChanged += OnTopologyChanged;
@@ -74,6 +77,9 @@ internal sealed class DisplayRefreshCoordinator
             {
                 preview.Discard();
                 var newlySharedIds = nvidia.RefreshDisplays(profiles.NonUniqueMonitorIds);
+                // Before the colors: a monitor that came back gets the active resolution, one
+                // waiting to be restored is restored, and the first refresh recovers a crash.
+                modes.OnDisplaysChanged();
                 // The displays may have lost their colors with the topology change: each one is
                 // written again with what it shows.
                 colors.RefreshAll();

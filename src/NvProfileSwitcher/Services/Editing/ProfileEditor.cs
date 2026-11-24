@@ -240,6 +240,23 @@ internal sealed class ProfileEditor(ProfileStore store) : INotifyPropertyChanged
         DraftChanged?.Invoke();
     }
 
+    /// <summary>The resolution the draft gives the selected display, or null to leave it unchanged.</summary>
+    public DisplayResolution? Resolution =>
+        Session?.Draft is { } draft && SelectedDisplay is { } display ? DisplayCore.FindValues(draft, display.MonitorId)?.Resolution : null;
+
+    /// <summary>
+    /// Sets the resolution the draft gives the selected display (null: unchanged). It is saved
+    /// with the profile and applied while the profile is active; it has no preview.
+    /// </summary>
+    public void SetResolution(DisplayResolution? resolution)
+    {
+        if (Session?.Draft is not { } draft || draft.IsWindowsProfile || SelectedDisplay is not { } display || Resolution == resolution) return;
+        CompleteDraft();
+        DisplayCore.FindValues(draft, display.MonitorId)!.Resolution = resolution;
+        OnPropertyChanged(nameof(Resolution));
+        DraftChanged?.Invoke();
+    }
+
     /// <summary>
     /// Copies the slider values into the draft's values for the selected display, adding them
     /// if missing, as the original did before saving or copying.

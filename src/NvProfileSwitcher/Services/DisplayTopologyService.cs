@@ -82,6 +82,12 @@ internal sealed class DisplayTopologyService
         Restart(RetryDelay);
     }
 
+    /// <summary>
+    /// Reports a change this application made itself (a display mode), as a display change: it is
+    /// settled with any WM_DISPLAYCHANGE it causes, so it does not depend on that message arriving.
+    /// </summary>
+    public void RequestRefresh() => Restart(Debounce);
+
     public void Stop() => debounceTimer.Stop();
 
     private void Restart(TimeSpan interval)

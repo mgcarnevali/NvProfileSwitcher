@@ -30,6 +30,7 @@ internal sealed partial class ProfileSettingsViewModel : ObservableObject
     private readonly ProfileEditingService editing;
     private readonly HotkeyCaptureController capture;
     private readonly IDialogService dialogs;
+    private readonly DisplayModeController modes;
 
     // True while the controls are loaded from the editor state: what the controls write back
     // meanwhile (a selection cleared by new items) is not a user change.
@@ -39,21 +40,28 @@ internal sealed partial class ProfileSettingsViewModel : ObservableObject
     private bool isApplicationProfile;
     private int selectedExecutableIndex;
     private ExecutableComboItem? selectedExecutableItem;
+    private ResolutionComboItem? selectedResolutionItem;
+    private bool resolutionListOpen;
+    private bool resolutionOptionsLoaded;
 
     public ProfileSettingsViewModel(
         ProfileEditor editor,
         ProfileEditingService editing,
         HotkeyService hotkeys,
         HotkeyCaptureController capture,
-        IDialogService dialogs)
+        IDialogService dialogs,
+        DisplayModeController modes)
     {
         this.editor = editor;
         this.editing = editing;
         this.capture = capture;
         this.dialogs = dialogs;
+        this.modes = modes;
         ProfileHotkey = new HotkeyFieldViewModel(HotkeyField.Profile, capture, hotkeys);
         editor.EditingStarted += () => Load(LoadDraftFields);
+        editor.EditingStarted += LoadResolution;
         editor.ValuesLoaded += () => Load(NotifyValues);
+        editor.ValuesLoaded += LoadResolution;
         editor.DraftChanged += () => OnPropertyChanged(nameof(CanCancel));
         editor.PropertyChanged += OnEditorPropertyChanged;
         capture.PropertyChanged += (_, e) =>
@@ -123,6 +131,37 @@ internal sealed partial class ProfileSettingsViewModel : ObservableObject
         {
             if (loading || Equals(value, editor.SelectedDisplay)) return;
             editor.SelectDisplay(value);
+        }
+    }
+
+    /// <summary>
+    /// The Resolution selector of the selected display: "Don't change" and the saved resolution
+    /// until the list is opened, then every resolution the display offers.
+    /// </summary>
+    public ObservableCollection<ResolutionComboItem> ResolutionItems { get; } = [];
+
+    public ResolutionComboItem? SelectedResolutionItem
+    {
+        get => selectedResolutionItem;
+        set
+        {
+            if (loading || value is null || ReferenceEquals(value, selectedResolutionItem)) return;
+            selectedResolutionItem = value;
+            editor.SetResolution(value.Resolution);
+        }
+    }
+
+    /// <summary>Opening the Resolution list reads the display's modes, only then.</summary>
+    public bool IsResolutionListOpen
+    {
+        get => resolutionListOpen;
+        set
+        {
+            if (resolutionListOpen == value) return;
+            resolutionListOpen = value;
+            if (value)
+                LoadResolutionOptions();
+            OnPropertyChanged();
         }
     }
 
@@ -291,7 +330,39 @@ internal sealed partial class ProfileSettingsViewModel : ObservableObject
     {
         if (e.PropertyName is nameof(ProfileEditor.Displays) or nameof(ProfileEditor.SelectedDisplay))
             Load(() => OnPropertyChanged(e.PropertyName));
+        if (e.PropertyName == nameof(ProfileEditor.SelectedDisplay))
+            LoadResolution();
     }
+
+    // The selected display's resolution, without reading its modes.
+    private void LoadResolution()
+    {
+        resolutionOptionsLoaded = false;
+        var resolution = editor.Resolution;
+        ShowResolutionItems(resolution is null ? [] : [ResolutionComboItem.Saved(resolution, supported: true)], resolution);
+    }
+
+    private void LoadResolutionOptions()
+    {
+        if (resolutionOptionsLoaded || editor.SelectedDisplay is not { } display) return;
+        resolutionOptionsLoaded = true;
+
+        var resolution = editor.Resolution;
+        var offered = modes.OfferedModes(display).Select(ResolutionComboItem.Offered).ToList();
+        if (resolution is not null && !offered.Any(item => item.Resolution == resolution))
+            offered.Add(ResolutionComboItem.Saved(resolution, supported: false));
+        ShowResolutionItems(offered, resolution);
+    }
+
+    private void ShowResolutionItems(IReadOnlyList<ResolutionComboItem> items, DisplayResolution? selected) => Load(() =>
+    {
+        ResolutionItems.Clear();
+        ResolutionItems.Add(ResolutionComboItem.DontChange());
+        foreach (var item in items)
+            ResolutionItems.Add(item);
+        selectedResolutionItem = ResolutionItems.First(item => item.Resolution == selected);
+        OnPropertyChanged(nameof(SelectedResolutionItem));
+    });
 
     private void Load(Action load)
     {

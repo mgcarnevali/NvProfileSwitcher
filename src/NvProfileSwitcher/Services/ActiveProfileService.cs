@@ -13,6 +13,7 @@ namespace NvProfileSwitcher.Services;
 /// </summary>
 internal sealed class ActiveProfileService(
     DisplayColorController colors,
+    DisplayModeController modes,
     NvidiaService nvidia,
     ProfileStore profiles,
     SwitchingState switching,
@@ -54,11 +55,15 @@ internal sealed class ActiveProfileService(
         try
         {
             // The preview ends and the profile is applied in one operation: every display
-            // receives the profile's values once, the previewed one included.
+            // receives the profile's values once, the previewed one included. The display modes
+            // change first, so the colors are written once they are set; the display change that
+            // follows writes them again (DisplayModeController.ModesChanged).
+            var target = decision.ProfileIndex >= 0 ? applicationProfiles[decision.ProfileIndex] : null;
             using (colors.Batch(throwOnFailure: true))
             {
                 ProfileSwitching?.Invoke();
-                colors.SetBase(decision.ProfileIndex >= 0 ? applicationProfiles[decision.ProfileIndex] : null, allDisplays: true);
+                modes.Apply(target);
+                colors.SetBase(target, allDisplays: true);
             }
 
             Publish(decision.ActiveName);
@@ -70,8 +75,8 @@ internal sealed class ActiveProfileService(
     }
 
     /// <summary>
-    /// Applies the real colors again: the profile override, the automatic match or Windows
-    /// (<see cref="ActiveProfileCore.RealColorsTarget"/>). With <paramref name="allDisplays"/>
+    /// Applies the real colors, and the resolutions of their profile, again: the profile override,
+    /// the automatic match or Windows (<see cref="ActiveProfileCore.RealColorsTarget"/>). With <paramref name="allDisplays"/>
     /// every display is written again; otherwise only when that profile changed, as after a
     /// preview, which gives its own display back. Best effort, as in the original.
     /// </summary>
@@ -88,6 +93,8 @@ internal sealed class ActiveProfileService(
                 switching.OverrideMode,
                 switching.OverrideProfileIndex);
             var target = index >= 0 ? applicationProfiles[index] : null;
+            // Nothing happens when the target's resolutions are the ones already applied.
+            modes.Apply(target);
             colors.SetBase(target, allDisplays);
             Publish(target?.Name ?? "Windows");
         }

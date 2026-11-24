@@ -168,4 +168,17 @@ public sealed class ProfileDisplaySettings
     public double Gamma { get; set; } = 1;
     public int DigitalVibrance { get; set; } = 50;
     public int Hue { get; set; }
+
+    /// <summary>
+    /// The resolution the profile gives this monitor while it is active, or null to leave it
+    /// unchanged (the default). Independent of the colors; never set for the Windows profile.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public DisplayResolution? Resolution { get; set; }
+}
+
+/// <summary>A display resolution in pixels; the refresh rate is chosen when it is applied.</summary>
+public sealed record DisplayResolution(int Width, int Height)
+{
+    public bool IsValid => Width > 0 && Height > 0;
 }
