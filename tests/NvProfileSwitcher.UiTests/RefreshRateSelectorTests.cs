@@ -161,7 +161,9 @@ public sealed class RefreshRateSelectorTests
         window.Close();
     }
 
-    // The three selectors fit the editor at every window size the layout tests cover.
+    // The three selectors are visible, usable and inside the editor panel at every window size
+    // the layout tests cover: without overlapping, with their labels unclipped, and the display
+    // selector keeping a usable width.
     [AvaloniaTheory]
     [MemberData(nameof(MainWindowLayoutTests.Sizes), MemberType = typeof(MainWindowLayoutTests))]
     public void TheModeSelectorsFitTheEditor(string name, double width, double height)
@@ -172,15 +174,33 @@ public sealed class RefreshRateSelectorTests
         SelectRow(window, 1);
         window.UpdateLayout();
 
+        // The panel border is the root of the editor view, so it is looked for inside it.
         var editor = window.GetVisualDescendants().OfType<ProfileSettingsView>().Single();
-        var panel = editor.GetVisualAncestors().OfType<Border>().First(b => b.Classes.Contains("panel"));
+        var panel = editor.GetVisualDescendants().OfType<Border>().First(b => b.Classes.Contains("panel"));
         var inside = new Rect(panel.Bounds.Size).Deflate(panel.BorderThickness).Inflate(0.5);
-        var combos = editor.GetVisualDescendants().OfType<ComboBox>().Where(c => c.IsEffectivelyVisible).ToList();
-        foreach (var combo in combos)
-            Assert.True(inside.Contains(new Rect(combo.TranslatePoint(new Point(0, 0), panel) ?? default, combo.Bounds.Size)),
-                $"{name}: a selector leaves the editor");
-        var display = combos.Single(c => !c.Classes.Contains("resolutionCombo") && !c.Classes.Contains("refreshRateCombo") && c.ItemsSource == app.ProfileSettings.Displays);
+        Rect BoundsInPanel(Visual visual) => new(visual.TranslatePoint(new Point(0, 0), panel) ?? default, visual.Bounds.Size);
+
+        var display = editor.GetVisualDescendants().OfType<ComboBox>().Single(c => ReferenceEquals(c.ItemsSource, app.ProfileSettings.Displays));
+        var selectors = new[] { display, Editor<ComboBox>(window, "resolutionCombo"), Editor<ComboBox>(window, "refreshRateCombo") };
+        foreach (var selector in selectors)
+        {
+            Assert.True(selector.IsEffectivelyVisible && selector.IsEffectivelyEnabled, $"{name}: a selector cannot be used");
+            Assert.True(inside.Contains(BoundsInPanel(selector)), $"{name}: a selector leaves the editor");
+        }
+
+        // Side by side when the editor is wide, Resolution and Refresh rate below the display
+        // selector when it is narrow: never on top of each other.
+        for (var i = 0; i < selectors.Length; i++)
+            for (var j = i + 1; j < selectors.Length; j++)
+                Assert.False(BoundsInPanel(selectors[i]).Deflate(0.5).Intersects(BoundsInPanel(selectors[j]).Deflate(0.5)), $"{name}: selectors overlap");
         Assert.True(display.Bounds.Width >= 150, $"{name}: the display selector is {display.Bounds.Width} wide");
+
+        foreach (var label in editor.GetVisualDescendants().OfType<TextBlock>().Where(t => t.Text is "Display" or "Resolution" or "Refresh rate"))
+        {
+            Assert.True(label.IsEffectivelyVisible, $"{name}: '{label.Text}' is hidden");
+            Assert.True(label.Bounds.Width + 0.5 >= label.DesiredSize.Width - label.Margin.Left - label.Margin.Right, $"{name}: '{label.Text}' is clipped");
+        }
+
         window.Close();
     }
 }

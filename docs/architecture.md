@@ -1366,7 +1366,9 @@ desktop mode again, resolution and rate.
   the desktop mode and the supported modes). The rates offered are those of the resolution chosen,
   or the desktop one; "Desktop rate" and "Highest available" show the rate they would apply, and a
   saved rate the resolution does not offer stays chosen, marked "not supported", until the user
-  changes it. Neither is shown for the Windows profile.
+  changes it. Neither is shown for the Windows profile. They share the Display row; when the
+  editor is narrow (the two-column layouts), a container query in `ProfileSettingsView` moves them
+  below the display selector, which then takes the whole width.
 - **Ownership.** For each monitor the controller keeps the desktop mode, the mode requested and the
   mode read back. It restores a monitor only while it still shows one of those two: a mode a game
   or the user set since is left alone, and the entry dropped. Modes change only when the target

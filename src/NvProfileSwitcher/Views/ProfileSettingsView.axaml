@@ -5,6 +5,48 @@
              xmlns:b="using:NvProfileSwitcher.Behaviors"
              x:Class="NvProfileSwitcher.Views.ProfileSettingsView"
              x:DataType="vm:ProfileSettingsViewModel">
+  <UserControl.Styles>
+    <!-- The Display row, wide (default): labels above, the display selector, Resolution and
+         Refresh rate side by side. The cells are set here, not on the controls, so the narrow
+         layout below can move them (a local value would win over a style). -->
+    <Style Selector="Grid.modeRow > TextBlock.resolutionLabel">
+      <Setter Property="Grid.Column" Value="1"/>
+    </Style>
+    <Style Selector="Grid.modeRow > TextBlock.refreshRateLabel">
+      <Setter Property="Grid.Column" Value="2"/>
+    </Style>
+    <Style Selector="Grid.modeRow > ComboBox.displayCombo">
+      <Setter Property="Grid.Row" Value="1"/>
+    </Style>
+    <Style Selector="Grid.modeRow > ComboBox.resolutionCombo">
+      <Setter Property="Grid.Row" Value="1"/>
+      <Setter Property="Grid.Column" Value="1"/>
+    </Style>
+    <Style Selector="Grid.modeRow > ComboBox.refreshRateCombo">
+      <Setter Property="Grid.Row" Value="1"/>
+      <Setter Property="Grid.Column" Value="2"/>
+    </Style>
+
+    <!-- A narrow editor (two-column layouts) moves Resolution and Refresh rate below the display
+         selector, which then takes the whole width, so each keeps a usable width. The wide layout
+         is unchanged: the rows they use here are empty there and add no space. Declared after the
+         default cells, so it wins. Its selectors do not name the container itself: in Avalonia
+         12.1.2 a container query styles only the descendants of its container, and a selector
+         that includes the container never matches (verified). The classes are the editor's own. -->
+    <ContainerQuery Name="modeRow" Query="max-width:529">
+      <Style Selector="ComboBox.displayCombo">
+        <Setter Property="Grid.ColumnSpan" Value="3"/>
+      </Style>
+      <Style Selector="TextBlock.resolutionLabel, TextBlock.refreshRateLabel">
+        <Setter Property="Grid.Row" Value="2"/>
+        <Setter Property="Margin" Value="0,10,0,0"/>
+      </Style>
+      <Style Selector="ComboBox.resolutionCombo, ComboBox.refreshRateCombo">
+        <Setter Property="Grid.Row" Value="3"/>
+      </Style>
+    </ContainerQuery>
+  </UserControl.Styles>
+
   <Border Classes="panel">
     <!-- App-specific content and actions measure naturally (Auto);
          the common Display + color section uses the remaining space. -->
@@ -78,19 +120,22 @@
       <!-- Common section: identical structure for Windows and application profiles. -->
       <Grid Grid.Row="2" Margin="0,7,0,0" RowDefinitions="Auto,*" RowSpacing="11">
         <!-- Resolution and Refresh rate share the Display row so the color section keeps its
-             height; they are shown for application profiles only. -->
-        <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="*,Auto,Auto" RowSpacing="6" ColumnSpacing="8">
+             height; they are shown for application profiles only. Rows 2 and 3 take them when
+             the editor is narrow (see the container query above); the spacing is in the margins
+             so the empty rows add none. -->
+        <Grid Classes="modeRow" Container.Name="modeRow" Container.Sizing="Width"
+              RowDefinitions="Auto,Auto,Auto,Auto" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
           <StackPanel Orientation="Horizontal" Spacing="7">
             <Viewbox Classes="strokeIcon" Width="18" Height="18">
               <Canvas Width="24" Height="24"><Path Classes="strokeIcon" Data="{StaticResource DisplayIcon}"/></Canvas>
             </Viewbox>
             <TextBlock Text="Display" VerticalAlignment="Center"/>
           </StackPanel>
-          <TextBlock Grid.Column="1" Text="Resolution" VerticalAlignment="Center"
+          <TextBlock Classes="resolutionLabel" Text="Resolution" VerticalAlignment="Center"
                      IsVisible="{CompiledBinding IsApplicationProfile}"/>
-          <TextBlock Grid.Column="2" Text="Refresh rate" VerticalAlignment="Center"
+          <TextBlock Classes="refreshRateLabel" Text="Refresh rate" VerticalAlignment="Center"
                      IsVisible="{CompiledBinding IsApplicationProfile}"/>
-          <ComboBox Grid.Row="1" HorizontalAlignment="Stretch"
+          <ComboBox Classes="displayCombo" Margin="0,6,0,0" HorizontalAlignment="Stretch"
                     ItemsSource="{CompiledBinding Displays}" SelectedItem="{CompiledBinding SelectedDisplay}">
             <ComboBox.SelectionBoxItemTemplate>
               <DataTemplate x:DataType="local:ConnectedDisplay">
@@ -109,7 +154,7 @@
               </DataTemplate>
             </ComboBox.ItemTemplate>
           </ComboBox>
-          <ComboBox Grid.Row="1" Grid.Column="1" Classes="resolutionCombo" Width="140"
+          <ComboBox Classes="resolutionCombo" Margin="0,6,0,0" Width="140"
                     IsVisible="{CompiledBinding IsApplicationProfile}"
                     ToolTip.Tip="Resolution of this display while the profile is active"
                     ItemsSource="{CompiledBinding ResolutionItems}"
@@ -121,7 +166,7 @@
               </DataTemplate>
             </ComboBox.ItemTemplate>
           </ComboBox>
-          <ComboBox Grid.Row="1" Grid.Column="2" Classes="refreshRateCombo" Width="190"
+          <ComboBox Classes="refreshRateCombo" Margin="0,6,0,0" Width="190"
                     IsVisible="{CompiledBinding IsApplicationProfile}"
                     ToolTip.Tip="Refresh rate of this display while the profile is active"
                     ItemsSource="{CompiledBinding RefreshRateItems}"
