@@ -1,4 +1,3 @@
-using NvProfileSwitcher.Nvidia;
 
 namespace NvProfileSwitcher.Core;
 

@@ -1,6 +1,5 @@
 using NvProfileSwitcher.Core;
 using NvProfileSwitcher.Models;
-using NvProfileSwitcher.Nvidia;
 using NvProfileSwitcher.Platform;
 
 namespace NvProfileSwitcher.Services;

@@ -175,7 +175,9 @@ public sealed class SwitchingIntegrationTests
     }
 
     // An exception while restoring Windows at opening reports the API as unavailable, as in
-    // the original, and leaves the colors partially applied.
+    // the original, and leaves the colors partially applied. The displays are then read again
+    // without colors and switching starts (deliberate deviation): resolutions keep working and
+    // no color is written until the API is initialized again.
     [AvaloniaFact]
     public void FailedApplicationAtOpeningReportsTheApiUnavailable()
     {
@@ -187,10 +189,13 @@ public sealed class SwitchingIntegrationTests
 
         Assert.False(app.Nvidia.IsAvailable);
         Assert.Equal(["Windows"], Applied(app));
-        Assert.Equal(0, app.Monitor.StartCount);
+        Assert.Equal(1, app.Monitor.StartCount);
+        Assert.All(app.Displays.Displays, display => Assert.False(display.CanAdjustColors));
 
-        // Closing restores Windows and would propagate the same exception, as in the original.
-        app.Factory.Created[0].ApplyFailure = null;
+        app.Foreground = "game.exe";
+        app.Monitor.RaiseChanged();
+        Assert.Equal(["Windows"], Applied(app));
+        Assert.Equal("Game", app.Switching.ActiveProfileName);
     }
 
     [AvaloniaFact]

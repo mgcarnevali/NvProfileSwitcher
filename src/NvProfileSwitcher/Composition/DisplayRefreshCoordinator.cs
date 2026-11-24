@@ -56,15 +56,15 @@ internal sealed class DisplayRefreshCoordinator
 
     // Installing a driver restarts the display adapter, which changes the display mode: the
     // installed driver version is read again then, also while the window is not active, and an
-    // NVIDIA API that could not be initialized before (the driver was being installed) is tried
-    // again, so the colors become available without restarting.
+    // NVIDIA API that is not available (the driver was being installed, or it stopped responding)
+    // is initialized again, so the colors become available without restarting.
     private void OnTopologyChanged()
     {
         // Before the startup refresh, as the original before the API was initialized.
         if (!displays.IsEnumerated)
             return;
 
-        if (nvidia.IsInitialized)
+        if (nvidia.IsAvailable)
             nvidia.RefreshDriverVersion();
         else
             nvidia.TryInitialize();
@@ -127,16 +127,16 @@ internal sealed class DisplayRefreshCoordinator
     /// colors may no longer be valid: the API is initialized again, the displays are refreshed
     /// and every display is written with what it shows, in one operation. While global switching
     /// is paused, Windows is restored. A failed initialization reports the API as unavailable and
-    /// keeps the current instance, as on opening, and leaves the rest as it is; without an API
-    /// (no NVIDIA driver), the displays and their resolutions are refreshed all the same.
+    /// keeps the current instance, as on opening; the displays, their resolutions and switching are
+    /// refreshed all the same, without colors (an unavailable API controls no display), so the
+    /// previous instance writes nothing, as before.
     /// </summary>
     public void Recover()
     {
         if (!displays.IsEnumerated)
             return;
 
-        if (!nvidia.TryInitialize() && nvidia.IsInitialized)
-            return;
+        nvidia.TryInitialize();
 
         using (colors.Batch())
         {

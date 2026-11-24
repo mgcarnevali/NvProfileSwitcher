@@ -1,7 +1,6 @@
 using System.ComponentModel;
 using NvProfileSwitcher.Core;
 using NvProfileSwitcher.Models;
-using NvProfileSwitcher.Nvidia;
 
 namespace NvProfileSwitcher.Services.Editing;
 

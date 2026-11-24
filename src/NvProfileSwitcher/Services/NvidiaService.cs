@@ -97,10 +97,15 @@ internal sealed partial class NvidiaService(
 
     /// <summary>
     /// The NVIDIA handle of the display shown on <paramref name="gdiName"/>, or null when the API is
-    /// not initialized, does not control that display or fails: the display then has no colors.
+    /// not available, does not control that display or fails: the display then has no colors. An
+    /// API reported unavailable controls no display, even while a previous instance is kept, so the
+    /// colors are unavailable until it is initialized again, as the status bar says.
     /// </summary>
     public NvidiaHandle? ResolveDisplay(string gdiName)
     {
+        if (Status != NvidiaStatus.Available)
+            return null;
+
         try
         {
             return backend?.ResolveDisplay(gdiName);

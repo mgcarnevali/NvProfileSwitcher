@@ -1411,12 +1411,20 @@ it. One executable, no option: the capabilities are read from the system and fro
   another GPU, or a driver that becomes available, is reflected by the next refresh.
 - **Status.** `NvidiaStatus`: available; not detected (no `nvapi64.dll`, or
   `NVAPI_NVIDIA_DEVICE_NOT_FOUND`), shown in grey with no driver version; unavailable (any other
-  failure, usually while a driver installs), shown in red. A failed initialization is retried at
-  each opening, each display change and each resume.
+  failure, usually while a driver installs or after a color the API could not write), shown in
+  red. An API that is not available controls no display (`ResolveDisplay` returns null), even
+  while a previous instance is kept, so its colors are disabled, as the status bar says.
+- **Retries.** An API that is not available is initialized again at each opening, each display
+  change and each resume: the events a driver installation, a driver restart or sleep produce.
+  The next refresh then gives the displays their colors back. There is no timer: a failure with
+  none of those events after it keeps the colors disabled until one happens.
 - **What runs without it.** The startup refresh, display changes and resume (after the first
   enumeration, as the original did after the API was initialized), switching, overrides, Global
-  Switching, hotkeys, the tray, resolutions and their recovery. A failed re-initialization at
-  resume that keeps the previous instance still leaves the rest as it is, as before.
+  Switching, hotkeys, the tray, resolutions and their recovery. No NVIDIA failure stops them: a
+  failed re-initialization at resume refreshes the displays without colors, so the previous
+  instance writes nothing, as before; a color the API cannot write at opening reports it
+  unavailable, reads the displays again without colors and starts switching (deliberate
+  deviation: the original did not start it).
 - **Colors are never claimed.** `DisplayColorController` writes, and counts as written, only
   displays with colors. The editor disables the color sliders, Copy settings and Reset for a
   display without colors and says so; `ProfileEditingService` ignores those actions then.

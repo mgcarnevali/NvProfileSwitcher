@@ -6,7 +6,6 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using NvProfileSwitcher.Core;
 using NvProfileSwitcher.Models;
-using NvProfileSwitcher.Nvidia;
 using NvProfileSwitcher.Services;
 using NvProfileSwitcher.Services.Editing;
 using NvProfileSwitcher.Shell;

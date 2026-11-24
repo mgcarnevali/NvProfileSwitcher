@@ -88,15 +88,19 @@ internal sealed class StartupCoordinator
                 if (!automaticSwitching.IsSwitchingActive)
                     colors.RestoreWindows(force: switching.GlobalPaused);
             }
-
-            automaticSwitching.Start();
         }
         catch (Exception exception)
         {
-            // A color the NVIDIA API could not write is thrown before switching starts, and the
-            // API is reported as unavailable, as in the original.
+            // A color the NVIDIA API could not write: it is reported as unavailable, as in the
+            // original, and the displays are read again without colors (an unavailable API controls
+            // none), so switching starts and applies resolutions without writing colors again
+            // (deliberate deviation: the original did not start switching). The colors return when
+            // the API is initialized again: at the next opening, display change or resume.
             nvidia.ReportUnavailable(exception);
+            displayRefresh.Refresh();
         }
+
+        automaticSwitching.Start();
 
         // Not awaited: it runs in the background on every opening, also when the NVIDIA API failed.
         _ = updateCheck.CheckAsync(manual: false);

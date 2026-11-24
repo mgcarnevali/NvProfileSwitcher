@@ -157,6 +157,84 @@ public sealed class GpuIndependenceIntegrationTests
         app.Window.Close();
     }
 
+    private static TestComposition WithNvidia(string config)
+    {
+        var app = WithoutNvidia(config);
+        app.Factory.Failure = null;
+        return app;
+    }
+
+    private static void Resume(TestComposition app) => app.Host.DispatchMessage(WmPowerBroadcast, PbtApmResumeAutomatic);
+
+    // NVAPI fails to initialize again after sleep and keeps its previous instance: the displays,
+    // the resolutions and switching are refreshed all the same, the previous instance writes no
+    // color, and the next display change initializes the API and brings the colors back.
+    [AvaloniaFact]
+    public void AFailedReinitializationAtResumeLeavesDisplaysAndResolutionsWorking()
+    {
+        using var app = WithNvidia(SavedColors);
+        app.Window.Show();
+        var previous = app.Factory.Created[0];
+        Focus(app, "game.exe");
+        Assert.Equal(Game1080, app.DisplayModes.Current[DellGdi]);
+
+        // A restore Windows rejects before the computer sleeps waits for the next display change.
+        app.DisplayModes.Rejected.Add(DellGdi);
+        Focus(app, "explorer.exe");
+        Assert.Equal(Game1080, app.DisplayModes.Current[DellGdi]);
+        app.DisplayModes.Rejected.Clear();
+        previous.Applied.Clear();
+        var enumerations = previous.EnumerationCount;
+
+        app.Factory.NextFailure = new InvalidOperationException("NvAPI_Initialize failed");
+        Resume(app);
+        Assert.True(TestComposition.RunUntil(() => previous.EnumerationCount > enumerations, TimeSpan.FromSeconds(3)));
+
+        Assert.Equal(NvidiaStatus.Unavailable, app.Nvidia.Status);
+        Assert.Single(app.Factory.Created);
+        Assert.Equal(0, previous.DisposeCount);
+        Assert.Empty(previous.Applied);
+        Assert.False(Assert.Single(app.Displays.Displays).CanAdjustColors);
+        Assert.False(app.ProfileSettings.AreColorsAvailable);
+        Assert.Equal(Desktop, app.DisplayModes.Current[DellGdi]);
+
+        // Switching keeps applying resolutions, without colors.
+        Focus(app, "game.exe");
+        Assert.Equal(Game1080, app.DisplayModes.Current[DellGdi]);
+        Assert.Equal("Game", app.Switching.ActiveProfileName);
+        Assert.Empty(previous.Applied);
+
+        // The next display change initializes the API again: the colors come back.
+        app.Host.DispatchMessage(WmDisplayChange, 0);
+        Assert.True(TestComposition.RunUntil(() => app.Nvidia.IsAvailable && app.Displays.Displays is [{ CanAdjustColors: true }], TimeSpan.FromSeconds(3)));
+        Assert.Equal(2, app.Factory.Created.Count);
+        Assert.Equal(80, app.Factory.Created[^1].Current(Dell)!.Value.Vibrance);
+        Assert.True(app.ProfileSettings.AreColorsAvailable);
+        app.Window.Close();
+    }
+
+    // No NVIDIA failure keeps the displays from being enumerated, resolutions from switching, or a
+    // previous session's resolution from being recovered.
+    [AvaloniaFact]
+    public void ANvidiaFailureAtStartupStillRecoversAPreviousSessionsResolution()
+    {
+        using var app = WithNvidia(SavedColors);
+        app.Factory.NextFailure = new InvalidOperationException("NvAPI_Initialize failed");
+        app.DisplayModes.Current[DellGdi] = Game1080;
+        new DisplayModeRecoveryStore(Path.Combine(Path.GetDirectoryName(app.ConfigPath)!, "display-modes.json"))
+            .Save([new DisplayModeRecoveryEntry(Dell, Desktop, Game1080, Game1080)]);
+
+        app.Window.Show();
+
+        Assert.Equal(NvidiaStatus.Unavailable, app.Nvidia.Status);
+        Assert.Single(app.Displays.Displays);
+        Assert.Equal(Desktop, app.DisplayModes.Current[DellGdi]);
+        Assert.Equal(1, app.Monitor.StartCount);
+        Focus(app, "game.exe");
+        Assert.Equal(Game1080, app.DisplayModes.Current[DellGdi]);
+        app.Window.Close();
+    }
+
     // A return from sleep refreshes the displays and their resolutions without the API.
     [AvaloniaFact]
     public void AResumeWithoutTheDriverRefreshesTheDisplays()
