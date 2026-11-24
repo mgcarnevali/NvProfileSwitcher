@@ -5,10 +5,12 @@ using NvProfileSwitcher.Platform;
 namespace NvProfileSwitcher.Services;
 
 /// <summary>
-/// The only writer of display modes. A profile may give each monitor a resolution
-/// (<see cref="ProfileDisplaySettings.Resolution"/>); while that profile is the one the switching
-/// rules apply, its monitors show that resolution, and every other target (Windows, a profile
-/// without resolutions, Global Switching off) shows each monitor's desktop mode. It is separate
+/// The only writer of display modes. A profile may give each monitor a resolution and a refresh
+/// rate, each independent of the other (<see cref="ProfileDisplaySettings.Resolution"/>,
+/// <see cref="ProfileDisplaySettings.RefreshRate"/>); while that profile is the one the switching
+/// rules apply, its monitors show that mode (<see cref="DisplayModeCore.ChooseMode"/>), and every
+/// other target (Windows, a profile without modes, Global Switching off) shows each monitor's
+/// desktop mode, resolution and rate. It is separate
 /// from the colors: <see cref="ActiveProfileService"/> calls it first, then applies the colors.
 /// <para>
 /// The desktop mode of a monitor is read right before its first change and kept until the
@@ -20,7 +22,7 @@ namespace NvProfileSwitcher.Services;
 /// <para>
 /// Modes change only when the target changes, never on a reevaluation of the same target, so a
 /// display change (WM_DISPLAYCHANGE) never leads to another change. A configuration without
-/// resolutions never reaches the backend.
+/// resolutions or refresh rates never reaches the backend.
 /// </para>
 /// <para>
 /// Nothing here throws: a failure on one monitor is left for the next display change, and the
@@ -36,7 +38,7 @@ internal sealed class DisplayModeController(
     private readonly Dictionary<string, Owned> owned = new(StringComparer.OrdinalIgnoreCase);
 
     // The target last applied, by monitor id; empty for desktop modes. Null before the first one.
-    private Dictionary<string, DisplayResolution>? target;
+    private Dictionary<string, ModeRequest>? target;
 
     // Monitors already handled for the current target (changed, already there or failed); a
     // display change applies the target only to the monitors that were not handled yet.
@@ -59,7 +61,7 @@ internal sealed class DisplayModeController(
     public bool OwnsAnyMonitor => owned.Count > 0;
 
     /// <summary>
-    /// Applies the resolutions of <paramref name="profile"/>, or the desktop modes when it is null,
+    /// Applies the resolutions and refresh rates of <paramref name="profile"/>, or the desktop modes when it is null,
     /// has none, or Global Switching is off. Nothing happens when the target is the one already applied.
     /// </summary>
     public void Apply(ProfileListItem? profile)
@@ -128,27 +130,28 @@ internal sealed class DisplayModeController(
     }
 
     /// <summary>
-    /// The resolutions offered for <paramref name="display"/>, each with the mode it would be applied
-    /// with from the monitor's desktop mode. Read only when the user opens the list.
+    /// The desktop mode of <paramref name="display"/> (the one it is restored to, while this
+    /// controller owns it) and the modes it supports, which the editor offers from; null when they
+    /// cannot be read. Read only when the user opens a list.
     /// </summary>
-    public IReadOnlyList<DisplayModeInfo> OfferedModes(ConnectedDisplay display)
+    public DisplayModeOptions? ModeOptions(ConnectedDisplay display)
     {
         if (string.IsNullOrWhiteSpace(display.GdiName))
-            return [];
+            return null;
 
         try
         {
             var desktop = owned.TryGetValue(display.MonitorId, out var monitor) ? monitor.Original : backend.GetCurrent(display.GdiName);
-            return desktop is { } mode ? DisplayModeCore.OfferedModes(backend.GetModes(display.GdiName), mode) : [];
+            return desktop is { } mode ? new DisplayModeOptions(mode, backend.GetModes(display.GdiName)) : null;
         }
         catch (Exception)
         {
-            // The list then offers only "Don't change" and the saved resolution.
-            return [];
+            // The lists then offer only the defaults and the saved values.
+            return null;
         }
     }
 
-    private void Transition(Dictionary<string, DisplayResolution> next, bool displaysChanged = false)
+    private void Transition(Dictionary<string, ModeRequest> next, bool displaysChanged = false)
     {
         if (applying)
         {
@@ -179,10 +182,10 @@ internal sealed class DisplayModeController(
 
                 try
                 {
-                    if (next.TryGetValue(display.MonitorId, out var resolution))
+                    if (next.TryGetValue(display.MonitorId, out var request))
                     {
                         if (handled.Add(display.MonitorId))
-                            changed |= ApplyResolution(display, resolution);
+                            changed |= ApplyMode(display, request);
                     }
                     else if (owned.TryGetValue(display.MonitorId, out var monitor))
                     {
@@ -213,7 +216,7 @@ internal sealed class DisplayModeController(
     }
 
     // True when the mode changed.
-    private bool ApplyResolution(ConnectedDisplay display, DisplayResolution resolution)
+    private bool ApplyMode(ConnectedDisplay display, ModeRequest request)
     {
         owned.TryGetValue(display.MonitorId, out var previous);
         var current = backend.GetCurrent(display.GdiName);
@@ -222,7 +225,7 @@ internal sealed class DisplayModeController(
 
         // The desktop mode is read before the first change and kept through every profile after it.
         var desktop = previous?.Original ?? now;
-        if (DisplayModeCore.ChooseMode(backend.GetModes(display.GdiName), resolution, desktop) is not { } mode)
+        if (DisplayModeCore.ChooseMode(backend.GetModes(display.GdiName), request.Resolution, desktop, request.RefreshRate) is not { } mode)
             return false;
         if (now == mode)
             return false;
@@ -287,23 +290,29 @@ internal sealed class DisplayModeController(
     private bool SaveRecovery() =>
         recovery.Save(owned.Select(pair => new DisplayModeRecoveryEntry(pair.Key, pair.Value.Original, pair.Value.Target, pair.Value.Applied)).ToList());
 
-    private static Dictionary<string, DisplayResolution> TargetOf(ProfileListItem? profile)
+    // The mode each monitor of the profile asks for: a resolution, a refresh rate, or both.
+    private static Dictionary<string, ModeRequest> TargetOf(ProfileListItem? profile)
     {
-        var resolutions = new Dictionary<string, DisplayResolution>(StringComparer.OrdinalIgnoreCase);
+        var requests = new Dictionary<string, ModeRequest>(StringComparer.OrdinalIgnoreCase);
         if (profile is null || profile.IsWindowsProfile)
-            return resolutions;
+            return requests;
 
         foreach (var values in profile.DisplayProfiles)
         {
-            if (values.Resolution is { IsValid: true } resolution && !string.IsNullOrWhiteSpace(values.MonitorId))
-                resolutions[values.MonitorId] = resolution;
+            var resolution = values.Resolution is { IsValid: true } valid ? valid : null;
+            var rate = values.RefreshRate is { IsValid: true } validRate ? validRate : null;
+            if ((resolution is not null || rate is not null) && !string.IsNullOrWhiteSpace(values.MonitorId))
+                requests[values.MonitorId] = new ModeRequest(resolution, rate);
         }
 
-        return resolutions;
+        return requests;
     }
 
-    private static bool SameTarget(Dictionary<string, DisplayResolution> a, Dictionary<string, DisplayResolution> b) =>
+    private static bool SameTarget(Dictionary<string, ModeRequest> a, Dictionary<string, ModeRequest> b) =>
         a.Count == b.Count && a.All(pair => b.TryGetValue(pair.Key, out var other) && other == pair.Value);
+
+    // A resolution, a refresh rate, or both; null keeps the desktop one.
+    private sealed record ModeRequest(DisplayResolution? Resolution, RefreshRateSetting? RefreshRate);
 
     private sealed record Owned(DisplayModeInfo Original, DisplayModeInfo Target, DisplayModeInfo? Applied);
 }

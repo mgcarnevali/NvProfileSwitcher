@@ -36,19 +36,63 @@ public sealed class DisplayModeCoreTests
         Assert.Null(DisplayModeCore.ChooseMode(Supported, new DisplayResolution(800, 600), new DisplayModeInfo(2560, 1440, 144)));
 
     [Fact]
-    public void OfferedModesListEachResolutionOnceLargestFirst()
-    {
-        var offered = DisplayModeCore.OfferedModes(Supported, new DisplayModeInfo(2560, 1440, 144));
-
+    public void OfferedResolutionsListEachResolutionOnceLargestFirst() =>
         Assert.Equal(
-            [new(2560, 1440, 144), new(1920, 1080, 144), new(1280, 1024, 60), new(1280, 960, 120)],
-            offered);
+            [new(2560, 1440), new(1920, 1080), new(1280, 1024), new(1280, 960)],
+            DisplayModeCore.OfferedResolutions(Supported));
+
+    [Fact]
+    public void OfferedResolutionsIgnoreEmptyModes() =>
+        Assert.Equal([new DisplayResolution(1920, 1080)],
+            DisplayModeCore.OfferedResolutions([new(0, 0, 60), new(1920, 1080, 60)]));
+
+    [Fact]
+    public void OfferedRefreshRatesAreThoseOfTheResolutionHighestFirst()
+    {
+        Assert.Equal([144, 120, 60], DisplayModeCore.OfferedRefreshRates(Supported, new DisplayResolution(1920, 1080)));
+        Assert.Equal([60], DisplayModeCore.OfferedRefreshRates(Supported, new DisplayResolution(1280, 1024)));
+        Assert.Empty(DisplayModeCore.OfferedRefreshRates(Supported, new DisplayResolution(800, 600)));
+    }
+
+    // ---- Refresh rate, independent of the resolution ----
+
+    private static readonly DisplayModeInfo DesktopAt60 = new(2560, 1440, 60);
+
+    [Fact]
+    public void WithoutAResolutionTheRateAppliesToTheDesktopResolution()
+    {
+        Assert.Equal(new DisplayModeInfo(2560, 1440, 144),
+            DisplayModeCore.ChooseMode(Supported, null, DesktopAt60, RefreshRateSetting.Explicit(144)));
+        Assert.Equal(new DisplayModeInfo(2560, 1440, 144),
+            DisplayModeCore.ChooseMode(Supported, null, DesktopAt60, RefreshRateSetting.Highest));
+        // Neither a resolution nor a rate: the desktop mode itself.
+        Assert.Equal(DesktopAt60, DisplayModeCore.ChooseMode(Supported, null, DesktopAt60));
     }
 
     [Fact]
-    public void OfferedModesIgnoreEmptyModes() =>
-        Assert.Equal([new DisplayModeInfo(1920, 1080, 60)],
-            DisplayModeCore.OfferedModes([new(0, 0, 60), new(1920, 1080, 60)], new DisplayModeInfo(1920, 1080, 60)));
+    public void HighestTakesTheHighestRateOfTheResolutionWhateverTheDesktopRate() =>
+        Assert.Equal(new DisplayModeInfo(1920, 1080, 144),
+            DisplayModeCore.ChooseMode(Supported, new DisplayResolution(1920, 1080), DesktopAt60, RefreshRateSetting.Highest));
+
+    [Fact]
+    public void AnExplicitRateIsAppliedExactly() =>
+        Assert.Equal(new DisplayModeInfo(1920, 1080, 120),
+            DisplayModeCore.ChooseMode(Supported, new DisplayResolution(1920, 1080), DesktopAt60, RefreshRateSetting.Explicit(120)));
+
+    // A rate the user chose is never replaced by another one: nothing is applied instead.
+    [Fact]
+    public void AnExplicitRateTheResolutionDoesNotOfferChoosesNothing()
+    {
+        Assert.Null(DisplayModeCore.ChooseMode(Supported, new DisplayResolution(1280, 1024), DesktopAt60, RefreshRateSetting.Explicit(144)));
+        Assert.Null(DisplayModeCore.ChooseMode(Supported, null, DesktopAt60, RefreshRateSetting.Explicit(75)));
+    }
+
+    [Fact]
+    public void AnUnsupportedResolutionChoosesNothingWhateverTheRate()
+    {
+        Assert.Null(DisplayModeCore.ChooseMode(Supported, new DisplayResolution(800, 600), DesktopAt60, RefreshRateSetting.Highest));
+        Assert.Null(DisplayModeCore.ChooseMode(Supported, new DisplayResolution(800, 600), DesktopAt60, RefreshRateSetting.Explicit(60)));
+    }
 
     [Fact]
     public void ResolutionIsValidOnlyWithPositiveSizes()
@@ -155,6 +199,69 @@ public sealed class DisplayResolutionConfigurationTests
     }
 }
 
+public sealed class RefreshRateConfigurationTests
+{
+    private static string Serialize(RefreshRateSetting? rate)
+    {
+        var config = new AppConfig
+        {
+            ApplicationProfiles =
+            [
+                new ApplicationProfileConfig
+                {
+                    Id = Guid.Parse("3b393eb8-cc50-455b-996f-12287cb7281e"), Name = "Game", ExePaths = [@"D:\Games\game.exe"], Enabled = true,
+                    DisplayProfiles = [new ProfileDisplaySettings { DisplayName = "Primary", MonitorId = "MONITOR-1", RefreshRate = rate }]
+                }
+            ]
+        };
+        return JsonSerializer.Serialize(config, NvProfileSwitcherJsonContext.Default.AppConfig);
+    }
+
+    private static RefreshRateSetting? RoundTrip(string json)
+    {
+        Assert.True(ConfigurationCore.TryValidateImportedConfiguration(json, out var imported));
+        return imported.ApplicationProfiles[0].DisplayProfiles[0].RefreshRate;
+    }
+
+    private static string WithRate(string value)
+    {
+        var root = JsonNode.Parse(Serialize(RefreshRateSetting.Highest))!;
+        root["Application Profiles"]![0]!["Display Profiles"]![0]!["RefreshRate"] = JsonNode.Parse(value);
+        return root.ToJsonString();
+    }
+
+    // Existing configurations have no rate: the desktop rate, written as before, without the property.
+    [Fact]
+    public void TheDesktopRateIsSavedWithoutTheProperty()
+    {
+        var json = Serialize(null);
+
+        Assert.DoesNotContain("RefreshRate", json);
+        Assert.Null(RoundTrip(json));
+    }
+
+    [Fact]
+    public void HighestAndExplicitRatesRoundTrip()
+    {
+        Assert.Contains("\"RefreshRate\": \"Highest\"", Serialize(RefreshRateSetting.Highest));
+        Assert.Contains("\"RefreshRate\": 144", Serialize(RefreshRateSetting.Explicit(144)));
+        Assert.Equal(RefreshRateSetting.Highest, RoundTrip(Serialize(RefreshRateSetting.Highest)));
+        Assert.Equal(RefreshRateSetting.Explicit(144), RoundTrip(Serialize(RefreshRateSetting.Explicit(144))));
+        Assert.Null(RoundTrip(WithRate("null")));
+    }
+
+    [Theory]
+    [InlineData("\"Max\"")]
+    [InlineData("\"highest\"")]
+    [InlineData("0")]
+    [InlineData("-60")]
+    [InlineData("59.94")]
+    [InlineData("true")]
+    [InlineData("{ \"Hertz\": 60 }")]
+    public void AnInvalidRateIsRejected(string value) =>
+        Assert.False(ConfigurationCore.TryValidateImportedConfiguration(WithRate(value), out _));
+}
+
 public sealed class DisplayResolutionEditingTests
 {
     private static ProfileListItem Profile(DisplayResolution? resolution, int vibrance = 50)
@@ -182,6 +289,35 @@ public sealed class DisplayResolutionEditingTests
 
         Assert.False(ProfileEditingCore.ProfilesEqual(a, b));
         Assert.True(ProfileEditingCore.DisplayColorsEqual(a, b));
+    }
+
+    [Fact]
+    public void ARateIsClonedAndIsAProfileChangeButNotAColorChange()
+    {
+        var a = Profile(null);
+        var b = Profile(null);
+        b.DisplayProfiles[0].RefreshRate = RefreshRateSetting.Explicit(144);
+
+        Assert.Equal(RefreshRateSetting.Explicit(144), ProfileEditingCore.CloneProfile(b).DisplayProfiles[0].RefreshRate);
+        Assert.False(ProfileEditingCore.ProfilesEqual(a, b));
+        Assert.True(ProfileEditingCore.DisplayColorsEqual(a, b));
+
+        b.DisplayProfiles[0].RefreshRate = RefreshRateSetting.Highest;
+        a.DisplayProfiles[0].RefreshRate = RefreshRateSetting.Highest;
+        Assert.True(ProfileEditingCore.ProfilesEqual(a, b));
+    }
+
+    [Fact]
+    public void CopyingTheColorsLeavesTheRate()
+    {
+        var source = Profile(null, vibrance: 80);
+        source.DisplayProfiles[0].RefreshRate = RefreshRateSetting.Highest;
+        var destination = Profile(null);
+        destination.DisplayProfiles[0].RefreshRate = RefreshRateSetting.Explicit(60);
+
+        ProfileEditingCore.CopyDisplaySettings(source, destination);
+
+        Assert.Equal(RefreshRateSetting.Explicit(60), destination.DisplayProfiles[0].RefreshRate);
     }
 
     [Fact]

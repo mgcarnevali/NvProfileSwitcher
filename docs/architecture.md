@@ -286,7 +286,7 @@ reference Core tests run unchanged. New code uses the namespace of its folder.
 | `DisplayProfileSyncService` | — | `Synchronize(newlySharedIds)`: records the shared identities, `DisplayProfileSyncCore` (adoption, shared identities, values for every display, §22.1), reads a display only when it was never written (§22.3), saves if anything changed; returns the moved monitor ids (`DisplayRemap`) | 1879–1922 |
 | `DisplayTopologyService` | debounce timer, whether the change was retried, whether a resume is being settled | `HandleMessage` (WM_DISPLAYCHANGE and the resume notifications of WM_POWERBROADCAST, never marked handled), `RetryOnce` (§22.1), `TopologyChanged`, `Resumed` (§22.4), `Stop` | 572–575, 1857–1877 |
 | `DisplayColorController` | base profile, preview layer, displays to write, displays written | `Batch(throwOnFailure)`, `SetBase(profile, allDisplays)`, `RestoreWindows(force)`, `SetPreview`, `ClearPreview`, `RefreshAll`, `HasWritten`; event `WriteFailed`. The only writer of display colors (§22.2) | 1838–1856, 2193–2300 |
-| `DisplayModeController` | monitors whose mode it changed (desktop mode, target, mode read back), the target applied, the monitors handled for it | `Apply(profile)`, `RestoreOriginals`, `OnDisplaysChanged`, `OfferedModes(display)`; events `ModesChanged`, `RecheckRequested`. The only writer of display modes (§22.7) | — |
+| `DisplayModeController` | monitors whose mode it changed (desktop mode, target, mode read back), the target applied, the monitors handled for it | `Apply(profile)`, `RestoreOriginals`, `OnDisplaysChanged`, `ModeOptions(display)` (desktop mode and supported modes, for the editor); events `ModesChanged`, `RecheckRequested`. The only writer of display modes (§22.7) | — |
 | `ActiveProfileService` | — | `Check`, `ReapplyRealColors(allDisplays)`, `Invalidate`, `Reevaluate` (invalidate and check), `PublishActiveProfile`; event `ProfileSwitching`. The only writer of `ActiveProfileName` and `DisplayedActiveProfile`; chooses the base profile of `DisplayColorController`; holds the rule that the preview owns the display; normalizes an invalid override in `Check`, as the reference did | 1741–1752, 1792–1832, 2227–2268 |
 | `AutomaticSwitchingService` | foreground monitor, "monitor created" | `Start`, `Stop`, `Dispose`, `IsSwitchingActive`, `SetGlobalEnabled`, `ToggleGlobal`, `ToggleWindowsOverride`, `ResumeAutomatic`, `ToggleProfileOverride`, `ApplyImportedState` | 598–676, 1782–1790, 2028–2039 |
 | `ProfileEditorSession` | source, draft | `HasChanges`, `HasUnsavedColorChanges` (pure) | — |
@@ -362,7 +362,7 @@ the same `AppServices.Create`, so the integration and service tests run the real
 | View | ViewModel | Depends on |
 |---|---|---|
 | `ProfilesView` | `ProfilesViewModel` | `ProfileStore` (the list), `ProfileEditor` (the selection), `ProfileEditingService` (selecting), `ProfileListService` (the list actions) |
-| `ProfileSettingsView` | `ProfileSettingsViewModel` | `ProfileEditor`, `ProfileEditingService`, `HotkeyService` and `HotkeyCaptureController` (the profile hotkey field and Cancel), `IDialogService` (the executable pickers), the modes a display offers (`DisplayModeController.OfferedModes`, passed as a function: the panel never holds the controller) |
+| `ProfileSettingsView` | `ProfileSettingsViewModel` | `ProfileEditor`, `ProfileEditingService`, `HotkeyService` and `HotkeyCaptureController` (the profile hotkey field and Cancel), `IDialogService` (the executable pickers), the modes a display offers (`DisplayModeController.ModeOptions`, passed as a function: the panel never holds the controller) |
 | `HotkeysView` | `HotkeysViewModel` (4 × `HotkeyFieldViewModel`) | `HotkeyCaptureController`, `HotkeyService` |
 | `ApplicationSettingsView` | `ApplicationSettingsViewModel` | `AppSettings`, `ConfigurationService`, `StartupRegistrationService`, `TrayService`, `MainWindowHost` (`SetTopmost`, `IsVisible`), `IDialogService`, `UpdateCheckService`, `SavedDisplaysService`, `ConfigurationBackupService` (one per Advanced button), development-build flag |
 | `StatusBarView` | `StatusBarViewModel` | `NvidiaService`, `SwitchingState`, `IDialogService` |
@@ -1337,13 +1337,15 @@ same scale as this application. The NVIDIA API does not report them.
 - There is no polling and nothing is written to the registry. The reader is passed through
   `AppPlatform.ReadNvTweakColors`, so tests use a fake registry.
 
-### 22.7 Display resolution per profile
+### 22.7 Display resolution and refresh rate per profile
 
-An application profile may give each monitor a resolution
-(`ProfileDisplaySettings.Resolution`, width and height; absent means "Don't change"). It follows the
-same focus rules as the colors: while the profile is the one switching applies, its monitors show
-that resolution; Windows, a profile without resolutions, the Windows Override, Global Switching off
-and closing the application show each monitor's desktop mode again.
+An application profile may give each monitor a resolution (`ProfileDisplaySettings.Resolution`,
+width and height; absent means "Don't change") and, independently, a refresh rate
+(`ProfileDisplaySettings.RefreshRate`: absent for the desktop rate, `"Highest"`, or a number of
+hertz). Either alone or both may be set. It follows the same focus rules as the colors: while the
+profile is the one switching applies, its monitors show that mode; Windows, a profile without
+modes, the Windows Override, Global Switching off and closing the application show each monitor's
+desktop mode again, resolution and rate.
 
 - **One writer.** `DisplayModeController` is the only caller of `IDisplayModeBackend.Apply`
   (`ChangeDisplaySettingsExW`, tested with `CDS_TEST` first). Changes are dynamic: never
@@ -1351,10 +1353,20 @@ and closing the application show each monitor's desktop mode again.
   `Apply(profile)` before `DisplayColorController.SetBase`, in the same batch, and
   `ReapplyRealColors` does the same, so turning Global Switching on or leaving an override
   applies the resolution of the real target. The call is synchronous on the UI thread.
-- **Refresh rate.** The resolution is applied at the refresh rate of the monitor's desktop mode
-  when it supports it, and otherwise at its highest one (`DisplayModeCore.ChooseMode`). The desktop
-  mode is read right before the first change of a monitor and kept until it is restored, so a
-  profile that follows another one never takes the previous profile's rate as its reference.
+- **Choosing the mode.** `DisplayModeCore.ChooseMode` takes the profile's resolution, or the
+  desktop one, at: the desktop rate when that resolution supports it, and otherwise its highest
+  (no rate set); its highest (`Highest`); or exactly the rate set. A rate the user set that the
+  resolution does not offer chooses nothing, as an unsupported resolution does: the monitor is left
+  as it is rather than shown at a rate nobody chose, and the editor marks the value "not
+  supported". The desktop mode is read right before the first change of a monitor and kept until
+  it is restored, so a profile that follows another one never takes the previous profile's rate as
+  its reference. Two profiles that differ only by rate are different targets.
+- **Editor.** Resolution and Refresh rate are two selectors. Until one is opened they show the
+  saved values; opening either reads the display's modes once (`DisplayModeController.ModeOptions`:
+  the desktop mode and the supported modes). The rates offered are those of the resolution chosen,
+  or the desktop one; "Desktop rate" and "Highest available" show the rate they would apply, and a
+  saved rate the resolution does not offer stays chosen, marked "not supported", until the user
+  changes it. Neither is shown for the Windows profile.
 - **Ownership.** For each monitor the controller keeps the desktop mode, the mode requested and the
   mode read back. It restores a monitor only while it still shows one of those two: a mode a game
   or the user set since is left alone, and the entry dropped. Modes change only when the target
@@ -1366,7 +1378,7 @@ and closing the application show each monitor's desktop mode again.
   shows no message.
 - **Failures.** The controller never throws: an unexpected failure on one monitor leaves its
   recovery entry for the next display change or start, requests no refresh (so it cannot loop),
-  and the other monitors and the colors written after it go on. `OfferedModes` returns no modes.
+  and the other monitors and the colors written after it go on. `ModeOptions` returns none.
 - **Re-entry.** A target that arrives while a change runs (Windows sends messages during it) is
   not applied inside it; `RecheckRequested` posts a reevaluation of the active profile.
 - **NVIDIA handles.** After an effective change, `ModesChanged` requests a display refresh
@@ -1378,12 +1390,12 @@ and closing the application show each monitor's desktop mode again.
   disk and moved over the previous one. The first display enumeration of a session takes over the
   entries left by a previous one, and the monitors connected are restored; the others keep their
   entries until they are connected.
-- **No cost without resolutions.** Without a resolution in the target and nothing owned, no call
+- **No cost without modes.** Without a resolution or rate in the target and nothing owned, no call
   reaches the backend: not at startup (only the file's existence is checked), switching, overrides,
-  display changes or exit. The editor reads a display's modes only when the Resolution list is
-  opened (`OfferedModes`); until then it shows the saved value.
-- **Independent from the colors.** Comparing, copying and previewing colors ignore the resolution;
-  saving, cancelling and the unsaved-changes check include it.
+  display changes or exit. The editor reads a display's modes only when a mode list is
+  opened (`ModeOptions`); until then it shows the saved values.
+- **Independent from the colors.** Comparing, copying and previewing colors ignore the resolution
+  and the rate; saving, cancelling and the unsaved-changes check include them.
 - **Architecture tests.** Only `Platform/DisplayModes.cs` calls `ChangeDisplaySettingsExW` and only
   `DisplayModeController` holds `IDisplayModeBackend` (besides the composition records that pass it
   on); the mode and color controllers do not depend on each other or on each other's backend; the

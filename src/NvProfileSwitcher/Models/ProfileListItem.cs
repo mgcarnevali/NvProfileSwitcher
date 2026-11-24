@@ -177,6 +177,14 @@ public sealed class ProfileDisplaySettings
     public DisplayResolution? Resolution { get; set; }
 
     /// <summary>
+    /// The refresh rate the profile gives this monitor while it is active, independent of
+    /// <see cref="Resolution"/>: null keeps the desktop rate (the default), or else the highest rate
+    /// or an explicit one. Never set for the Windows profile.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public RefreshRateSetting? RefreshRate { get; set; }
+
+    /// <summary>
     /// True when the colors were never read or set: values an application profile got for a
     /// monitor whose colors could not be adjusted and that had no Windows values, only to hold its
     /// resolution. They take the monitor's Windows values as soon as it has them, so made-up colors
@@ -186,8 +194,51 @@ public sealed class ProfileDisplaySettings
     public bool ColorsPending { get; set; }
 }
 
-/// <summary>A display resolution in pixels; the refresh rate is chosen when it is applied.</summary>
+/// <summary>A display resolution in pixels; the refresh rate is chosen separately (<see cref="RefreshRateSetting"/>).</summary>
 public sealed record DisplayResolution(int Width, int Height)
 {
     public bool IsValid => Width > 0 && Height > 0;
+}
+
+/// <summary>
+/// A refresh rate a profile asks for: the highest one the resolution offers, or an explicit rate
+/// in hertz. Saved as "Highest" or as the number of hertz.
+/// </summary>
+[System.Text.Json.Serialization.JsonConverter(typeof(RefreshRateSettingConverter))]
+public sealed record RefreshRateSetting
+{
+    private RefreshRateSetting(int hertz) => Hertz = hertz;
+
+    public static RefreshRateSetting Highest { get; } = new(0);
+
+    public static RefreshRateSetting Explicit(int hertz) => new(hertz);
+
+    /// <summary>The explicit rate in hertz; 0 for <see cref="Highest"/>.</summary>
+    public int Hertz { get; }
+
+    public bool IsHighest => Hertz == 0;
+
+    public bool IsValid => Hertz >= 0;
+}
+
+/// <summary>Reads and writes a <see cref="RefreshRateSetting"/> as "Highest" or a number of hertz.</summary>
+public sealed class RefreshRateSettingConverter : System.Text.Json.Serialization.JsonConverter<RefreshRateSetting>
+{
+    public const string HighestValue = "Highest";
+
+    public override RefreshRateSetting? Read(ref System.Text.Json.Utf8JsonReader reader, Type typeToConvert, System.Text.Json.JsonSerializerOptions options) =>
+        reader.TokenType switch
+        {
+            System.Text.Json.JsonTokenType.String when reader.GetString() == HighestValue => RefreshRateSetting.Highest,
+            System.Text.Json.JsonTokenType.Number when reader.TryGetInt32(out var hertz) && hertz > 0 => RefreshRateSetting.Explicit(hertz),
+            _ => throw new System.Text.Json.JsonException("A refresh rate is \"Highest\" or a positive number of hertz."),
+        };
+
+    public override void Write(System.Text.Json.Utf8JsonWriter writer, RefreshRateSetting value, System.Text.Json.JsonSerializerOptions options)
+    {
+        if (value.IsHighest)
+            writer.WriteStringValue(HighestValue);
+        else
+            writer.WriteNumberValue(value.Hertz);
+    }
 }

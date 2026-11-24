@@ -28,6 +28,7 @@ public static class ProfileEditingCore
         DigitalVibrance = source.DigitalVibrance,
         Hue = source.Hue,
         Resolution = source.Resolution,
+        RefreshRate = source.RefreshRate,
         ColorsPending = source.ColorsPending
     };
 
@@ -121,6 +122,7 @@ public static class ProfileEditingCore
                 x.DigitalVibrance != y.DigitalVibrance ||
                 x.Hue != y.Hue ||
                 x.Resolution != y.Resolution ||
+                x.RefreshRate != y.RefreshRate ||
                 x.ColorsPending != y.ColorsPending)
                 return false;
         }

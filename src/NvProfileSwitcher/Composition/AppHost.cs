@@ -93,7 +93,7 @@ internal static class AppHost
 
         var mainViewModel = new MainWindowViewModel(
             new ProfilesViewModel(services.Profiles, services.Editor, services.Editing, services.ProfileList),
-            new ProfileSettingsViewModel(services.Editor, services.Editing, services.Hotkeys, services.Capture, services.Dialogs, services.Modes.OfferedModes),
+            new ProfileSettingsViewModel(services.Editor, services.Editing, services.Hotkeys, services.Capture, services.Dialogs, services.Modes.ModeOptions),
             new HotkeysViewModel(services.Capture, services.Hotkeys),
             new ApplicationSettingsViewModel(
                 services.Settings, services.Configuration, services.StartupRegistration, tray, host, services.Dialogs,

@@ -559,7 +559,7 @@ public sealed class DisplayModeControllerTests
         using var app = Fixture();
         app.DisplayModes.Failure = _ => new InvalidOperationException("driver");
 
-        Assert.Empty(app.Services.Modes.OfferedModes(app.Displays.Displays[0]));
+        Assert.Null(app.Services.Modes.ModeOptions(app.Displays.Displays[0]));
     }
 
     [Fact]
@@ -616,15 +616,135 @@ public sealed class DisplayModeControllerTests
     }
 
     [Fact]
-    public void OfferedModesUseTheDesktopModeWhileAProfileResolutionIsShown()
+    public void ModeOptionsUseTheDesktopModeWhileAProfileResolutionIsShown()
     {
         using var app = Fixture();
         SetResolution(app.Game, Dell, 1280, 960);
         Focus(app, "game.exe");
         var dell = app.Displays.Displays.Single(display => display.MonitorId == Dell);
 
-        var offered = app.Services.Modes.OfferedModes(dell);
+        var options = app.Services.Modes.ModeOptions(dell)!;
 
-        Assert.Equal([DellDesktop, Dell1080At144, Dell960At120], offered);
+        Assert.Equal(DellDesktop, options.Desktop);
+        Assert.Equal([DellDesktop, Dell1080At144, Dell1080At60, Dell960At120], options.Supported);
+    }
+
+    // ---- Refresh rate, independent of the resolution ----
+
+    private static void SetRate(ProfileListItem profile, string monitorId, RefreshRateSetting? rate) =>
+        profile.DisplayProfiles.Single(values => values.MonitorId == monitorId).RefreshRate = rate;
+
+    [Fact]
+    public void ARateAloneChangesOnlyTheRateAndTheDesktopModeComesBack()
+    {
+        using var app = Fixture();
+        app.DisplayModes.AddMonitor(LgGdi, LgDesktop, Lg720At60, new DisplayModeInfo(1920, 1080, 144));
+        SetRate(app.Game, Lg, RefreshRateSetting.Explicit(144));
+
+        Focus(app, "game.exe");
+        Assert.Equal(new DisplayModeInfo(1920, 1080, 144), app.DisplayModes.Current[LgGdi]);
+        Assert.DoesNotContain(app.DisplayModes.Calls, call => call.Contains(DellGdi));
+
+        Focus(app, "explorer.exe");
+        Assert.Equal(LgDesktop, app.DisplayModes.Current[LgGdi]);
+        Assert.False(app.Services.Modes.OwnsAnyMonitor);
+    }
+
+    [Fact]
+    public void AResolutionAndARateAreAppliedTogether()
+    {
+        using var app = Fixture();
+        SetResolution(app.Game, Dell, 1920, 1080);
+        SetRate(app.Game, Dell, RefreshRateSetting.Explicit(60));
+
+        Focus(app, "game.exe");
+
+        Assert.Equal([(DellGdi, Dell1080At60)], app.DisplayModes.Applied);
+        Focus(app, "explorer.exe");
+        Assert.Equal(DellDesktop, app.DisplayModes.Current[DellGdi]);
+    }
+
+    [Fact]
+    public void HighestAvailableUsesTheHighestRateOfTheResolution()
+    {
+        using var app = Fixture();
+        app.DisplayModes.AddMonitor(DellGdi, new DisplayModeInfo(2560, 1440, 60), DellDesktop, Dell1080At144, Dell1080At60);
+        SetResolution(app.Game, Dell, 1920, 1080);
+        SetRate(app.Game, Dell, RefreshRateSetting.Highest);
+
+        Focus(app, "game.exe");
+
+        // Not the 60 Hz of the desktop.
+        Assert.Equal(Dell1080At144, app.DisplayModes.Current[DellGdi]);
+    }
+
+    // An explicit rate the monitor no longer offers is not replaced by another one: the monitor
+    // is left as it is, so no rate the user did not choose is applied.
+    [Fact]
+    public void AnExplicitRateNoLongerOfferedLeavesTheMonitorAsItIs()
+    {
+        using var app = Fixture();
+        SetResolution(app.Game, Dell, 1920, 1080);
+        SetRate(app.Game, Dell, RefreshRateSetting.Explicit(165));
+
+        Focus(app, "game.exe");
+
+        Assert.Empty(app.DisplayModes.Applied);
+        Assert.Equal(DellDesktop, app.DisplayModes.Current[DellGdi]);
+        Assert.False(app.Services.Modes.OwnsAnyMonitor);
+        Assert.Equal(["Game", "Game"], app.AppliedProfiles());
+    }
+
+    // Two profiles with the same resolution and different rates are different targets.
+    [Fact]
+    public void ADifferentRateIsADifferentTarget()
+    {
+        using var app = Fixture();
+        SetResolution(app.Game, Dell, 1920, 1080);
+        SetResolution(app.Notepad, Dell, 1920, 1080);
+        SetRate(app.Notepad, Dell, RefreshRateSetting.Explicit(60));
+
+        Focus(app, "game.exe");
+        Focus(app, "notepad.exe");
+
+        Assert.Equal([Dell1080At144, Dell1080At60], app.DisplayModes.Applied.Select(a => a.Mode));
+        Focus(app, "explorer.exe");
+        Assert.Equal(DellDesktop, app.DisplayModes.Current[DellGdi]);
+    }
+
+    // The recovery records the full mode: a crash with only the rate changed restores it.
+    [Fact]
+    public void ARateChangeIsRecoveredAfterACrash()
+    {
+        using var app = Fixture();
+        var desktopAt60 = new DisplayModeInfo(2560, 1440, 60);
+        app.DisplayModes.AddMonitor(DellGdi, desktopAt60, DellDesktop);
+        SetRate(app.Game, Dell, RefreshRateSetting.Highest);
+        IReadOnlyList<DisplayModeRecoveryEntry>? duringChange = null;
+        app.DisplayModes.DuringApply = () => duringChange = Recovery(app).Load();
+
+        Focus(app, "game.exe");
+
+        var entry = Assert.Single(duringChange!);
+        Assert.Equal((desktopAt60, DellDesktop), (entry.Original, entry.Target));
+
+        using var restarted = Fixture();
+        restarted.DisplayModes.AddMonitor(DellGdi, DellDesktop, desktopAt60);
+        Recovery(restarted).Save([new DisplayModeRecoveryEntry(Dell, desktopAt60, DellDesktop, DellDesktop)]);
+        restarted.Services.Modes.OnDisplaysChanged();
+        Assert.Equal(desktopAt60, restarted.DisplayModes.Current[DellGdi]);
+    }
+
+    [Fact]
+    public void WithoutResolutionsOrRatesTheBackendIsNeverReachedEvenWithTheWindowsProfileRate()
+    {
+        using var app = Fixture();
+        // A rate on the Windows profile is never applied: it is not a profile target.
+        app.Windows.DisplayProfiles[0].RefreshRate = RefreshRateSetting.Highest;
+
+        Focus(app, "game.exe");
+        Focus(app, "explorer.exe");
+
+        Assert.Empty(app.DisplayModes.Calls);
     }
 }

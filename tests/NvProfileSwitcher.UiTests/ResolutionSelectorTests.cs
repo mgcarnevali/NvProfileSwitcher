@@ -73,7 +73,7 @@ public sealed class ResolutionSelectorTests
         Dispatcher.UIThread.RunJobs();
 
         Assert.True(app.ProfileSettings.IsResolutionListOpen);
-        Assert.Equal(["Don't change", "2560 × 1440 · 144 Hz", "1920 × 1080 · 144 Hz", "1280 × 960 · 120 Hz"], Texts(app));
+        Assert.Equal(["Don't change", "2560 × 1440", "1920 × 1080", "1280 × 960"], Texts(app));
         Assert.Equal("Don't change", app.ProfileSettings.SelectedResolutionItem!.Text);
         // Opened again: read once.
         ResolutionCombo(window).IsDropDownOpen = false;
@@ -98,7 +98,7 @@ public sealed class ResolutionSelectorTests
         app.Host.DispatchMessage(0x007E, 0);
         Assert.True(TestComposition.RunUntil(() => backend.EnumerationCount > enumerations, TimeSpan.FromSeconds(3)));
 
-        Assert.Equal(["Don't change", "2560 × 1440 · 144 Hz", "1920 × 1080 · 144 Hz", "1280 × 960 · 120 Hz"], Texts(app));
+        Assert.Equal(["Don't change", "2560 × 1440", "1920 × 1080", "1280 × 960"], Texts(app));
         Assert.Equal("Don't change", app.ProfileSettings.SelectedResolutionItem!.Text);
         window.Close();
     }

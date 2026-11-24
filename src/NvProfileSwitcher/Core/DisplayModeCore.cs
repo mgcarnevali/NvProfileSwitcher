@@ -15,43 +15,64 @@ internal sealed class DisplayModeRecovery
     public List<DisplayModeRecoveryEntry> Monitors { get; set; } = [];
 }
 
-/// <summary>Choosing the display mode a profile's resolution is applied with.</summary>
+/// <summary>The desktop mode of a monitor and the modes it supports: what the editor offers from.</summary>
+internal sealed record DisplayModeOptions(DisplayModeInfo Desktop, IReadOnlyList<DisplayModeInfo> Supported);
+
+/// <summary>Choosing the display mode a profile's resolution and refresh rate are applied with.</summary>
 internal static class DisplayModeCore
 {
     /// <summary>
-    /// The mode for <paramref name="resolution"/> among the <paramref name="supported"/> modes of a
-    /// monitor: at the refresh rate of the monitor's desktop mode, <paramref name="desktop"/>, when
-    /// that resolution supports it, and otherwise at its highest refresh rate. The reference is
-    /// always the desktop mode, never a mode another profile applied. Null when the monitor does
-    /// not support the resolution.
+    /// The mode a profile asks for among the <paramref name="supported"/> modes of a monitor whose
+    /// desktop mode is <paramref name="desktop"/>: the <paramref name="resolution"/>, or the desktop
+    /// one when null, at the <paramref name="rate"/>. Without a rate, the desktop rate when that
+    /// resolution supports it, and otherwise its highest; with <see cref="RefreshRateSetting.Highest"/>,
+    /// its highest. The reference is always the desktop mode, never a mode another profile applied.
+    /// Null when the monitor does not support the resolution, or an explicit rate at that
+    /// resolution: a rate the user chose is never replaced by another one.
     /// </summary>
-    internal static DisplayModeInfo? ChooseMode(IReadOnlyList<DisplayModeInfo> supported, DisplayResolution resolution, DisplayModeInfo desktop)
+    internal static DisplayModeInfo? ChooseMode(
+        IReadOnlyList<DisplayModeInfo> supported, DisplayResolution? resolution, DisplayModeInfo desktop, RefreshRateSetting? rate = null)
     {
+        var width = resolution?.Width ?? desktop.Width;
+        var height = resolution?.Height ?? desktop.Height;
         DisplayModeInfo? highest = null;
+        DisplayModeInfo? atDesktopRate = null;
         foreach (var mode in supported)
         {
-            if (!mode.SameResolution(resolution))
+            if (mode.Width != width || mode.Height != height)
                 continue;
+            if (rate is { IsHighest: false } explicitRate)
+            {
+                if (mode.RefreshRate == explicitRate.Hertz)
+                    return mode;
+                continue;
+            }
+
             if (mode.RefreshRate == desktop.RefreshRate)
-                return mode;
+                atDesktopRate = mode;
             if (highest is not { } best || mode.RefreshRate > best.RefreshRate)
                 highest = mode;
         }
 
-        return highest;
+        return rate is { IsHighest: true } ? highest : atDesktopRate ?? highest;
     }
 
-    /// <summary>
-    /// The resolutions offered for a monitor, one per width and height, largest first, each with
-    /// the mode <see cref="ChooseMode"/> would apply from <paramref name="desktop"/>.
-    /// </summary>
-    internal static IReadOnlyList<DisplayModeInfo> OfferedModes(IReadOnlyList<DisplayModeInfo> supported, DisplayModeInfo desktop) =>
+    /// <summary>The resolutions a monitor offers, one per width and height, largest first.</summary>
+    internal static IReadOnlyList<DisplayResolution> OfferedResolutions(IReadOnlyList<DisplayModeInfo> supported) =>
         supported
             .Where(mode => mode.Width > 0 && mode.Height > 0)
             .Select(mode => new DisplayResolution(mode.Width, mode.Height))
             .Distinct()
-            .Select(resolution => ChooseMode(supported, resolution, desktop)!.Value)
-            .OrderByDescending(mode => mode.Width)
-            .ThenByDescending(mode => mode.Height)
+            .OrderByDescending(resolution => resolution.Width)
+            .ThenByDescending(resolution => resolution.Height)
+            .ToList();
+
+    /// <summary>The refresh rates a monitor offers at <paramref name="resolution"/>, highest first.</summary>
+    internal static IReadOnlyList<int> OfferedRefreshRates(IReadOnlyList<DisplayModeInfo> supported, DisplayResolution resolution) =>
+        supported
+            .Where(mode => mode.SameResolution(resolution) && mode.RefreshRate > 0)
+            .Select(mode => mode.RefreshRate)
+            .Distinct()
+            .OrderDescending()
             .ToList();
 }

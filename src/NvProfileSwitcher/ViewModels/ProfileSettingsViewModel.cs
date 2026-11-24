@@ -30,8 +30,8 @@ internal sealed partial class ProfileSettingsViewModel : ObservableObject
     private readonly ProfileEditingService editing;
     private readonly HotkeyCaptureController capture;
     private readonly IDialogService dialogs;
-    // Reads the resolutions a display offers; it changes nothing.
-    private readonly Func<ConnectedDisplay, IReadOnlyList<DisplayModeInfo>> offeredModes;
+    // Reads the desktop mode and the modes a display offers; it changes nothing.
+    private readonly Func<ConnectedDisplay, DisplayModeOptions?> modeOptions;
 
     // True while the controls are loaded from the editor state: what the controls write back
     // meanwhile (a selection cleared by new items) is not a user change.
@@ -42,8 +42,13 @@ internal sealed partial class ProfileSettingsViewModel : ObservableObject
     private int selectedExecutableIndex;
     private ExecutableComboItem? selectedExecutableItem;
     private ResolutionComboItem? selectedResolutionItem;
+    private RefreshRateComboItem? selectedRefreshRateItem;
     private bool resolutionListOpen;
-    private bool resolutionOptionsLoaded;
+    private bool refreshRateListOpen;
+
+    // The selected display's modes, read when one of the lists is first opened for it; null until then.
+    private DisplayModeOptions? options;
+    private bool optionsLoaded;
 
     public ProfileSettingsViewModel(
         ProfileEditor editor,
@@ -51,18 +56,18 @@ internal sealed partial class ProfileSettingsViewModel : ObservableObject
         HotkeyService hotkeys,
         HotkeyCaptureController capture,
         IDialogService dialogs,
-        Func<ConnectedDisplay, IReadOnlyList<DisplayModeInfo>> offeredModes)
+        Func<ConnectedDisplay, DisplayModeOptions?> modeOptions)
     {
         this.editor = editor;
         this.editing = editing;
         this.capture = capture;
         this.dialogs = dialogs;
-        this.offeredModes = offeredModes;
+        this.modeOptions = modeOptions;
         ProfileHotkey = new HotkeyFieldViewModel(HotkeyField.Profile, capture, hotkeys);
         editor.EditingStarted += () => Load(LoadDraftFields);
-        editor.EditingStarted += LoadResolution;
+        editor.EditingStarted += LoadModes;
         editor.ValuesLoaded += () => Load(NotifyValues);
-        editor.ValuesLoaded += LoadResolution;
+        editor.ValuesLoaded += LoadModes;
         editor.DraftChanged += () => OnPropertyChanged(nameof(CanCancel));
         editor.PropertyChanged += OnEditorPropertyChanged;
         capture.PropertyChanged += (_, e) =>
@@ -133,7 +138,7 @@ internal sealed partial class ProfileSettingsViewModel : ObservableObject
 
     public string ColorsUnavailableToolTip =>
         "Brightness, contrast, gamma, digital vibrance and hue need an NVIDIA GPU driving this display, " +
-        "with the NVIDIA driver available. The saved values are kept; the resolution can still be set.";
+        "with the NVIDIA driver available. The saved values are kept; the resolution and refresh rate can still be set.";
 
     public ConnectedDisplay? SelectedDisplay
     {
@@ -147,7 +152,7 @@ internal sealed partial class ProfileSettingsViewModel : ObservableObject
 
     /// <summary>
     /// The Resolution selector of the selected display: "Don't change" and the saved resolution
-    /// until the list is opened, then every resolution the display offers.
+    /// until a list is opened, then every resolution the display offers.
     /// </summary>
     public ObservableCollection<ResolutionComboItem> ResolutionItems { get; } = [];
 
@@ -159,6 +164,26 @@ internal sealed partial class ProfileSettingsViewModel : ObservableObject
             if (loading || value is null || ReferenceEquals(value, selectedResolutionItem)) return;
             selectedResolutionItem = value;
             editor.SetResolution(value.Resolution);
+            // The rates follow the resolution; the chosen rate stays, marked when it is not offered.
+            ShowRefreshRateItems();
+        }
+    }
+
+    /// <summary>
+    /// The Refresh rate selector of the selected display, independent of the resolution: "Desktop
+    /// rate", "Highest available" and the saved rate until a list is opened, then every rate the
+    /// selected resolution (or the desktop one) offers.
+    /// </summary>
+    public ObservableCollection<RefreshRateComboItem> RefreshRateItems { get; } = [];
+
+    public RefreshRateComboItem? SelectedRefreshRateItem
+    {
+        get => selectedRefreshRateItem;
+        set
+        {
+            if (loading || value is null || ReferenceEquals(value, selectedRefreshRateItem)) return;
+            selectedRefreshRateItem = value;
+            editor.SetRefreshRate(value.Rate);
         }
     }
 
@@ -171,7 +196,21 @@ internal sealed partial class ProfileSettingsViewModel : ObservableObject
             if (resolutionListOpen == value) return;
             resolutionListOpen = value;
             if (value)
-                LoadResolutionOptions();
+                LoadOptions();
+            OnPropertyChanged();
+        }
+    }
+
+    /// <summary>Opening the Refresh rate list reads the display's modes, only then.</summary>
+    public bool IsRefreshRateListOpen
+    {
+        get => refreshRateListOpen;
+        set
+        {
+            if (refreshRateListOpen == value) return;
+            refreshRateListOpen = value;
+            if (value)
+                LoadOptions();
             OnPropertyChanged();
         }
     }
@@ -345,40 +384,72 @@ internal sealed partial class ProfileSettingsViewModel : ObservableObject
             OnPropertyChanged(nameof(AreColorsAvailable));
         }
         if (e.PropertyName == nameof(ProfileEditor.SelectedDisplay))
-            LoadResolution();
+            LoadModes();
     }
 
-    // The selected display's resolution, without reading its modes unless the list is open, as
-    // when a display refresh starts the draft over while the user is choosing.
-    private void LoadResolution()
+    // The selected display's resolution and rate, without reading its modes unless a list is open,
+    // as when a display refresh starts the draft over while the user is choosing.
+    private void LoadModes()
     {
-        resolutionOptionsLoaded = false;
-        var resolution = editor.Resolution;
-        ShowResolutionItems(resolution is null ? [] : [ResolutionComboItem.Saved(resolution, supported: true)], resolution);
-        if (resolutionListOpen)
-            LoadResolutionOptions();
+        optionsLoaded = false;
+        options = null;
+        ShowResolutionItems();
+        ShowRefreshRateItems();
+        if (resolutionListOpen || refreshRateListOpen)
+            LoadOptions();
     }
 
-    private void LoadResolutionOptions()
+    private void LoadOptions()
     {
-        if (resolutionOptionsLoaded || editor.SelectedDisplay is not { } display) return;
-        resolutionOptionsLoaded = true;
-
-        var resolution = editor.Resolution;
-        var offered = offeredModes(display).Select(ResolutionComboItem.Offered).ToList();
-        if (resolution is not null && !offered.Any(item => item.Resolution == resolution))
-            offered.Add(ResolutionComboItem.Saved(resolution, supported: false));
-        ShowResolutionItems(offered, resolution);
+        if (optionsLoaded || editor.SelectedDisplay is not { } display) return;
+        optionsLoaded = true;
+        options = modeOptions(display);
+        ShowResolutionItems();
+        ShowRefreshRateItems();
     }
 
-    private void ShowResolutionItems(IReadOnlyList<ResolutionComboItem> items, DisplayResolution? selected) => Load(() =>
+    private void ShowResolutionItems() => Load(() =>
     {
+        var saved = editor.Resolution;
+        var offered = options is { } modes ? DisplayModeCore.OfferedResolutions(modes.Supported) : [];
         ResolutionItems.Clear();
         ResolutionItems.Add(ResolutionComboItem.DontChange());
-        foreach (var item in items)
-            ResolutionItems.Add(item);
-        selectedResolutionItem = ResolutionItems.First(item => item.Resolution == selected);
+        foreach (var resolution in offered)
+            ResolutionItems.Add(ResolutionComboItem.Offered(resolution));
+        if (saved is not null && !offered.Contains(saved))
+            ResolutionItems.Add(ResolutionComboItem.Saved(saved, supported: options is null));
+        selectedResolutionItem = ResolutionItems.First(item => item.Resolution == saved);
         OnPropertyChanged(nameof(SelectedResolutionItem));
+    });
+
+    // Each rate shows what it means at the resolution chosen, or the desktop one: the default and
+    // "Highest available" with the rate they would apply, and a saved rate that resolution does not
+    // offer marked as such, never replaced by another one.
+    private void ShowRefreshRateItems() => Load(() =>
+    {
+        var saved = editor.RefreshRate;
+        RefreshRateComboItem[] defaults = [RefreshRateComboItem.Desktop(null), RefreshRateComboItem.Highest(null)];
+        var rates = new List<int>();
+        if (options is { } modes)
+        {
+            var resolution = editor.Resolution ?? new DisplayResolution(modes.Desktop.Width, modes.Desktop.Height);
+            rates.AddRange(DisplayModeCore.OfferedRefreshRates(modes.Supported, resolution));
+            defaults =
+            [
+                RefreshRateComboItem.Desktop(DisplayModeCore.ChooseMode(modes.Supported, resolution, modes.Desktop)?.RefreshRate),
+                RefreshRateComboItem.Highest(DisplayModeCore.ChooseMode(modes.Supported, resolution, modes.Desktop, RefreshRateSetting.Highest)?.RefreshRate),
+            ];
+        }
+
+        RefreshRateItems.Clear();
+        foreach (var item in defaults)
+            RefreshRateItems.Add(item);
+        foreach (var hertz in rates)
+            RefreshRateItems.Add(RefreshRateComboItem.Offered(hertz));
+        if (saved is { IsHighest: false } && !rates.Contains(saved.Hertz))
+            RefreshRateItems.Add(RefreshRateComboItem.Saved(saved, supported: options is null));
+        selectedRefreshRateItem = RefreshRateItems.First(item => item.Rate == saved);
+        OnPropertyChanged(nameof(SelectedRefreshRateItem));
     });
 
     private void Load(Action load)

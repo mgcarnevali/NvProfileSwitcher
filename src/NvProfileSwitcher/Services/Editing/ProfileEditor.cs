@@ -256,6 +256,23 @@ internal sealed class ProfileEditor(ProfileStore store) : INotifyPropertyChanged
         DraftChanged?.Invoke();
     }
 
+    /// <summary>The refresh rate the draft gives the selected display, or null for the desktop rate.</summary>
+    public RefreshRateSetting? RefreshRate =>
+        Session?.Draft is { } draft && SelectedDisplay is { } display ? DisplayCore.FindValues(draft, display.MonitorId)?.RefreshRate : null;
+
+    /// <summary>
+    /// Sets the refresh rate the draft gives the selected display (null: the desktop rate),
+    /// independently of its resolution. Saved with the profile and applied while it is active.
+    /// </summary>
+    public void SetRefreshRate(RefreshRateSetting? rate)
+    {
+        if (Session?.Draft is not { } draft || draft.IsWindowsProfile || SelectedDisplay is not { } display || RefreshRate == rate) return;
+        CompleteDraft();
+        DraftValues(draft, display).RefreshRate = rate;
+        OnPropertyChanged(nameof(RefreshRate));
+        DraftChanged?.Invoke();
+    }
+
     /// <summary>
     /// Copies the slider values into the draft's values for the selected display, adding them
     /// if missing, as the original did before saving or copying. A display whose colors cannot be
