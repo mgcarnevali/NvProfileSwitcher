@@ -360,7 +360,7 @@ the same `AppServices.Create`, so the integration and service tests run the real
 | View | ViewModel | Depends on |
 |---|---|---|
 | `ProfilesView` | `ProfilesViewModel` | `ProfileStore` (the list), `ProfileEditor` (the selection), `ProfileEditingService` (selecting), `ProfileListService` (the list actions) |
-| `ProfileSettingsView` | `ProfileSettingsViewModel` | `ProfileEditor`, `ProfileEditingService`, `HotkeyService` and `HotkeyCaptureController` (the profile hotkey field and Cancel), `IDialogService` (the executable pickers) |
+| `ProfileSettingsView` | `ProfileSettingsViewModel` | `ProfileEditor`, `ProfileEditingService`, `HotkeyService` and `HotkeyCaptureController` (the profile hotkey field and Cancel), `IDialogService` (the executable pickers), the modes a display offers (`DisplayModeController.OfferedModes`, passed as a function: the panel never holds the controller) |
 | `HotkeysView` | `HotkeysViewModel` (4 × `HotkeyFieldViewModel`) | `HotkeyCaptureController`, `HotkeyService` |
 | `ApplicationSettingsView` | `ApplicationSettingsViewModel` | `AppSettings`, `ConfigurationService`, `StartupRegistrationService`, `TrayService`, `MainWindowHost` (`SetTopmost`, `IsVisible`), `IDialogService`, `UpdateCheckService`, `SavedDisplaysService`, `ConfigurationBackupService` (one per Advanced button), development-build flag |
 | `StatusBarView` | `StatusBarViewModel` | `NvidiaService`, `SwitchingState`, `IDialogService` |
@@ -1356,7 +1356,13 @@ and closing the application show each monitor's desktop mode again.
   or the user set since is left alone, and the entry dropped. Modes change only when the target
   changes; a display change (`OnDisplaysChanged`, called by `DisplayRefreshCoordinator.Refresh`
   after the enumeration) applies the target only to monitors not handled for it yet, and restores
-  monitors still waiting for it. A change Windows rejects is not retried and shows no message.
+  monitors still waiting for it. A monitor missing from an enumeration is no longer handled, so
+  when it returns (Windows gives it its desktop mode) it gets the target again; a connected
+  monitor is never changed twice for the same target. A change Windows rejects is not retried and
+  shows no message.
+- **Failures.** The controller never throws: an unexpected failure on one monitor leaves its
+  recovery entry for the next display change or start, requests no refresh (so it cannot loop),
+  and the other monitors and the colors written after it go on. `OfferedModes` returns no modes.
 - **Re-entry.** A target that arrives while a change runs (Windows sends messages during it) is
   not applied inside it; `RecheckRequested` posts a reevaluation of the active profile.
 - **NVIDIA handles.** After an effective change, `ModesChanged` requests a display refresh
@@ -1374,3 +1380,12 @@ and closing the application show each monitor's desktop mode again.
   opened (`OfferedModes`); until then it shows the saved value.
 - **Independent from the colors.** Comparing, copying and previewing colors ignore the resolution;
   saving, cancelling and the unsaved-changes check include it.
+- **Architecture tests.** Only `Platform/DisplayModes.cs` calls `ChangeDisplaySettingsExW` and only
+  `DisplayModeController` holds `IDisplayModeBackend` (besides the composition records that pass it
+  on); the mode and color controllers do not depend on each other or on each other's backend; the
+  recovery store depends only on `System` and Core, the controller does no file I/O, and
+  `DisplayModeCore` is pure; the profile panels hold neither the controller nor the backend.
+- **Known limits.** The desktop mode is the mode the monitor shows before the first change; when
+  another application already changed it (a game in exclusive fullscreen), that mode is taken as
+  the desktop one (under validation on hardware). A failed restore is retried only at the next
+  display change or at exit.

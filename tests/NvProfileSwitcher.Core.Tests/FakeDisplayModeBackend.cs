@@ -19,6 +19,9 @@ internal sealed class FakeDisplayModeBackend : IDisplayModeBackend
     /// <summary>Monitors whose changes Windows rejects.</summary>
     public HashSet<string> Rejected { get; } = new(StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>An unexpected failure: thrown by every call for the monitors it returns one for.</summary>
+    public Func<string, Exception?>? Failure { get; set; }
+
     /// <summary>Runs inside a change, as the WM_DISPLAYCHANGE Windows sends during it would.</summary>
     public Action? DuringApply { get; set; }
 
@@ -31,18 +34,21 @@ internal sealed class FakeDisplayModeBackend : IDisplayModeBackend
     public IReadOnlyList<DisplayModeInfo> GetModes(string gdiName)
     {
         Calls.Add($"modes {gdiName}");
+        ThrowIfFailing(gdiName);
         return Supported.TryGetValue(gdiName, out var modes) ? modes : [];
     }
 
     public DisplayModeInfo? GetCurrent(string gdiName)
     {
         Calls.Add($"current {gdiName}");
+        ThrowIfFailing(gdiName);
         return Current.TryGetValue(gdiName, out var mode) ? mode : null;
     }
 
     public bool Apply(string gdiName, DisplayModeInfo mode)
     {
         Calls.Add($"apply {gdiName} {mode.Width}x{mode.Height}@{mode.RefreshRate}");
+        ThrowIfFailing(gdiName);
         if (Rejected.Contains(gdiName) || !Supported.TryGetValue(gdiName, out var modes) || !modes.Contains(mode))
             return false;
 
@@ -50,5 +56,11 @@ internal sealed class FakeDisplayModeBackend : IDisplayModeBackend
         Applied.Add((gdiName, mode));
         DuringApply?.Invoke();
         return true;
+    }
+
+    private void ThrowIfFailing(string gdiName)
+    {
+        if (Failure?.Invoke(gdiName) is { } exception)
+            throw exception;
     }
 }

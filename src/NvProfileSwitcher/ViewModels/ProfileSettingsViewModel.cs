@@ -4,6 +4,7 @@ using System.Globalization;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using NvProfileSwitcher.Core;
 using NvProfileSwitcher.Models;
 using NvProfileSwitcher.Nvidia;
 using NvProfileSwitcher.Services;
@@ -30,7 +31,8 @@ internal sealed partial class ProfileSettingsViewModel : ObservableObject
     private readonly ProfileEditingService editing;
     private readonly HotkeyCaptureController capture;
     private readonly IDialogService dialogs;
-    private readonly DisplayModeController modes;
+    // Reads the resolutions a display offers; it changes nothing.
+    private readonly Func<NvidiaDisplay, IReadOnlyList<DisplayModeInfo>> offeredModes;
 
     // True while the controls are loaded from the editor state: what the controls write back
     // meanwhile (a selection cleared by new items) is not a user change.
@@ -50,13 +52,13 @@ internal sealed partial class ProfileSettingsViewModel : ObservableObject
         HotkeyService hotkeys,
         HotkeyCaptureController capture,
         IDialogService dialogs,
-        DisplayModeController modes)
+        Func<NvidiaDisplay, IReadOnlyList<DisplayModeInfo>> offeredModes)
     {
         this.editor = editor;
         this.editing = editing;
         this.capture = capture;
         this.dialogs = dialogs;
-        this.modes = modes;
+        this.offeredModes = offeredModes;
         ProfileHotkey = new HotkeyFieldViewModel(HotkeyField.Profile, capture, hotkeys);
         editor.EditingStarted += () => Load(LoadDraftFields);
         editor.EditingStarted += LoadResolution;
@@ -334,12 +336,15 @@ internal sealed partial class ProfileSettingsViewModel : ObservableObject
             LoadResolution();
     }
 
-    // The selected display's resolution, without reading its modes.
+    // The selected display's resolution, without reading its modes unless the list is open, as
+    // when a display refresh starts the draft over while the user is choosing.
     private void LoadResolution()
     {
         resolutionOptionsLoaded = false;
         var resolution = editor.Resolution;
         ShowResolutionItems(resolution is null ? [] : [ResolutionComboItem.Saved(resolution, supported: true)], resolution);
+        if (resolutionListOpen)
+            LoadResolutionOptions();
     }
 
     private void LoadResolutionOptions()
@@ -348,7 +353,7 @@ internal sealed partial class ProfileSettingsViewModel : ObservableObject
         resolutionOptionsLoaded = true;
 
         var resolution = editor.Resolution;
-        var offered = modes.OfferedModes(display).Select(ResolutionComboItem.Offered).ToList();
+        var offered = offeredModes(display).Select(ResolutionComboItem.Offered).ToList();
         if (resolution is not null && !offered.Any(item => item.Resolution == resolution))
             offered.Add(ResolutionComboItem.Saved(resolution, supported: false));
         ShowResolutionItems(offered, resolution);

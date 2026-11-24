@@ -326,6 +326,61 @@ public sealed class DisplayModeControllerTests
         Assert.False(app.Services.Modes.OwnsAnyMonitor);
     }
 
+    // Windows gives a reconnected monitor its desktop mode: a monitor missing from an enumeration
+    // gets the profile's resolution again when it returns (a DisplayPort monitor turned off).
+    [Fact]
+    public void AMonitorThatReturnsWhileTheProfileIsActiveGetsItsResolutionAgain()
+    {
+        using var app = Fixture();
+        SetResolution(app.Game, Dell, 1920, 1080);
+        Focus(app, "game.exe");
+
+        Disconnect(app, Dell);
+        app.Services.Modes.OnDisplaysChanged();
+        app.DisplayModes.Current[DellGdi] = DellDesktop;
+        Connect(app, FakeDisplayBackend.Display(Dell, "DELL U2720Q"));
+        app.Services.Modes.OnDisplaysChanged();
+
+        Assert.Equal(Dell1080At144, app.DisplayModes.Current[DellGdi]);
+        // Its desktop mode is still the one read before the first change.
+        Focus(app, "explorer.exe");
+        Assert.Equal(DellDesktop, app.DisplayModes.Current[DellGdi]);
+        Assert.False(app.Services.Modes.OwnsAnyMonitor);
+    }
+
+    [Fact]
+    public void AMonitorThatReturnsStillShowingTheResolutionIsNotChangedAgain()
+    {
+        using var app = Fixture();
+        SetResolution(app.Game, Dell, 1920, 1080);
+        Focus(app, "game.exe");
+
+        Disconnect(app, Dell);
+        app.Services.Modes.OnDisplaysChanged();
+        Connect(app, FakeDisplayBackend.Display(Dell, "DELL U2720Q"));
+        app.Services.Modes.OnDisplaysChanged();
+
+        Assert.Single(app.DisplayModes.Applied);
+        Assert.Equal(Dell1080At144, app.DisplayModes.Current[DellGdi]);
+    }
+
+    // Only a monitor missing from an enumeration counts as new: a connected one keeps a mode a
+    // game set, display change after display change.
+    [Fact]
+    public void AConnectedMonitorIsNeverChangedAgainForTheSameTarget()
+    {
+        using var app = Fixture();
+        SetResolution(app.Game, Dell, 1920, 1080);
+        Focus(app, "game.exe");
+
+        app.DisplayModes.Current[DellGdi] = DellDesktop;
+        app.Services.Modes.OnDisplaysChanged();
+        app.Services.Modes.OnDisplaysChanged();
+
+        Assert.Single(app.DisplayModes.Applied);
+        Assert.Equal(DellDesktop, app.DisplayModes.Current[DellGdi]);
+    }
+
     [Fact]
     public void AMonitorConnectedWhileTheProfileIsActiveGetsItsResolution()
     {
@@ -418,6 +473,93 @@ public sealed class DisplayModeControllerTests
         Recovery(app).Save([new DisplayModeRecoveryEntry(Lg, LgDesktop, Lg720At60, Lg720At60)]);
         app.Services.Modes.OnDisplaysChanged();
         Assert.Equal(Lg720At60, app.DisplayModes.Current[LgGdi]);
+    }
+
+    // A start after a crash between the record and the change, or during the change.
+    [Fact]
+    public void ARecordedChangeIsRestoredOnlyWhenItWasMade()
+    {
+        using var app = Fixture();
+        app.DisplayModes.Current[LgGdi] = Lg720At60;
+        Recovery(app).Save([
+            // Recorded, not made: the Dell still shows its desktop mode.
+            new DisplayModeRecoveryEntry(Dell, DellDesktop, Dell1080At144, null),
+            // Recorded and made, not read back yet.
+            new DisplayModeRecoveryEntry(Lg, LgDesktop, Lg720At60, null),
+        ]);
+
+        app.Services.Modes.OnDisplaysChanged();
+
+        Assert.Equal([(LgGdi, LgDesktop)], app.DisplayModes.Applied);
+        Assert.Equal(DellDesktop, app.DisplayModes.Current[DellGdi]);
+        Assert.False(File.Exists(RecoveryPath(app)));
+    }
+
+    // A start after a crash while one profile's resolution followed another's.
+    [Fact]
+    public void ARecordedChangeBetweenProfilesIsRestoredFromEitherMode()
+    {
+        foreach (var shown in new[] { Dell960At120, Dell1080At144 })
+        {
+            using var app = Fixture();
+            app.DisplayModes.Current[DellGdi] = shown;
+            Recovery(app).Save([new DisplayModeRecoveryEntry(Dell, DellDesktop, Dell1080At144, Dell960At120)]);
+
+            app.Services.Modes.OnDisplaysChanged();
+
+            Assert.Equal(DellDesktop, app.DisplayModes.Current[DellGdi]);
+            Assert.False(File.Exists(RecoveryPath(app)));
+        }
+    }
+
+    // An unexpected failure on one monitor never stops the other monitor or the colors.
+    [Fact]
+    public void AnUnexpectedFailureNeitherStopsTheOtherMonitorNorTheColors()
+    {
+        using var app = Fixture();
+        SetResolution(app.Game, Dell, 1920, 1080);
+        SetResolution(app.Game, Lg, 1280, 720);
+        app.DisplayModes.Failure = gdi => gdi == DellGdi ? new InvalidOperationException("driver") : null;
+
+        Focus(app, "game.exe");
+
+        Assert.Equal(Lg720At60, app.DisplayModes.Current[LgGdi]);
+        Assert.Equal(["Game", "Game"], app.AppliedProfiles());
+        Assert.Equal("Game", app.Session.Switching.ActiveProfileName);
+    }
+
+    [Fact]
+    public void AnUnexpectedFailureWhileRestoringNeitherStopsTheColorsNorLosesTheEntry()
+    {
+        using var app = Fixture();
+        SetResolution(app.Game, Dell, 1920, 1080);
+        Focus(app, "game.exe");
+        app.DisplayModes.Failure = _ => new InvalidOperationException("driver");
+        var raised = 0;
+        app.Services.Modes.ModesChanged += () => raised++;
+
+        app.Automatic.SetGlobalEnabled(false);
+        app.Services.Modes.OnDisplaysChanged();
+        app.Services.Modes.RestoreOriginals();
+
+        Assert.Equal("Windows", app.AppliedProfiles()[^1]);
+        Assert.Single(Recovery(app).Load()!);
+        // A failure that repeats requests no display refresh, so it cannot loop.
+        Assert.Equal(0, raised);
+
+        app.DisplayModes.Failure = null;
+        app.Services.Modes.OnDisplaysChanged();
+        Assert.Equal(DellDesktop, app.DisplayModes.Current[DellGdi]);
+        Assert.False(File.Exists(RecoveryPath(app)));
+    }
+
+    [Fact]
+    public void AnUnexpectedFailureWhileListingModesOffersNone()
+    {
+        using var app = Fixture();
+        app.DisplayModes.Failure = _ => new InvalidOperationException("driver");
+
+        Assert.Empty(app.Services.Modes.OfferedModes(app.Nvidia.Displays[0]));
     }
 
     [Fact]

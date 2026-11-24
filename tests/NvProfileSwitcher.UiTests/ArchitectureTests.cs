@@ -189,6 +189,59 @@ public sealed class ArchitectureTests
         Assert.Equal(["Services/DisplayColorController.cs"], writers);
     }
 
+    // Display modes have one writer too: only Platform calls the Windows API that changes them,
+    // and only DisplayModeController holds the backend that calls it. The composition records
+    // only pass the backend on.
+    [Fact]
+    public void OnlyTheModeControllerWritesDisplayModes()
+    {
+        var nativeCallers = ApplicationSources()
+            .Where(path => File.ReadAllText(path).Contains("ChangeDisplaySettings", StringComparison.Ordinal))
+            .Select(path => Path.GetRelativePath(SourceRoot(), path).Replace('\\', '/'))
+            .ToList();
+        Assert.Equal(["Platform/DisplayModes.cs"], nativeCallers);
+
+        var holders = AppAssembly.GetTypes()
+            .Where(type => !type.IsNested && Dependencies(type).Contains(typeof(Platform.IDisplayModeBackend)))
+            .Select(type => type.Name)
+            .Order()
+            .ToList();
+        Assert.Equal(["AppPlatform", "DisplayModeController", "ServiceEnvironment"], holders);
+    }
+
+    // Resolutions and colors are managed independently: neither controller knows the other one
+    // or its backend. ActiveProfileService orders them, so the colors are written after the mode.
+    [Fact]
+    public void ResolutionsAndColorsAreManagedIndependently()
+    {
+        var modes = Dependencies(typeof(DisplayModeController)).ToList();
+        Assert.DoesNotContain(typeof(DisplayColorController), modes);
+        Assert.DoesNotContain(typeof(Nvidia.IDisplayColorBackend), modes);
+
+        var colors = Dependencies(typeof(DisplayColorController)).ToList();
+        Assert.DoesNotContain(typeof(DisplayModeController), colors);
+        Assert.DoesNotContain(typeof(Platform.IDisplayModeBackend), colors);
+    }
+
+    // The recovery file is read and written only by its store, which knows nothing of the display
+    // modes it records; the choice of a mode is pure Core logic over plain values.
+    [Fact]
+    public void TheRecoveryFileAndTheModeChoiceAreSeparateFromTheController()
+    {
+        foreach (var dependency in Dependencies(typeof(DisplayModeRecoveryStore)))
+        {
+            var ns = dependency.Namespace ?? string.Empty;
+            Assert.True(ns == "System" || ns.StartsWith("System.", StringComparison.Ordinal) || ns == "NvProfileSwitcher.Core",
+                $"DisplayModeRecoveryStore depends on {dependency.FullName}.");
+        }
+
+        var controller = ReadSource(Path.Combine("Services", "DisplayModeController.cs"));
+        Assert.DoesNotMatch(@"\bFile\.|\bJsonSerializer\b|\bDirectory\.", controller);
+
+        var core = ReadSource(Path.Combine("Core", "DisplayModeCore.cs"));
+        Assert.DoesNotMatch(@"\busing\b|DllImport|Avalonia|NvProfileSwitcher\.(Services|Platform|Nvidia)", core);
+    }
+
     [Fact]
     public void MainWindowIsCreatedOnlyByTheCompositionRoot()
     {
@@ -253,6 +306,7 @@ public sealed class ArchitectureTests
     // state and platform seams: never on ViewModels, Views, the window host or the coordinators.
     [Theory]
     [InlineData(typeof(DisplayColorController))]
+    [InlineData(typeof(DisplayModeController))]
     [InlineData(typeof(ActiveProfileService))]
     [InlineData(typeof(AutomaticSwitchingService))]
     [InlineData(typeof(LivePreviewController))]
@@ -312,7 +366,8 @@ public sealed class ArchitectureTests
         Type[] forbidden =
         [
             typeof(ConfigurationService), typeof(ActiveProfileService), typeof(LivePreviewController), typeof(NvidiaService),
-            typeof(AutomaticSwitchingService), typeof(DisplayColorController)
+            typeof(AutomaticSwitchingService), typeof(DisplayColorController), typeof(DisplayModeController),
+            typeof(Platform.IDisplayModeBackend)
         ];
         foreach (var dependency in Dependencies(viewModel))
             Assert.DoesNotContain(dependency, forbidden);

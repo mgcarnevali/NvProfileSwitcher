@@ -23,6 +23,10 @@ namespace NvProfileSwitcher.Services;
 /// display change (WM_DISPLAYCHANGE) never leads to another change. A configuration without
 /// resolutions never reaches the backend.
 /// </para>
+/// <para>
+/// Nothing here throws: a failure on one monitor is left for the next display change, and the
+/// other monitors, and the colors applied after this controller, go on.
+/// </para>
 /// </summary>
 internal sealed class DisplayModeController(
     IDisplayModeBackend backend,
@@ -91,7 +95,9 @@ internal sealed class DisplayModeController(
     /// <summary>
     /// After the displays were enumerated again: a monitor that came back gets the current target,
     /// and a monitor still waiting to be restored (disconnected or failed before) is restored.
-    /// A monitor already handled is never changed again, so a mode a game or the user set stays.
+    /// A connected monitor already handled is never changed again, so a mode a game or the user
+    /// set stays; one that was missing from an enumeration counts as new when it returns, since
+    /// Windows gives a reconnected monitor its desktop mode.
     /// The first call, at the first enumeration, first takes over what a previous session left
     /// changed, so those monitors are restored as well.
     /// </summary>
@@ -131,8 +137,16 @@ internal sealed class DisplayModeController(
         if (string.IsNullOrWhiteSpace(display.GdiName))
             return [];
 
-        var desktop = owned.TryGetValue(display.MonitorId, out var monitor) ? monitor.Original : backend.GetCurrent(display.GdiName);
-        return desktop is { } mode ? DisplayModeCore.OfferedModes(backend.GetModes(display.GdiName), mode) : [];
+        try
+        {
+            var desktop = owned.TryGetValue(display.MonitorId, out var monitor) ? monitor.Original : backend.GetCurrent(display.GdiName);
+            return desktop is { } mode ? DisplayModeCore.OfferedModes(backend.GetModes(display.GdiName), mode) : [];
+        }
+        catch (Exception)
+        {
+            // The list then offers only "Don't change" and the saved resolution.
+            return [];
+        }
     }
 
     private void Transition(Dictionary<string, DisplayResolution> next, bool displaysChanged = false)
@@ -147,25 +161,41 @@ internal sealed class DisplayModeController(
         var changed = false;
         try
         {
+            var displays = nvidia.Displays;
             if (!displaysChanged)
             {
                 target = next;
                 handled.Clear();
             }
+            else
+            {
+                // A monitor missing now gets the target again when it returns.
+                handled.RemoveWhere(id => !displays.Any(display => DisplayCore.SameMonitorId(display.MonitorId, id)));
+            }
 
-            foreach (var display in nvidia.Displays)
+            foreach (var display in displays)
             {
                 if (string.IsNullOrWhiteSpace(display.MonitorId) || string.IsNullOrWhiteSpace(display.GdiName))
                     continue;
 
-                if (next.TryGetValue(display.MonitorId, out var resolution))
+                try
                 {
-                    if (handled.Add(display.MonitorId))
-                        changed |= ApplyResolution(display, resolution);
+                    if (next.TryGetValue(display.MonitorId, out var resolution))
+                    {
+                        if (handled.Add(display.MonitorId))
+                            changed |= ApplyResolution(display, resolution);
+                    }
+                    else if (owned.TryGetValue(display.MonitorId, out var monitor))
+                    {
+                        changed |= Restore(display, monitor);
+                    }
                 }
-                else if (owned.TryGetValue(display.MonitorId, out var monitor))
+                catch (Exception)
                 {
-                    changed |= Restore(display, monitor);
+                    // Unexpected: this monitor keeps its recovery entry, if it has one, for the next
+                    // display change or start; the other monitors and the colors go on. No refresh is
+                    // requested for it, so a failure that repeats never loops; a mode that did change
+                    // sends its own WM_DISPLAYCHANGE.
                 }
             }
         }

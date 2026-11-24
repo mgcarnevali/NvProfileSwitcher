@@ -83,6 +83,26 @@ public sealed class ResolutionSelectorTests
         window.Close();
     }
 
+    // A display refresh starts a clean draft over; the open list keeps every resolution.
+    [AvaloniaFact]
+    public void ARefreshWhileTheListIsOpenKeepsEveryResolution()
+    {
+        var (app, window) = Show();
+        using var _ = app;
+        SelectRow(window, 1);
+        ResolutionCombo(window).IsDropDownOpen = true;
+        Dispatcher.UIThread.RunJobs();
+        var backend = app.Factory.Created[^1];
+        var enumerations = backend.EnumerationCount;
+
+        app.Host.DispatchMessage(0x007E, 0);
+        Assert.True(TestComposition.RunUntil(() => backend.EnumerationCount > enumerations, TimeSpan.FromSeconds(3)));
+
+        Assert.Equal(["Don't change", "2560 × 1440 · 144 Hz", "1920 × 1080 · 144 Hz", "1280 × 960 · 120 Hz"], Texts(app));
+        Assert.Equal("Don't change", app.ProfileSettings.SelectedResolutionItem!.Text);
+        window.Close();
+    }
+
     [AvaloniaFact]
     public async Task AChosenResolutionIsSavedWithTheProfileAndLeavesTheColors()
     {
