@@ -133,6 +133,12 @@
     <Setter Property="BorderThickness" Value="{DynamicResource TextControlBorderThemeThicknessFocused}"/>
   </Style>
 
+  <!-- The notice shown instead of applying colors a display cannot show. -->
+  <Style Selector="TextBlock.colorsUnavailable">
+    <Setter Property="FontSize" Value="12"/>
+    <Setter Property="Opacity" Value="0.72"/>
+  </Style>
+
   <!-- Status bar. -->
   <Style Selector="TextBlock.status">
     <Setter Property="FontSize" Value="12"/>
@@ -161,6 +167,13 @@
   </Style>
   <Style Selector="TextBlock.nvApiStatus.unavailable">
     <Setter Property="Foreground" Value="#E84B4B"/>
+  </Style>
+  <!-- No NVIDIA driver or GPU is not an error: neutral, after the red of "unavailable". -->
+  <Style Selector="Ellipse.nvApiStatus.notDetected">
+    <Setter Property="Fill" Value="#8A8F98"/>
+  </Style>
+  <Style Selector="TextBlock.nvApiStatus.notDetected">
+    <Setter Property="Foreground" Value="#8A8F98"/>
   </Style>
   <Style Selector="Border.statusSeparator">
     <Setter Property="Width" Value="1"/>

@@ -30,7 +30,7 @@ namespace NvProfileSwitcher.Services;
 /// </summary>
 internal sealed class DisplayModeController(
     IDisplayModeBackend backend,
-    NvidiaService nvidia,
+    DisplayService connectedDisplays,
     SwitchingState switching,
     DisplayModeRecoveryStore recovery)
 {
@@ -161,7 +161,7 @@ internal sealed class DisplayModeController(
         var changed = false;
         try
         {
-            var displays = nvidia.Displays;
+            var displays = connectedDisplays.Displays;
             if (!displaysChanged)
             {
                 target = next;

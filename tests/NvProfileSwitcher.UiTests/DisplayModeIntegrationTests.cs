@@ -91,13 +91,13 @@ public sealed class DisplayModeIntegrationTests
 
         backend.Displays.Clear();
         app.Host.DispatchMessage(WmDisplayChange, 0);
-        Assert.True(TestComposition.RunUntil(() => app.Nvidia.Displays.Count == 0, TimeSpan.FromSeconds(3)));
+        Assert.True(TestComposition.RunUntil(() => app.Displays.Displays.Count == 0, TimeSpan.FromSeconds(3)));
         app.DisplayModes.Current[DellGdi] = Desktop;
         backend.Displays.Add(removed);
         var writtenBeforeTheMode = -1;
         app.DisplayModes.DuringApply = () => writtenBeforeTheMode = backend.Applied.Count;
         app.Host.DispatchMessage(WmDisplayChange, 0);
-        Assert.True(TestComposition.RunUntil(() => app.Nvidia.Displays.Count == 1, TimeSpan.FromSeconds(3)));
+        Assert.True(TestComposition.RunUntil(() => app.Displays.Displays.Count == 1, TimeSpan.FromSeconds(3)));
 
         Assert.Equal(Game1080, app.DisplayModes.Current[DellGdi]);
         Assert.True(writtenBeforeTheMode >= 0);

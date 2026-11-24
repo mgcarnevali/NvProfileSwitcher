@@ -175,6 +175,15 @@ public sealed class ProfileDisplaySettings
     /// </summary>
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public DisplayResolution? Resolution { get; set; }
+
+    /// <summary>
+    /// True when the colors were never read or set: values an application profile got for a
+    /// monitor whose colors could not be adjusted and that had no Windows values, only to hold its
+    /// resolution. They take the monitor's Windows values as soon as it has them, so made-up colors
+    /// never overwrite the ones the user set. Written only when true.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public bool ColorsPending { get; set; }
 }
 
 /// <summary>A display resolution in pixels; the refresh rate is chosen when it is applied.</summary>

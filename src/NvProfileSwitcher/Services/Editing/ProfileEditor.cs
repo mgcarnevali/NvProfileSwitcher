@@ -252,32 +252,53 @@ internal sealed class ProfileEditor(ProfileStore store) : INotifyPropertyChanged
     {
         if (Session?.Draft is not { } draft || draft.IsWindowsProfile || SelectedDisplay is not { } display || Resolution == resolution) return;
         CompleteDraft();
-        DisplayCore.FindValues(draft, display.MonitorId)!.Resolution = resolution;
+        DraftValues(draft, display).Resolution = resolution;
         OnPropertyChanged(nameof(Resolution));
         DraftChanged?.Invoke();
     }
 
     /// <summary>
     /// Copies the slider values into the draft's values for the selected display, adding them
-    /// if missing, as the original did before saving or copying.
+    /// if missing, as the original did before saving or copying. A display whose colors cannot be
+    /// adjusted keeps its values as they are: they were not edited, and values made up for it
+    /// would later overwrite the colors the user set (<see cref="DisplayProfileSyncCore"/>).
     /// </summary>
     public void CompleteDraft()
     {
-        if (Session?.Draft is not { } draft || SelectedDisplay is not { } display) return;
-        var values = DisplayCore.FindValues(draft, display.MonitorId);
-        if (values is null)
-        {
-            values = new ProfileDisplaySettings { DisplayName = display.Name, MonitorId = display.MonitorId };
-            draft.DisplayProfiles.Add(values);
-        }
-
-        values.DisplayName = display.Name;
-        values.MonitorId = display.MonitorId;
+        if (Session?.Draft is not { } draft || SelectedDisplay is not { CanAdjustColors: true } display) return;
+        var values = DraftValues(draft, display);
+        values.ColorsPending = false;
         values.Brightness = Values.Brightness;
         values.Contrast = Values.Contrast;
         values.Gamma = Values.Gamma;
         values.DigitalVibrance = Values.RoundedVibrance;
         values.Hue = Values.RoundedHue;
+    }
+
+    // The draft's values for a display, added when missing with the values shown. For a display
+    // whose colors cannot be adjusted and that has no Windows values, the colors shown were made up:
+    // they are marked pending, so they only hold its resolution until its colors are read.
+    private ProfileDisplaySettings DraftValues(ProfileListItem draft, ConnectedDisplay display)
+    {
+        var values = DisplayCore.FindValues(draft, display.MonitorId);
+        if (values is null)
+        {
+            values = new ProfileDisplaySettings
+            {
+                Brightness = Values.Brightness,
+                Contrast = Values.Contrast,
+                Gamma = Values.Gamma,
+                DigitalVibrance = Values.RoundedVibrance,
+                Hue = Values.RoundedHue,
+                ColorsPending = !display.CanAdjustColors &&
+                                (store.Windows is not { } windows || DisplayCore.FindValues(windows, display.MonitorId) is null),
+            };
+            draft.DisplayProfiles.Add(values);
+        }
+
+        values.DisplayName = display.Name;
+        values.MonitorId = display.MonitorId;
+        return values;
     }
 
     /// <summary>

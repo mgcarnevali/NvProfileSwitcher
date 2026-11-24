@@ -1,30 +1,39 @@
 using NvProfileSwitcher.Nvidia;
+using NvProfileSwitcher.Platform;
 
 namespace NvProfileSwitcher.Core.Tests;
 
-// An NVIDIA API test double that records its creation and release in a shared log.
+// An NVIDIA API test double that records its creation and release in a shared log. The
+// displays are the ones Windows reports (FakeBackendFactory.Displays); the API controls all of
+// them except the monitors in NotControlled.
 internal sealed class FakeDisplayBackend : IDisplayColorBackend
 {
     private readonly List<string> log;
+    private readonly FakeBackendFactory factory;
 
-    public FakeDisplayBackend(int number, List<string> log)
+    public FakeDisplayBackend(int number, List<string> log, FakeBackendFactory factory)
     {
         Number = number;
         this.log = log;
+        this.factory = factory;
         log.Add($"create {number}");
     }
 
     public int Number { get; }
     public int DisposeCount { get; private set; }
     public string DriverVersion { get; set; } = "581.57";
-    public List<ConnectedDisplay> Displays { get; } = [];
+    /// <summary>The displays Windows reports: the factory's, shared by every instance.</summary>
+    public List<ConnectedDisplay> Displays => factory.Displays;
+
+    /// <summary>Monitors the NVIDIA driver does not control, as on another adapter.</summary>
+    public HashSet<string> NotControlled { get; } = new(StringComparer.OrdinalIgnoreCase);
     public Dictionary<string, int?> Vibrance { get; } = [];
     public Dictionary<string, int?> Hue { get; } = [];
 
     /// <summary>The NVIDIA Control Panel device id of each monitor; none unless set.</summary>
     public Dictionary<string, uint?> NvTweakDeviceIds { get; } = [];
     public Exception? EnumerationFailure { get; set; }
-    public int EnumerationCount { get; private set; }
+    public int EnumerationCount { get; internal set; }
 
     /// <summary>Every color application, in order, including the ones the driver rejected.</summary>
     public List<ColorApplication> Applied { get; } = [];
@@ -39,10 +48,13 @@ internal sealed class FakeDisplayBackend : IDisplayColorBackend
     /// <summary>An exception thrown when applying to a display, as a failing native call would.</summary>
     public Func<ConnectedDisplay, Exception?>? ApplyFailure { get; set; }
 
-    public IReadOnlyList<ConnectedDisplay> EnumerateDisplays()
+    public NvidiaHandle? ResolveDisplay(string gdiName)
     {
-        EnumerationCount++;
-        return EnumerationFailure is null ? Displays.ToArray() : throw EnumerationFailure;
+        var display = Displays.FirstOrDefault(d => d.GdiName == gdiName);
+        if (display is null || NotControlled.Contains(display.Monitor is { } monitor ? Identity(monitor) : string.Empty))
+            return null;
+        var number = int.Parse(gdiName[@"\\.\DISPLAY".Length..], System.Globalization.CultureInfo.InvariantCulture);
+        return new NvidiaHandle(number, (uint)number);
     }
 
     public int? GetVibrance(ConnectedDisplay display) => Vibrance.GetValueOrDefault(display.MonitorId);
@@ -71,10 +83,17 @@ internal sealed class FakeDisplayBackend : IDisplayColorBackend
     /// connection, the display number), or blank for a monitor whose identity cannot be read.
     /// </summary>
     internal static ConnectedDisplay Display(string monitorId, string name, int number = 1) =>
-        new($@"\\.\DISPLAY{number}", name, Handle: number, DisplayId: (uint)number, Primary: number == 1, monitorId)
+        new($@"\\.\DISPLAY{number}", name, Primary: number == 1, monitorId)
         {
-            Monitor = Monitor(monitorId, number)
+            Monitor = Monitor(monitorId, number),
+            // Controlled by the NVIDIA API, as the displays of most tests; DisplayService sets the
+            // handle the API actually reports.
+            Nvidia = new NvidiaHandle(number, (uint)number)
         };
+
+    // The id a test gives a monitor: "{hardware}-{serial}", or "{hardware}" without a serial.
+    private static string Identity(MonitorDescriptor monitor) =>
+        monitor.Serial is null ? monitor.Hardware : $"{monitor.Hardware}-{monitor.Serial}";
 
     internal static MonitorDescriptor? Monitor(string monitorId, int number)
     {
@@ -97,26 +116,62 @@ internal readonly record struct ColorApplication(
         values.Gamma == Gamma && values.Hue == Hue;
 }
 
-// Creates fake backends in sequence; a creation can be set to fail as NVAPI initialization would.
-internal sealed class FakeBackendFactory
+// Creates fake backends in sequence; a creation can be set to fail as NVAPI initialization would,
+// once (NextFailure) or every time (Failure: no NVIDIA driver). It is also Windows: the displays
+// connected to the desktop, whatever adapter drives them. Each creation configures them again, as
+// each instance used to enumerate its own; Configure also runs on the first enumeration when no
+// instance could be created, so the same displays are connected without the NVIDIA API.
+internal sealed class FakeBackendFactory : IDisplayEnumerator
 {
+    private bool configured;
+
     public List<string> Log { get; } = [];
     public List<FakeDisplayBackend> Created { get; } = [];
     public Exception? NextFailure { get; set; }
+
+    /// <summary>Thrown by every creation, as when no NVIDIA driver is installed.</summary>
+    public Exception? Failure { get; set; }
     public Action<FakeDisplayBackend>? Configure { get; set; }
+
+    /// <summary>The displays connected to the desktop.</summary>
+    public List<ConnectedDisplay> Displays { get; } = [];
+
+    /// <summary>Enumerations made while no instance existed.</summary>
+    public int EnumerationCount { get; private set; }
 
     public IDisplayColorBackend Create()
     {
-        if (NextFailure is { } failure)
+        if ((NextFailure ?? Failure) is { } failure)
         {
             NextFailure = null;
             Log.Add("create failed");
             throw failure;
         }
 
-        var backend = new FakeDisplayBackend(Created.Count + 1, Log);
+        var backend = new FakeDisplayBackend(Created.Count + 1, Log, this);
+        Displays.Clear();
+        configured = true;
         Configure?.Invoke(backend);
         Created.Add(backend);
         return backend;
+    }
+
+    public IReadOnlyList<ConnectedDisplay> EnumerateDisplays()
+    {
+        if (Created.Count == 0)
+        {
+            if (!configured)
+            {
+                configured = true;
+                Configure?.Invoke(new FakeDisplayBackend(0, [], this));
+            }
+
+            EnumerationCount++;
+            return Displays.ToArray();
+        }
+
+        var current = Created[^1];
+        current.EnumerationCount++;
+        return current.EnumerationFailure is null ? Displays.ToArray() : throw current.EnumerationFailure;
     }
 }

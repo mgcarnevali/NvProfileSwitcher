@@ -139,11 +139,11 @@ public sealed class DisplayIntegrationTests
 
         app.Host.DispatchMessage(WmDisplayChange, 0);
         Assert.True(TestComposition.RunUntil(() => backend.EnumerationCount == 2, TimeSpan.FromSeconds(3)));
-        Assert.Equal([Dell], app.Nvidia.Displays.Select(d => d.MonitorId));
+        Assert.Equal([Dell], app.Displays.Displays.Select(d => d.MonitorId));
 
         backend.Displays[1] = Display(Lg, "LG ULTRAGEAR", 2);
         Assert.True(TestComposition.RunUntil(() => backend.EnumerationCount == 3, DisplayTopologyService.RetryDelay * 2));
-        Assert.Equal([Dell, Lg], app.Nvidia.Displays.Select(d => d.MonitorId));
+        Assert.Equal([Dell, Lg], app.Displays.Displays.Select(d => d.MonitorId));
         Assert.NotNull(DisplayCore.FindValues(app.Profiles.Windows!, Lg));
     }
 

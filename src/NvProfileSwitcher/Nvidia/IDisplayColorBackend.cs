@@ -2,13 +2,19 @@ namespace NvProfileSwitcher.Nvidia;
 
 /// <summary>
 /// The NVIDIA API operations used by the application. Implemented by <see cref="NvApi"/>;
-/// it allows the services that use NVAPI to be tested without an NVIDIA GPU.
+/// it allows the services that use NVAPI to be tested without an NVIDIA GPU. The displays
+/// themselves come from Windows (<see cref="Platform.IDisplayEnumerator"/>); the API only tells
+/// which of them it controls and reads and writes their colors.
 /// </summary>
 internal interface IDisplayColorBackend : IDisposable
 {
     string DriverVersion { get; }
 
-    IReadOnlyList<ConnectedDisplay> EnumerateDisplays();
+    /// <summary>
+    /// The NVIDIA handle and id of the display shown on the GDI device <paramref name="gdiName"/>,
+    /// or null when the NVIDIA driver does not control it.
+    /// </summary>
+    NvidiaHandle? ResolveDisplay(string gdiName);
 
     int? GetVibrance(ConnectedDisplay display);
 

@@ -9,7 +9,8 @@ using NvProfileSwitcher.Shell;
 namespace NvProfileSwitcher.ViewModels;
 
 /// <summary>
-/// Status bar: NVIDIA API, driver, active profile, global switching and links.
+/// Status bar: NVIDIA API (available, not detected or unavailable), driver, active profile,
+/// global switching and links.
 /// Depends only on services and shared state, never on another ViewModel.
 /// </summary>
 internal sealed partial class StatusBarViewModel : ObservableObject
@@ -29,9 +30,17 @@ internal sealed partial class StatusBarViewModel : ObservableObject
 
     public bool IsNvApiAvailable => nvidia.IsAvailable;
 
-    public string NvApiStatusText => nvidia.IsAvailable ? "Available" : "Unavailable";
+    /// <summary>No NVIDIA driver or GPU: not an error, so it is not shown as one.</summary>
+    public bool IsNvApiNotDetected => nvidia.Status == NvidiaStatus.NotDetected;
 
-    public string DriverText => nvidia.DriverVersion;
+    public string NvApiStatusText => nvidia.Status switch
+    {
+        NvidiaStatus.Available => "Available",
+        NvidiaStatus.NotDetected => "Not detected",
+        _ => "Unavailable",
+    };
+
+    public string DriverText => IsNvApiNotDetected ? "—" : nvidia.DriverVersion;
 
     /// <summary>The active profile as last published, not the live switching state.</summary>
     public string ActiveProfileText => ActiveProfileCore.StatusText(switching.DisplayedActiveProfile);
@@ -53,10 +62,12 @@ internal sealed partial class StatusBarViewModel : ObservableObject
 
     private void OnNvidiaPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(NvidiaService.IsAvailable))
+        if (e.PropertyName == nameof(NvidiaService.Status))
         {
             OnPropertyChanged(nameof(IsNvApiAvailable));
+            OnPropertyChanged(nameof(IsNvApiNotDetected));
             OnPropertyChanged(nameof(NvApiStatusText));
+            OnPropertyChanged(nameof(DriverText));
         }
         else if (e.PropertyName == nameof(NvidiaService.DriverVersion))
         {

@@ -12,6 +12,7 @@ namespace NvProfileSwitcher.Composition;
 internal sealed class DisplayRefreshCoordinator
 {
     private readonly NvidiaService nvidia;
+    private readonly DisplayService displays;
     private readonly ProfileStore profiles;
     private readonly DisplayProfileSyncService displaySync;
     private readonly DisplayTopologyService topology;
@@ -25,6 +26,7 @@ internal sealed class DisplayRefreshCoordinator
 
     public DisplayRefreshCoordinator(
         NvidiaService nvidia,
+        DisplayService displays,
         ProfileStore profiles,
         DisplayProfileSyncService displaySync,
         DisplayTopologyService topology,
@@ -37,6 +39,7 @@ internal sealed class DisplayRefreshCoordinator
         SwitchingState switching)
     {
         this.nvidia = nvidia;
+        this.displays = displays;
         this.profiles = profiles;
         this.displaySync = displaySync;
         this.topology = topology;
@@ -52,18 +55,28 @@ internal sealed class DisplayRefreshCoordinator
     }
 
     // Installing a driver restarts the display adapter, which changes the display mode: the
-    // installed driver version is read again then, also while the window is not active.
+    // installed driver version is read again then, also while the window is not active, and an
+    // NVIDIA API that could not be initialized before (the driver was being installed) is tried
+    // again, so the colors become available without restarting.
     private void OnTopologyChanged()
     {
-        nvidia.RefreshDriverVersion();
+        // Before the startup refresh, as the original before the API was initialized.
+        if (!displays.IsEnumerated)
+            return;
+
+        if (nvidia.IsInitialized)
+            nvidia.RefreshDriverVersion();
+        else
+            nvidia.TryInitialize();
         Refresh();
     }
 
+    /// <summary>
+    /// Enumerates the displays again and brings every subsystem in line with them: resolutions,
+    /// colors, the saved values and the editor. It runs with or without the NVIDIA API.
+    /// </summary>
     public void Refresh()
     {
-        if (!nvidia.IsInitialized)
-            return;
-
         // Read before the displays are synchronized, which may add values to the edited profile.
         var draftWasDirty = editor.IsDirty;
         // One operation: every display is written once, when the refresh ends, with what it
@@ -76,7 +89,7 @@ internal sealed class DisplayRefreshCoordinator
             try
             {
                 preview.Discard();
-                var newlySharedIds = nvidia.RefreshDisplays(profiles.NonUniqueMonitorIds);
+                var newlySharedIds = displays.Refresh(profiles.NonUniqueMonitorIds);
                 // Before the colors: a monitor that came back gets the active resolution, one
                 // waiting to be restored is restored, and the first refresh recovers a crash.
                 modes.OnDisplaysChanged();
@@ -86,7 +99,7 @@ internal sealed class DisplayRefreshCoordinator
                 var remaps = displaySync.Synchronize(newlySharedIds);
                 // The editor's display selector follows the new displays; as in the original,
                 // choosing its display again may resume the preview.
-                editor.RefreshDisplays(nvidia.Displays, remaps);
+                editor.RefreshDisplays(displays.Displays, remaps);
                 if (automaticSwitching.IsSwitchingActive)
                     activeProfile.Reevaluate();
             }
@@ -105,7 +118,7 @@ internal sealed class DisplayRefreshCoordinator
 
         // A display whose monitor identity Windows could not report yet is left out until it can;
         // no further message arrives then, so the refresh runs once more.
-        if (nvidia.UnidentifiedCount > 0)
+        if (displays.UnidentifiedCount > 0)
             topology.RetryOnce();
     }
 
@@ -114,22 +127,16 @@ internal sealed class DisplayRefreshCoordinator
     /// colors may no longer be valid: the API is initialized again, the displays are refreshed
     /// and every display is written with what it shows, in one operation. While global switching
     /// is paused, Windows is restored. A failed initialization reports the API as unavailable and
-    /// keeps the current instance, as on opening.
+    /// keeps the current instance, as on opening, and leaves the rest as it is; without an API
+    /// (no NVIDIA driver), the displays and their resolutions are refreshed all the same.
     /// </summary>
     public void Recover()
     {
-        if (!nvidia.IsInitialized)
+        if (!displays.IsEnumerated)
             return;
 
-        try
-        {
-            nvidia.Initialize();
-        }
-        catch (Exception)
-        {
-            nvidia.ReportUnavailable();
+        if (!nvidia.TryInitialize() && nvidia.IsInitialized)
             return;
-        }
 
         using (colors.Batch())
         {

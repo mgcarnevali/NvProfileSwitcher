@@ -7,7 +7,8 @@ internal static class ProfileDefaultsCore
 {
     /// <summary>
     /// An enabled "New Profile" with values for every connected display: the Windows profile's
-    /// values for that monitor, or the NVIDIA neutral values when it has none.
+    /// values for that monitor, or else the NVIDIA neutral values, pending: a monitor without
+    /// Windows values is one whose colors were never read (<see cref="ProfileDisplaySettings.ColorsPending"/>).
     /// </summary>
     internal static ProfileListItem NewProfile(ProfileListItem? windows, IEnumerable<ConnectedDisplay> displays)
     {
@@ -23,7 +24,8 @@ internal static class ProfileDefaultsCore
                 Contrast = source?.Contrast ?? 100,
                 Gamma = source?.Gamma ?? 1,
                 DigitalVibrance = source?.DigitalVibrance ?? 50,
-                Hue = source?.Hue ?? 0
+                Hue = source?.Hue ?? 0,
+                ColorsPending = source is null
             });
         }
 

@@ -20,6 +20,7 @@ internal static class AppHost
             ConfigurationService.DefaultConfigPath,
             BuildInfo.IsDevelopmentBuild,
             () => new NvApi(),
+            new Win32DisplayEnumerator(),
             new Win32DisplayModeBackend(),
             InstalledDriverVersion.Read,
             NvTweakColorRegistry.Read,
@@ -52,6 +53,7 @@ internal static class AppHost
             platform.ConfigPath,
             platform.IsDevelopmentBuild,
             platform.CreateDisplayBackend,
+            platform.DisplayEnumerator,
             platform.DisplayModes,
             platform.InstalledDriverVersion,
             platform.ReadNvTweakColors,
@@ -75,7 +77,7 @@ internal static class AppHost
             host, services.Switching, services.AutomaticSwitching, services.UpdateCheck, services.Dialogs, () => platform.Shutdown());
 
         var displayRefresh = new DisplayRefreshCoordinator(
-            services.Nvidia, services.Profiles, services.DisplaySync, services.Topology, services.AutomaticSwitching, services.ActiveProfile,
+            services.Nvidia, services.Displays, services.Profiles, services.DisplaySync, services.Topology, services.AutomaticSwitching, services.ActiveProfile,
             services.Preview, services.Colors, services.Modes, services.Editor, services.Switching);
         var startup = new StartupCoordinator(
             host, services.Configuration, services.StartupRegistration, services.Settings, services.Nvidia, displayRefresh,

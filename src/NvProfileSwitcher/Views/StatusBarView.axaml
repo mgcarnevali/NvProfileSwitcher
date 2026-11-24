@@ -47,10 +47,10 @@
   <Grid ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto,Auto"
         Container.Name="statusBar" Container.Sizing="Width">
     <StackPanel Classes="nvidiaStatus" Orientation="Horizontal" VerticalAlignment="Center">
-      <Ellipse Classes="nvApiStatus" Classes.unavailable="{CompiledBinding !IsNvApiAvailable}"
+      <Ellipse Classes="nvApiStatus" Classes.unavailable="{CompiledBinding !IsNvApiAvailable}" Classes.notDetected="{CompiledBinding IsNvApiNotDetected}"
                Width="8" Height="8" VerticalAlignment="Center"/>
       <TextBlock Classes="status statusLabel" Text="NVIDIA API:" Margin="8,0,0,0"/>
-      <TextBlock Classes="status nvApiStatus" Classes.unavailable="{CompiledBinding !IsNvApiAvailable}"
+      <TextBlock Classes="status nvApiStatus" Classes.unavailable="{CompiledBinding !IsNvApiAvailable}" Classes.notDetected="{CompiledBinding IsNvApiNotDetected}"
                  Text="{CompiledBinding NvApiStatusText}" Margin="8,0,0,0"/>
       <Border Classes="statusSeparator"/>
       <Image Width="16" Height="16" Stretch="Uniform" RenderOptions.BitmapInterpolationMode="HighQuality"

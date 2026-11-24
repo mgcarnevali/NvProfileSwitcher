@@ -14,7 +14,7 @@ namespace NvProfileSwitcher.Services;
 internal sealed class ActiveProfileService(
     DisplayColorController colors,
     DisplayModeController modes,
-    NvidiaService nvidia,
+    DisplayService displays,
     ProfileStore profiles,
     SwitchingState switching,
     Func<string> foregroundExecutable,
@@ -27,7 +27,7 @@ internal sealed class ActiveProfileService(
     /// </summary>
     public event Action? ProfileSwitching;
 
-    private bool CanSwitch => nvidia.IsInitialized && nvidia.Displays.Count > 0;
+    private bool CanSwitch => displays.Displays.Count > 0;
 
     /// <summary>
     /// Applies the profile automatic switching selects for the foreground application, unless

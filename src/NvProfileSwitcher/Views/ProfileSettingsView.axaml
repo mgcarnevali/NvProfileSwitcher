@@ -1,7 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:local="using:NvProfileSwitcher"
-             xmlns:nvidia="using:NvProfileSwitcher.Nvidia"
              xmlns:vm="using:NvProfileSwitcher.ViewModels"
              xmlns:b="using:NvProfileSwitcher.Behaviors"
              x:Class="NvProfileSwitcher.Views.ProfileSettingsView"
@@ -92,12 +91,12 @@
           <ComboBox Grid.Row="1" HorizontalAlignment="Stretch"
                     ItemsSource="{CompiledBinding Displays}" SelectedItem="{CompiledBinding SelectedDisplay}">
             <ComboBox.SelectionBoxItemTemplate>
-              <DataTemplate x:DataType="nvidia:ConnectedDisplay">
+              <DataTemplate x:DataType="local:ConnectedDisplay">
                 <TextBlock Text="{CompiledBinding SelectorLabel}" VerticalAlignment="Center"/>
               </DataTemplate>
             </ComboBox.SelectionBoxItemTemplate>
             <ComboBox.ItemTemplate>
-              <DataTemplate x:DataType="nvidia:ConnectedDisplay">
+              <DataTemplate x:DataType="local:ConnectedDisplay">
                 <StackPanel Orientation="Horizontal" Spacing="8">
                   <CheckBox IsChecked="{CompiledBinding IsSelected,
                                             RelativeSource={RelativeSource AncestorType=ComboBoxItem},
@@ -122,8 +121,10 @@
           </ComboBox>
         </Grid>
 
-        <!-- Equal star rows share the available height; MinHeight keeps rows from overlapping. -->
-        <Grid Grid.Row="1" ColumnDefinitions="22,Auto,*,Auto" ColumnSpacing="8">
+        <!-- Equal star rows share the available height; MinHeight keeps rows from overlapping.
+             Disabled, not hidden, when the selected display's colors cannot be adjusted. -->
+        <Grid Grid.Row="1" ColumnDefinitions="22,Auto,*,Auto" ColumnSpacing="8" Classes="colorControls"
+              IsEnabled="{CompiledBinding AreColorsAvailable}">
           <Grid.RowDefinitions>
             <RowDefinition Height="*" MinHeight="40"/>
             <RowDefinition Height="*" MinHeight="40"/>
@@ -175,9 +176,14 @@
       </Grid>
 
       <Grid Grid.Row="3" Margin="0,11,0,0" ColumnDefinitions="Auto,*,Auto,Auto,Auto" ColumnSpacing="8">
-        <Button Grid.Column="0" Content="Copy settings" Command="{CompiledBinding CopySettingsCommand}"/>
+        <Button Grid.Column="0" Content="Copy settings" Command="{CompiledBinding CopySettingsCommand}"
+                IsEnabled="{CompiledBinding AreColorsAvailable}"/>
+        <TextBlock Grid.Column="1" Classes="colorsUnavailable" Text="Colors unavailable for this display"
+                   VerticalAlignment="Center" HorizontalAlignment="Center" TextTrimming="CharacterEllipsis"
+                   IsVisible="{CompiledBinding !AreColorsAvailable}"
+                   ToolTip.Tip="{CompiledBinding ColorsUnavailableToolTip}"/>
         <Button Grid.Column="2" Content="Reset" ToolTip.Tip="Reset to NVIDIA defaults" ToolTip.ShowDelay="400"
-                Command="{CompiledBinding ResetCommand}"/>
+                Command="{CompiledBinding ResetCommand}" IsEnabled="{CompiledBinding AreColorsAvailable}"/>
         <Button Grid.Column="3" Content="Cancel" IsVisible="{CompiledBinding CanCancel}" IsEnabled="{CompiledBinding CanCancel}"
                 Command="{CompiledBinding CancelCommand}"/>
         <Button Grid.Column="4" Content="Save profile" Command="{CompiledBinding SaveCommand}"/>

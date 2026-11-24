@@ -10,11 +10,18 @@ internal static class DisplayProfileSyncCore
     /// <item>A monitor that moved to another connection keeps its values (<see cref="Adopt"/>).</item>
     /// <item>The values saved for a physical identity found shared are copied to the connection
     /// identity of each connected monitor that shared it, and then removed.</item>
-    /// <item>Every display has values in every profile: a display new to the Windows profile
-    /// starts from the current vibrance and hue reported by the API and from the brightness,
-    /// contrast and gamma set in the NVIDIA Control Panel, or the neutral values when they cannot
-    /// be used; application profiles start from the Windows values. The display names are kept
-    /// current.</item>
+    /// <item>Every display whose colors can be adjusted has values in every profile: a display new
+    /// to the Windows profile starts from the current vibrance and hue reported by the API and from
+    /// the brightness, contrast and gamma set in the NVIDIA Control Panel, or the neutral values when
+    /// they cannot be used; application profiles start from the Windows values. The display names
+    /// are kept current.</item>
+    /// <item>The Windows values of a monitor come only from the display or the user, never from
+    /// values made up while its colors could not be adjusted: a display without colors gets no
+    /// Windows values, so the values first read when its colors become available are the ones it
+    /// keeps. Application values whose colors are pending (<see cref="ProfileDisplaySettings.ColorsPending"/>),
+    /// which only held a place for a resolution, take the Windows values as soon as the monitor
+    /// has them, keeping their resolution; applying them would overwrite the colors the user set.
+    /// Other application values are never changed, whatever the Windows profile has.</item>
     /// </list>
     /// Returns whether any profile changed and the monitor ids whose values moved, so a draft
     /// can follow them.
@@ -45,6 +52,12 @@ internal static class DisplayProfileSyncCore
         foreach (var display in displays)
         {
             var desktop = DisplayCore.FindValues(windows, display.MonitorId);
+            if (desktop is null && !display.CanAdjustColors)
+            {
+                changed |= RenameExisting(profiles, display);
+                continue;
+            }
+
             if (desktop is null)
             {
                 var controlPanel = readControlPanelColors?.Invoke(display);
@@ -76,15 +89,49 @@ internal static class DisplayProfileSyncCore
                     profile.DisplayProfiles.Add(DisplayCore.CloneValues(desktop, display.Name, display.MonitorId));
                     changed = true;
                 }
-                else if (values.DisplayName != display.Name)
+                else
                 {
-                    values.DisplayName = display.Name;
-                    changed = true;
+                    if (values.ColorsPending)
+                    {
+                        CopyColors(desktop, values);
+                        values.ColorsPending = false;
+                        changed = true;
+                    }
+
+                    if (values.DisplayName != display.Name)
+                    {
+                        values.DisplayName = display.Name;
+                        changed = true;
+                    }
                 }
             }
         }
 
         return new DisplaySyncResult(changed, remaps);
+    }
+
+    // Keeps the display name current in the values the profiles already have for a display.
+    private static bool RenameExisting(IReadOnlyList<ProfileListItem> profiles, ConnectedDisplay display)
+    {
+        var changed = false;
+        foreach (var values in profiles.Select(p => DisplayCore.FindValues(p, display.MonitorId)).OfType<ProfileDisplaySettings>())
+        {
+            if (values.DisplayName == display.Name)
+                continue;
+            values.DisplayName = display.Name;
+            changed = true;
+        }
+
+        return changed;
+    }
+
+    private static void CopyColors(ProfileDisplaySettings source, ProfileDisplaySettings destination)
+    {
+        destination.Brightness = source.Brightness;
+        destination.Contrast = source.Contrast;
+        destination.Gamma = source.Gamma;
+        destination.DigitalVibrance = source.DigitalVibrance;
+        destination.Hue = source.Hue;
     }
 
     /// <summary>

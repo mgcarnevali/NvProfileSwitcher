@@ -1,3 +1,4 @@
+using NvProfileSwitcher.Nvidia;
 using System.ComponentModel;
 using NvProfileSwitcher.Services;
 using Xunit;
@@ -18,7 +19,6 @@ public sealed class NvidiaServiceTests
         Assert.True(nvidia.IsAvailable);
         Assert.Equal("Unknown", nvidia.DriverVersion);
         Assert.False(nvidia.IsInitialized);
-        Assert.Empty(nvidia.Displays);
     }
 
     [Fact]
@@ -122,20 +122,89 @@ public sealed class NvidiaServiceTests
         Assert.Equal([nameof(NvidiaService.DriverVersion)], changes);
     }
 
+    // The displays come from Windows: without the API they are there, without colors; once it is
+    // initialized, the displays it controls get their handle with the next refresh.
     [Fact]
-    public void DisplaysAreEnumeratedOnlyWhenInitialized()
+    public void DisplaysAreEnumeratedWithOrWithoutTheApi()
     {
         using var nvidia = CreateService();
         var display = FakeDisplayBackend.Display("DEL4321-ABC123", "DELL U2720Q");
         factory.Configure = backend => backend.Displays.Add(display);
+        var displays = new DisplayService(factory, nvidia);
 
-        Assert.Throws<InvalidOperationException>(() => nvidia.RefreshDisplays());
-        Assert.Null(nvidia.GetVibrance(display));
-        Assert.Null(nvidia.GetHue(display));
+        displays.Refresh();
+        var withoutApi = Assert.Single(displays.Displays);
+        Assert.False(withoutApi.CanAdjustColors);
+        Assert.Null(nvidia.GetVibrance(withoutApi));
+        Assert.Null(nvidia.GetHue(withoutApi));
+        Assert.False(nvidia.Apply(withoutApi, 60, 100, 100, 1, 0));
 
         nvidia.Initialize();
-        nvidia.RefreshDisplays();
-        Assert.Equal([display], nvidia.Displays);
+        displays.Refresh();
+        Assert.Equal(display, Assert.Single(displays.Displays));
+        Assert.True(displays.Displays[0].CanAdjustColors);
+    }
+
+    // A display on another adapter is listed with its resolution but without colors, next to the
+    // displays the NVIDIA API controls.
+    [Fact]
+    public void ADisplayTheApiDoesNotControlHasNoColors()
+    {
+        using var nvidia = CreateService();
+        factory.Configure = backend =>
+        {
+            backend.Displays.Add(FakeDisplayBackend.Display("DEL4321-ABC123", "DELL U2720Q"));
+            backend.Displays.Add(FakeDisplayBackend.Display("BOE0A1B", "Built-in display", 2));
+            backend.NotControlled.Add("BOE0A1B");
+        };
+        nvidia.Initialize();
+        var displays = new DisplayService(factory, nvidia);
+
+        displays.Refresh();
+
+        Assert.Equal([true, false], displays.Displays.Select(d => d.CanAdjustColors));
+        Assert.EndsWith("colors unavailable", displays.Displays[1].SelectorLabel);
+        Assert.DoesNotContain("colors unavailable", displays.Displays[0].SelectorLabel);
+    }
+
+    [Theory]
+    [InlineData("dll", "NotDetected")]
+    [InlineData("no-gpu", "NotDetected")]
+    [InlineData("init", "Unavailable")]
+    [InlineData("other", "Unavailable")]
+    public void AFailedInitializationTellsWhetherTheDriverIsMissing(string kind, string expected)
+    {
+        using var nvidia = CreateService();
+        factory.NextFailure = kind switch
+        {
+            "dll" => new DllNotFoundException("nvapi64.dll"),
+            "no-gpu" => new NvApiInitializationException(NvApiInitializationException.NvidiaDeviceNotFound),
+            "init" => new NvApiInitializationException(-1),
+            _ => new EntryPointNotFoundException("nvapi_QueryInterface"),
+        };
+
+        Assert.False(nvidia.TryInitialize());
+
+        Assert.Equal(expected, nvidia.Status.ToString());
+        Assert.False(nvidia.IsAvailable);
+        Assert.False(nvidia.IsInitialized);
+        Assert.Equal("Unknown", nvidia.DriverVersion);
+        Assert.True(nvidia.TryInitialize());
+        Assert.Equal(NvidiaStatus.Available, nvidia.Status);
+    }
+
+    [Fact]
+    public void AFailingHandleResolutionLeavesTheDisplayWithoutColors()
+    {
+        using var nvidia = CreateService();
+        factory.Configure = backend => backend.Displays.Add(FakeDisplayBackend.Display("DEL4321-ABC123", "DELL U2720Q", 7));
+        nvidia.Initialize();
+        factory.Displays.Add(FakeDisplayBackend.Display("GSM5B7F-1", "LG", 2) with { GdiName = "not a display name" });
+        var displays = new DisplayService(factory, nvidia);
+
+        displays.Refresh();
+
+        Assert.Equal([true, false], displays.Displays.Select(d => d.CanAdjustColors));
     }
 
     [Fact]

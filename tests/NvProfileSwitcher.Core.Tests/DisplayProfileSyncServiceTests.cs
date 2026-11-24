@@ -18,9 +18,13 @@ public sealed class DisplayProfileSyncServiceTests
         var factory = new FakeBackendFactory { Configure = configure };
         var nvidia = new NvidiaService(factory.Create);
         nvidia.Initialize();
-        nvidia.RefreshDisplays();
-        return (nvidia, new DisplayProfileSyncService(session.Profiles, nvidia, new DisplayColorController(nvidia, session.Profiles, new SwitchingState()), session.Service));
+        var displays = new DisplayService(factory, nvidia);
+        displays.Refresh();
+        return (nvidia, Sync(session, displays, nvidia));
     }
+
+    private static DisplayProfileSyncService Sync(ConfigSession session, DisplayService displays, NvidiaService nvidia) =>
+        new(session.Profiles, displays, nvidia, new DisplayColorController(nvidia, displays, session.Profiles, new SwitchingState()), session.Service);
 
     // Removes every display entry so the remaining configuration can be compared.
     private static string WithoutDisplays(string json)
@@ -130,20 +134,21 @@ public sealed class DisplayProfileSyncServiceTests
         };
         using var nvidia = new NvidiaService(factory.Create);
         nvidia.Initialize();
-        var sync = new DisplayProfileSyncService(session.Profiles, nvidia, new DisplayColorController(nvidia, session.Profiles, new SwitchingState()), session.Service);
+        var displays = new DisplayService(factory, nvidia);
+        var sync = Sync(session, displays, nvidia);
 
-        sync.Synchronize(nvidia.RefreshDisplays(session.Profiles.NonUniqueMonitorIds));
+        sync.Synchronize(displays.Refresh(session.Profiles.NonUniqueMonitorIds));
 
         var saved = Node(File.ReadAllText(session.ConfigPath));
         Assert.Equal([twin], saved["Non-unique Monitor Ids"]!.AsArray().Select(id => id!.GetValue<string>()));
-        Assert.Equal([$"SAM0F12@{Instance(1)}", $"SAM0F12@{Instance(2)}"], nvidia.Displays.Select(d => d.MonitorId));
+        Assert.Equal([$"SAM0F12@{Instance(1)}", $"SAM0F12@{Instance(2)}"], displays.Displays.Select(d => d.MonitorId));
 
         using var restarted = new ConfigSession(File.ReadAllText(session.ConfigPath));
         restarted.Service.Load();
         factory.Configure = backend => backend.Displays.Add(Display(twin, "Samsung 2", 2));
         nvidia.Initialize();
-        nvidia.RefreshDisplays(restarted.Profiles.NonUniqueMonitorIds);
-        Assert.Equal($"SAM0F12@{Instance(2)}", Assert.Single(nvidia.Displays).MonitorId);
+        displays.Refresh(restarted.Profiles.NonUniqueMonitorIds);
+        Assert.Equal($"SAM0F12@{Instance(2)}", Assert.Single(displays.Displays).MonitorId);
     }
 
     // Configurations without shared identities are written as before, without the entry.

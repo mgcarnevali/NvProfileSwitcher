@@ -16,6 +16,7 @@ internal sealed record ServiceEnvironment(
     string ConfigPath,
     bool IsDevelopmentBuild,
     Func<IDisplayColorBackend> CreateDisplayBackend,
+    IDisplayEnumerator DisplayEnumerator,
     IDisplayModeBackend DisplayModes,
     Func<string?> InstalledDriverVersion,
     Func<uint, IReadOnlyList<NvTweakValue?>?> ReadNvTweakColors,
@@ -48,11 +49,12 @@ internal sealed class AppServices
         Configuration = new ConfigurationService(
             environment.ConfigPath, Profiles, Settings, Switching, environment.IsDevelopmentBuild, Dialogs);
         Nvidia = new NvidiaService(environment.CreateDisplayBackend, environment.InstalledDriverVersion);
-        Colors = new DisplayColorController(Nvidia, Profiles, Switching);
+        Displays = new DisplayService(environment.DisplayEnumerator, Nvidia);
+        Colors = new DisplayColorController(Nvidia, Displays, Profiles, Switching);
         Modes = new DisplayModeController(
-            environment.DisplayModes, Nvidia, Switching,
+            environment.DisplayModes, Displays, Switching,
             new DisplayModeRecoveryStore(Path.Combine(Path.GetDirectoryName(environment.ConfigPath) ?? string.Empty, "display-modes.json")));
-        DisplaySync = new DisplayProfileSyncService(Profiles, Nvidia, Colors, Configuration, environment.ReadNvTweakColors);
+        DisplaySync = new DisplayProfileSyncService(Profiles, Displays, Nvidia, Colors, Configuration, environment.ReadNvTweakColors);
         Topology = new DisplayTopologyService();
         Hotkeys = new HotkeyService(environment.HotkeyRegistrar, Settings, Profiles, Dialogs);
         Editor = new ProfileEditor(Profiles);
@@ -60,7 +62,7 @@ internal sealed class AppServices
         // The preview gives its display back to the real colors, which the active profile
         // chooses; the active profile tells it before a switch so it ends first.
         ActiveProfile = new ActiveProfileService(
-            Colors, Modes, Nvidia, Profiles, Switching, environment.ForegroundExecutable, Editor, environment.IsWindowActive);
+            Colors, Modes, Displays, Profiles, Switching, environment.ForegroundExecutable, Editor, environment.IsWindowActive);
         // A display a batch could not write is written again by the next check, as after a failed switch.
         Colors.WriteFailed += ActiveProfile.Invalidate;
         // A mode change may invalidate the NVIDIA display handles and reset the colors: the displays
@@ -76,12 +78,12 @@ internal sealed class AppServices
         Capture = new HotkeyCaptureController(Hotkeys, Settings, Profiles, Configuration, Editor, environment.IsWindowActive);
         Editing = new ProfileEditingService(Editor, Profiles, Preview, Configuration, Hotkeys, ActiveProfile, Capture, Colors, Dialogs);
         ProfileList = new ProfileListService(
-            Profiles, Editor, Editing, Preview, Hotkeys, Configuration, ActiveProfile, Nvidia, Colors, Dialogs);
+            Profiles, Editor, Editing, Preview, Hotkeys, Configuration, ActiveProfile, Displays, Colors, Dialogs);
         UpdateCheck = new UpdateCheckService(
             Settings, Dialogs, environment.IsDevelopmentBuild, environment.GetLatestReleaseInfo, environment.GetReleasePackage,
             environment.UpdateInstaller, Editing.ConfirmAndDiscardAsync, environment.Shutdown);
         StartupRegistration = new StartupRegistrationService(Settings, environment.StartupRegistry, environment.ExecutablePath);
-        SavedDisplays = new SavedDisplaysService(Profiles, Nvidia, Configuration);
+        SavedDisplays = new SavedDisplaysService(Profiles, Displays, Configuration);
         Backup = new ConfigurationBackupService(
             Dialogs, Configuration, Settings, Editor, Editing, Preview, Hotkeys, DisplaySync, StartupRegistration,
             AutomaticSwitching, environment.SetWindowTopmost);
@@ -95,6 +97,7 @@ internal sealed class AppServices
     public NvidiaService Nvidia { get; }
     public DisplayProfileSyncService DisplaySync { get; }
     public DisplayTopologyService Topology { get; }
+    public DisplayService Displays { get; }
     public DisplayColorController Colors { get; }
     public DisplayModeController Modes { get; }
     public HotkeyService Hotkeys { get; }

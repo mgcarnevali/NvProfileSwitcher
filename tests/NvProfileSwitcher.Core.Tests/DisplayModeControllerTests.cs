@@ -44,13 +44,13 @@ public sealed class DisplayModeControllerTests
     private static void Disconnect(SwitchingFixture app, string monitorId)
     {
         app.Backend.Displays.RemoveAll(display => display.MonitorId == monitorId);
-        app.Nvidia.RefreshDisplays();
+        app.Displays.Refresh();
     }
 
     private static void Connect(SwitchingFixture app, ConnectedDisplay display)
     {
         app.Backend.Displays.Add(display);
-        app.Nvidia.RefreshDisplays();
+        app.Displays.Refresh();
     }
 
     private static string RecoveryPath(SwitchingFixture app) =>
@@ -559,7 +559,7 @@ public sealed class DisplayModeControllerTests
         using var app = Fixture();
         app.DisplayModes.Failure = _ => new InvalidOperationException("driver");
 
-        Assert.Empty(app.Services.Modes.OfferedModes(app.Nvidia.Displays[0]));
+        Assert.Empty(app.Services.Modes.OfferedModes(app.Displays.Displays[0]));
     }
 
     [Fact]
@@ -621,7 +621,7 @@ public sealed class DisplayModeControllerTests
         using var app = Fixture();
         SetResolution(app.Game, Dell, 1280, 960);
         Focus(app, "game.exe");
-        var dell = app.Nvidia.Displays.Single(display => display.MonitorId == Dell);
+        var dell = app.Displays.Displays.Single(display => display.MonitorId == Dell);
 
         var offered = app.Services.Modes.OfferedModes(dell);
 

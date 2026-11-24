@@ -13,7 +13,7 @@ public sealed class ProfileEditorTests
     private static SwitchingFixture Editing(ProfileListItem? profile = null)
     {
         var app = new SwitchingFixture();
-        app.Editor.RefreshDisplays(app.Nvidia.Displays);
+        app.Editor.RefreshDisplays(app.Displays.Displays);
         app.Editor.SetSelection(profile ?? app.Windows);
         app.Editor.Begin(profile ?? app.Windows);
         return app;
@@ -186,7 +186,7 @@ public sealed class ProfileEditorTests
         var empty = new ProfileListItem("Empty") { Enabled = true };
         app.Editor.Begin(empty);
 
-        app.Editor.SelectDisplay(app.Nvidia.Displays.Single(d => d.MonitorId == Lg));
+        app.Editor.SelectDisplay(app.Displays.Displays.Single(d => d.MonitorId == Lg));
 
         Assert.Equal(ColorValues.Defaults, app.Editor.Values);
     }

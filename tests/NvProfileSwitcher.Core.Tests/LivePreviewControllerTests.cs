@@ -14,7 +14,7 @@ public sealed class LivePreviewControllerTests
     private static SwitchingFixture EditingGame()
     {
         var app = new SwitchingFixture { WindowActive = true };
-        app.Editor.RefreshDisplays(app.Nvidia.Displays);
+        app.Editor.RefreshDisplays(app.Displays.Displays);
         app.Editor.SetSelection(app.Game);
         app.Editor.Begin(app.Game);
         app.Backend.Applied.Clear();

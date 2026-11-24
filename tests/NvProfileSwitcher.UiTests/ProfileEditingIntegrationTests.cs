@@ -967,7 +967,7 @@ public sealed class ProfileEditingIntegrationTests
         app.ProfileSettings.Vibrance = 10;
         var backend = app.Factory.Created[^1];
 
-        backend.Displays.RemoveAll(display => display.DisplayId == 2);
+        backend.Displays.RemoveAll(display => display.GdiName == @"\\.\DISPLAY2");
         backend.Displays.Add(Display(model, "LG ULTRAGEAR", 3));
         app.Topology.HandleMessage(0x007E, 0);
         Assert.True(TestComposition.RunUntil(() => backend.EnumerationCount == 2, TimeSpan.FromSeconds(5)));

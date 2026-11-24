@@ -61,7 +61,7 @@ public sealed class ActiveProfileServiceTests
         using var withoutDisplays = new SwitchingFixture(initialize: false) { Foreground = "game.exe" };
         withoutDisplays.Factory.Configure = null;
         withoutDisplays.Nvidia.Initialize();
-        withoutDisplays.Nvidia.RefreshDisplays();
+        withoutDisplays.Displays.Refresh();
         withoutDisplays.Active.Check();
         Assert.Equal("Windows", withoutDisplays.Session.Switching.ActiveProfileName);
     }

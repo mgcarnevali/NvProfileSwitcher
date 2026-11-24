@@ -2,7 +2,7 @@ using Microsoft.Win32;
 using System.Runtime.InteropServices;
 using NvProfileSwitcher.Core;
 
-namespace NvProfileSwitcher.Nvidia;
+namespace NvProfileSwitcher.Platform;
 
 internal static class MonitorIdentity
 {
@@ -10,14 +10,20 @@ internal static class MonitorIdentity
     private const int ErrorSuccess = 0;
     private const int GetSourceName = 1;
     private const int GetTargetName = 2;
+    private const uint OutputTechnologyIndirectWired = 16;
+    private const uint OutputTechnologyIndirectVirtual = 17;
 
     /// <summary>
     /// The monitor shown on a GDI display: its hardware id and device instance from the active
     /// display path, and its serial number from the EDID Windows keeps in the registry. Null
     /// when any of them could not be read, which is not a monitor without a serial number.
+    /// <paramref name="virtualOutput"/> tells whether the display is connected through an indirect
+    /// or virtual output (a virtual display driver, a remote session): such a display without an
+    /// identity will never have one, unlike a monitor whose EDID Windows has not stored yet.
     /// </summary>
-    public static MonitorDescriptor? ReadForGdi(string gdi)
+    public static MonitorDescriptor? ReadForGdi(string gdi, out bool virtualOutput)
     {
+        virtualOutput = false;
         if (GetDisplayConfigBufferSizes(QdcOnlyActivePaths, out var pathCount, out var modeCount) != ErrorSuccess)
             return null;
         var paths = new DisplayConfigPathInfo[pathCount];
@@ -43,6 +49,7 @@ internal static class MonitorIdentity
             tgt.header.id = paths[i].targetInfo.id;
             if (DisplayConfigGetDeviceInfo(ref tgt) != ErrorSuccess)
                 return null;
+            virtualOutput = tgt.outputTechnology is OutputTechnologyIndirectWired or OutputTechnologyIndirectVirtual;
 
             if (MonitorIdentityCore.ParseDevicePath(tgt.monitorDevicePath) is not { } parsed)
                 return null;

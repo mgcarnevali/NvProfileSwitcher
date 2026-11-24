@@ -5,14 +5,14 @@ using NvProfileSwitcher.Nvidia;
 namespace NvProfileSwitcher.Services;
 
 /// <summary>
-/// Owns the NVIDIA API: its initialization, the enumerated displays and the driver version.
+/// Owns the NVIDIA API: its initialization, its status, the driver version, which displays it
+/// controls and their colors. The displays themselves belong to <see cref="DisplayService"/>.
 /// The driver version is the one installed in Windows (<paramref name="installedDriverVersion"/>),
 /// or the one the API reports when it cannot be read: the API library loaded at start keeps
 /// reporting its own driver after another one is installed.
 /// It knows nothing about profiles, configuration, switching or the user interface.
-/// Without an initialized API, the per-display operations return no value (null or false)
-/// while <see cref="RefreshDisplays"/>, which replaces the display list, throws; callers
-/// check <see cref="IsInitialized"/> first, as the original checked for a null API.
+/// Without an initialized API, the per-display operations return no value (null or false), and
+/// no display is reported as controlled by it.
 /// </summary>
 internal sealed partial class NvidiaService(
     Func<IDisplayColorBackend> createBackend,
@@ -20,14 +20,17 @@ internal sealed partial class NvidiaService(
 {
     private IDisplayColorBackend? backend;
 
-    /// <summary>Whether the last initialization succeeded. Starts as available, as the original status bar.</summary>
-    [ObservableProperty] public partial bool IsAvailable { get; private set; } = true;
+    /// <summary>The result of the last initialization. Starts as available, as the original status bar.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsAvailable))]
+    public partial NvidiaStatus Status { get; private set; } = NvidiaStatus.Available;
+
+    /// <summary>Whether the last initialization succeeded.</summary>
+    public bool IsAvailable => Status == NvidiaStatus.Available;
 
     [ObservableProperty] public partial string DriverVersion { get; private set; } = "Unknown";
 
     public bool IsInitialized => backend is not null;
-
-    public IReadOnlyList<ConnectedDisplay> Displays { get; private set; } = [];
 
     /// <summary>
     /// Initializes the NVIDIA API. A new instance replaces the current one only after its own
@@ -42,14 +45,38 @@ internal sealed partial class NvidiaService(
         backend = created;
         previous?.Dispose();
 
-        IsAvailable = true;
+        Status = NvidiaStatus.Available;
         DriverVersion = installedDriverVersion?.Invoke() ?? created.DriverVersion;
     }
 
-    /// <summary>Reports that the NVIDIA API is unavailable without releasing the current instance.</summary>
-    public void ReportUnavailable()
+    /// <summary>
+    /// <see cref="Initialize"/>, reporting a failure instead of throwing it: the rest of the
+    /// application works without the NVIDIA API. False when it failed.
+    /// </summary>
+    public bool TryInitialize()
     {
-        IsAvailable = false;
+        try
+        {
+            Initialize();
+            return true;
+        }
+        catch (Exception exception)
+        {
+            ReportUnavailable(exception);
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Reports that the NVIDIA API cannot be used, without releasing the current instance: not
+    /// detected when no NVIDIA driver or GPU is present (<paramref name="failure"/> says so), and
+    /// otherwise unavailable, usually for a while, as when the driver is being installed.
+    /// </summary>
+    public void ReportUnavailable(Exception? failure = null)
+    {
+        Status = failure is DllNotFoundException or NvApiInitializationException { Status: NvApiInitializationException.NvidiaDeviceNotFound }
+            ? NvidiaStatus.NotDetected
+            : NvidiaStatus.Unavailable;
         DriverVersion = "Unknown";
     }
 
@@ -68,23 +95,20 @@ internal sealed partial class NvidiaService(
             DriverVersion = version;
     }
 
-    /// <summary>How many enumerated displays have no identity and are left out of <see cref="Displays"/>.</summary>
-    public int UnidentifiedCount { get; private set; }
-
     /// <summary>
-    /// Enumerates the displays and keeps the ones with an identity (<see cref="MonitorIdentityCore"/>):
-    /// a display without one is never written, edited, synchronized or saved. Returns the
-    /// physical identities found shared by two connected monitors for the first time.
+    /// The NVIDIA handle of the display shown on <paramref name="gdiName"/>, or null when the API is
+    /// not initialized, does not control that display or fails: the display then has no colors.
     /// </summary>
-    public IReadOnlyList<string> RefreshDisplays(IReadOnlySet<string>? nonUniqueIds = null)
+    public NvidiaHandle? ResolveDisplay(string gdiName)
     {
-        if (backend is null)
-            throw new InvalidOperationException("The NVIDIA API is not initialized.");
-
-        var identification = MonitorIdentityCore.Identify(backend.EnumerateDisplays(), nonUniqueIds ?? new HashSet<string>());
-        Displays = identification.Displays;
-        UnidentifiedCount = identification.UnidentifiedCount;
-        return identification.NewlySharedIds;
+        try
+        {
+            return backend?.ResolveDisplay(gdiName);
+        }
+        catch (Exception)
+        {
+            return null;
+        }
     }
 
     public int? GetVibrance(ConnectedDisplay display) => backend?.GetVibrance(display);
@@ -102,4 +126,16 @@ internal sealed partial class NvidiaService(
         backend?.Dispose();
         backend = null;
     }
+}
+
+/// <summary>Whether the NVIDIA API can be used.</summary>
+internal enum NvidiaStatus
+{
+    Available,
+
+    /// <summary>No NVIDIA driver, or no active NVIDIA GPU.</summary>
+    NotDetected,
+
+    /// <summary>The driver is there but the API could not be initialized.</summary>
+    Unavailable,
 }

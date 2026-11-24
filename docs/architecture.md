@@ -118,7 +118,7 @@ Each invariant has one owner, and a test verifies it.
    restricts the writes to it, and integration tests check one write per display for every flow.
 9. **Monitor identity is never made up.** A display has the physical identity of its unique EDID
    serial number, or else the identity of its connection, or no identity; a display without one is
-   left out of `NvidiaService.Displays`, so it is never written, edited, synchronized or saved.
+   left out of `DisplayService.Displays`, so it is never written, edited, synchronized or saved.
 10. **Saved values never come from written colors.** They come from the user's edits, other
     profiles, the Windows values and the colors a display shows before this application writes it;
     the editor never reads a display, saving a draft never removes values, and values without a
@@ -135,18 +135,19 @@ App ──► AppHost (composition root: AppServices + Shell + coordinators + Vi
    │
    ├─ AppServices (the service graph, shared with the test fixtures)
    │  ├─ Shared state (observable, UI thread)
-   │  │    ProfileStore ──► SwitchingState · AppSettings · NvidiaService (NVIDIA API, displays, driver)
+   │  │    ProfileStore ──► SwitchingState · AppSettings · NvidiaService (NVIDIA API, its status, driver, colors)
+   │  │    DisplayService ──► IDisplayEnumerator, NvidiaService (connected displays and their capabilities)
    │  │
    │  ├─ Domain and application services
    │  │    ConfigurationService ─────── ProfileStore, AppSettings, SwitchingState, IDialogService
-   │  │    DisplayColorController ───── NvidiaService, ProfileStore, SwitchingState (the only color writer)
-   │  │    DisplayProfileSyncService ── ProfileStore, NvidiaService, DisplayColorController, ConfigurationService
+   │  │    DisplayColorController ───── NvidiaService, DisplayService, ProfileStore, SwitchingState (the only color writer)
+   │  │    DisplayProfileSyncService ── ProfileStore, DisplayService, NvidiaService, DisplayColorController, ConfigurationService
    │  │    DisplayTopologyService       (WM_DISPLAYCHANGE debounce, one retry)
-   │  │    DisplayModeController ────── IDisplayModeBackend, NvidiaService, SwitchingState,
+   │  │    DisplayModeController ────── IDisplayModeBackend, DisplayService, SwitchingState,
    │  │                                 DisplayModeRecoveryStore (the only display mode writer)
    │  │    HotkeyService ────────────── IHotkeyRegistrar, AppSettings, ProfileStore, IDialogService
    │  │    ProfileEditor ────────────── ProfileStore                           (state of the edited profile)
-   │  │    ActiveProfileService ─────── DisplayColorController, DisplayModeController, NvidiaService, ProfileStore, SwitchingState,
+   │  │    ActiveProfileService ─────── DisplayColorController, DisplayModeController, DisplayService, ProfileStore, SwitchingState,
    │  │                                 ProfileEditor + foreground executable, "window is active"
    │  │    LivePreviewController ────── ProfileEditor, ActiveProfileService, DisplayColorController, SwitchingState
    │  │                                 + "window shown normally"
@@ -160,7 +161,7 @@ App ──► AppHost (composition root: AppServices + Shell + coordinators + Vi
    │  │                                 DisplayColorController, IDialogService (session actions)
    │  │    ProfileListService ───────── ProfileStore, ProfileEditor, ProfileEditingService, LivePreviewController,
    │  │                                 HotkeyService, ConfigurationService, ActiveProfileService,
-   │  │                                 NvidiaService, DisplayColorController, IDialogService (list actions)
+   │  │                                 DisplayService, DisplayColorController, IDialogService (list actions)
    │  │    UpdateCheckService ───────── AppSettings, IDialogService, release lookups, IUpdateInstaller,
    │  │                                 the discard confirmation, shutdown
    │  │    StartupRegistrationService · SavedDisplaysService
@@ -228,15 +229,15 @@ src/NvProfileSwitcher/
                 NvTweakColorCore
   Models/       AppConfig  ProfileListItem (+ ProfileDisplaySettings)  ExecutableComboItem
                 ColorValues  AppSettings  SwitchingState  ActiveProfileDisplay  HotkeyField
-                SavedDisplayInfo
-  Nvidia/       NvApi (+ ConnectedDisplay, MonitorDescriptor)  IDisplayColorBackend  MonitorIdentity
-                NvTweakColorRegistry
+                SavedDisplayInfo  ConnectedDisplay (+ NvidiaHandle, MonitorDescriptor)
+  Nvidia/       NvApi (+ NvApiInitializationException)  IDisplayColorBackend  NvTweakColorRegistry
   Platform/     ForegroundWatcher  IForegroundMonitor  ForegroundProcess  ProfileIconLoader
                 SingleInstanceService  Win32HotkeyRegistrar  IHotkeyRegistrar
                 StartupRegistry  IStartupRegistry
+                DisplayEnumerator (IDisplayEnumerator, Win32DisplayEnumerator)  MonitorIdentity
                 DisplayModes (IDisplayModeBackend, Win32DisplayModeBackend)
   Services/     ConfigurationService  ConfigurationBackupService  ProfileStore  ProfileListService
-                NvidiaService  DisplayProfileSyncService  DisplayTopologyService
+                NvidiaService  DisplayService  DisplayProfileSyncService  DisplayTopologyService
                 DisplayColorController  ActiveProfileService  AutomaticSwitchingService
                 DisplayModeController  DisplayModeRecoveryStore
                 HotkeyService  HotkeyCaptureController  StartupRegistrationService
@@ -280,7 +281,8 @@ reference Core tests run unchanged. New code uses the namespace of its folder.
 | `SwitchingState` | `OverrideMode`, `OverrideProfileIndex`, `GlobalPaused`, `ActiveProfileName`, `DisplayedActiveProfile` | INPC properties | fields 28–30, 49 |
 | `ConfigurationService` | config path, `savingBlocked`, `pendingChanges`, the pending load notice | `Load`, `ReportLoadProblem`, `Save`, `Save(profile, replacement, reportFailure)`, `SaveIfPending`, `ImportAsync`, `ExportAsync` (§12) | 326, 1647, 1945–2077 |
 | `ConfigurationBackupService` | — | `ImportAsync`, `ExportAsync`: the import and export sequences with pickers and messages | 1945–2047 |
-| `NvidiaService` | backend (`IDisplayColorBackend`), `Displays` (identified only), `UnidentifiedCount`, `DriverVersion`, `IsAvailable` | `Initialize` (ordered replacement, §17.2), `ReportUnavailable`, `RefreshDisplays(nonUniqueIds)` (enumerates and identifies, §22.1; returns the identities found shared), `RefreshDriverVersion` (the installed driver, or the API's, §22.5), `GetVibrance`, `GetHue`, `Apply`, `Dispose` | 1696–1781 |
+| `NvidiaService` | backend (`IDisplayColorBackend`), `Status` (available, not detected, unavailable; `IsAvailable`), `DriverVersion` | `Initialize` (ordered replacement, §17.2), `TryInitialize`, `ReportUnavailable(failure)` (§22.8), `ResolveDisplay(gdiName)` (the NVIDIA handle of a display, or null), `RefreshDriverVersion` (the installed driver, or the API's, §22.5), `GetVibrance`, `GetHue`, `Apply`, `Dispose`. It holds no display list | 1696–1781 |
+| `DisplayService` | `Displays` (identified only, each with its capabilities), `UnidentifiedCount`, `IsEnumerated` | `Refresh(nonUniqueIds)`: enumerates through `IDisplayEnumerator` (Windows, whatever the adapter), gives each display its NVIDIA handle when the API controls it, identifies (§22.1); returns the identities found shared. Works with or without the NVIDIA API (§22.8) | — |
 | `DisplayProfileSyncService` | — | `Synchronize(newlySharedIds)`: records the shared identities, `DisplayProfileSyncCore` (adoption, shared identities, values for every display, §22.1), reads a display only when it was never written (§22.3), saves if anything changed; returns the moved monitor ids (`DisplayRemap`) | 1879–1922 |
 | `DisplayTopologyService` | debounce timer, whether the change was retried, whether a resume is being settled | `HandleMessage` (WM_DISPLAYCHANGE and the resume notifications of WM_POWERBROADCAST, never marked handled), `RetryOnce` (§22.1), `TopologyChanged`, `Resumed` (§22.4), `Stop` | 572–575, 1857–1877 |
 | `DisplayColorController` | base profile, preview layer, displays to write, displays written | `Batch(throwOnFailure)`, `SetBase(profile, allDisplays)`, `RestoreWindows(force)`, `SetPreview`, `ClearPreview`, `RefreshAll`, `HasWritten`; event `WriteFailed`. The only writer of display colors (§22.2) | 1838–1856, 2193–2300 |
@@ -486,7 +488,8 @@ builds and attaches; it subscribes no handlers of its own.
 | Profiles and the unsaved new profile | `ProfileStore` | `ReadOnlyObservableCollection` + INPC |
 | Settings and global hotkeys | `AppSettings` | INPC |
 | Override, pause, active profile, published active profile | `SwitchingState` | INPC |
-| NVIDIA API, identified displays, how many have no identity, driver | `NvidiaService` | INPC |
+| NVIDIA API, its status, driver | `NvidiaService` | INPC |
+| Identified displays and their capabilities, how many have no identity | `DisplayService` | — (refreshed by `DisplayRefreshCoordinator`) |
 | Selection, draft, display and values in edit | `ProfileEditor` | events + INPC |
 | Whether a discard confirmation is open | `ProfileEditingService` | — |
 | Whether the preview is active | `LivePreviewController` | — |
@@ -993,8 +996,8 @@ private copy of a system library under a unique path and checks the module is no
   on the first `Opened`: before that, Global ON, `Stop` and `Dispose` do not touch it.
   `IsSwitchingActive` = created and not paused; both the refresh and option C read it.
 - `ReapplyRealColors` reads the foreground process only in Automatic mode; `Check` always does.
-- `NvidiaService` without an initialized API returns `null`/`false` per display and `RefreshDisplays`
-  throws; callers check `IsInitialized`, as the reference checked `nv is null`.
+- `NvidiaService` without an initialized API returns `null`/`false` per display and controls no
+  display; the displays themselves no longer depend on it (§22.8).
 - `SwitchingState.DisplayedActiveProfile` is the snapshot published at the reference's
   `UpdateActiveProfileFooter()` points; the status bar formats it with `ActiveProfileCore.StatusText`.
 
@@ -1201,7 +1204,8 @@ the EDID Windows keeps in the registry; `MonitorIdentityCore` (pure) decides the
 |---|---|
 | EDID with a serial number (descriptor, or numeric other than 0 and 0xFFFFFFFF) that no other connected monitor shares and that was never found shared | physical, `{hardware}-{serial}` (unchanged from the reference) |
 | readable EDID without serial number, or with a serial found shared | connection, `{hardware}@{instance}`: the model on the connection Windows identifies it by |
-| no device path, or an EDID that could not be read | none: left out of `NvidiaService.Displays` |
+| no device path, or an EDID that could not be read | none: left out of `DisplayService.Displays` |
+| the same, on an indirect or virtual output (a virtual display driver, a remote session) | none, and not counted as waiting for an identity: it never gets one, so it neither blocks adoption nor causes a retry |
 
 - **Shared serials.** Two connected monitors with the same physical identity record it in
   `ProfileStore.NonUniqueMonitorIds`, saved as `"Non-unique Monitor Ids"`. From then on that
@@ -1389,3 +1393,41 @@ and closing the application show each monitor's desktop mode again.
   another application already changed it (a game in exclusive fullscreen), that mode is taken as
   the desktop one (under validation on hardware). A failed restore is retried only at the next
   display change or at exit.
+
+### 22.8 Without the NVIDIA API
+
+The application works whether or not the computer has an NVIDIA GPU: only the colors depend on
+it. One executable, no option: the capabilities are read from the system and from each display.
+
+- **Displays come from Windows.** `Win32DisplayEnumerator` (Platform) lists the displays attached
+  to the desktop with EnumDisplayDevicesW, the display configuration and the EDID
+  (`MonitorIdentity`), whatever adapter drives them; it is the enumeration that was inside
+  `NvApi`, moved, not copied. `DisplayService` identifies them (§22.1) and asks `NvidiaService`
+  for the NVIDIA handle of each (`ResolveDisplay`, the same two NVAPI calls as before); a display
+  the API does not control, or every display without the API, has none.
+- **Capabilities per display.** `ConnectedDisplay.CanAdjustColors` is true only with a handle;
+  the resolution can always be changed (`Win32DisplayModeBackend` is not NVIDIA-specific). The
+  capabilities are read again with every enumeration, so a hybrid laptop whose panel moves to
+  another GPU, or a driver that becomes available, is reflected by the next refresh.
+- **Status.** `NvidiaStatus`: available; not detected (no `nvapi64.dll`, or
+  `NVAPI_NVIDIA_DEVICE_NOT_FOUND`), shown in grey with no driver version; unavailable (any other
+  failure, usually while a driver installs), shown in red. A failed initialization is retried at
+  each opening, each display change and each resume.
+- **What runs without it.** The startup refresh, display changes and resume (after the first
+  enumeration, as the original did after the API was initialized), switching, overrides, Global
+  Switching, hotkeys, the tray, resolutions and their recovery. A failed re-initialization at
+  resume that keeps the previous instance still leaves the rest as it is, as before.
+- **Colors are never claimed.** `DisplayColorController` writes, and counts as written, only
+  displays with colors. The editor disables the color sliders, Copy settings and Reset for a
+  display without colors and says so; `ProfileEditingService` ignores those actions then.
+- **Saved colors are kept.** The Windows values of a monitor come only from the display or the
+  user: a display without colors gets none, and `CompleteDraft` never writes colors for it.
+  Values an application profile needs only to hold a resolution for a monitor without Windows
+  values are marked `ColorsPending` (saved only when true; earlier versions ignore it). They take
+  the monitor's Windows values as soon as it has them and are never copied, so made-up colors
+  are never applied over the ones the user set. Application values without the mark are never
+  replaced, as before.
+- **Architecture tests.** `NvidiaService` holds no display list and depends only on the NVIDIA
+  layer and the display record; `DisplayService` only on Platform and `NvidiaService`; only
+  `Platform/DisplayEnumerator.cs` calls EnumDisplayDevicesW and only `DisplayService` holds the
+  enumerator.

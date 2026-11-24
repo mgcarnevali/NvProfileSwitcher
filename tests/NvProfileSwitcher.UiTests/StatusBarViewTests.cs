@@ -17,6 +17,7 @@ public sealed class StatusBarViewTests
     private static readonly Color Available = Color.Parse("#52D627");
     private static readonly Color Unavailable = Color.Parse("#E84B4B");
     private static readonly Color GlobalOff = Color.Parse("#E35D6A");
+    private static readonly Color NotDetected = Color.Parse("#8A8F98");
 
     private static (Window Window, StatusBarView Bar) Show(TestComposition app)
     {
@@ -82,6 +83,30 @@ public sealed class StatusBarViewTests
         Assert.Equal(Unavailable, ColorOf(StatusText(bar).Foreground));
         Assert.Equal(Unavailable, ColorOf(Dot(bar).Fill));
         Assert.Equal("Unknown", DriverText(bar).Text);
+        window.Close();
+    }
+
+    // No NVIDIA driver is not an error: grey, and no driver version.
+    [AvaloniaFact]
+    public void AMissingNvidiaDriverIsShownAsNotDetectedInGrey()
+    {
+        var app = TestViewModels.Compose();
+        var (window, bar) = Show(app);
+
+        app.Nvidia.ReportUnavailable(new DllNotFoundException("nvapi64.dll"));
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal("Not detected", StatusText(bar).Text);
+        Assert.Equal(NotDetected, ColorOf(StatusText(bar).Foreground));
+        Assert.Equal(NotDetected, ColorOf(Dot(bar).Fill));
+        Assert.Equal("—", DriverText(bar).Text);
+
+        app.Factory.Configure = backend => backend.DriverVersion = "581.57";
+        app.Nvidia.Initialize();
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal("Available", StatusText(bar).Text);
+        Assert.Equal(Available, ColorOf(Dot(bar).Fill));
+        Assert.Equal("581.57", DriverText(bar).Text);
         window.Close();
     }
 

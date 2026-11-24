@@ -11,9 +11,11 @@ namespace NvProfileSwitcher.Services;
 /// displays are written when the outermost <see cref="Batch"/> ends, or at once outside a batch,
 /// so each display receives its final values once per operation and never an intermediate
 /// state. Nothing is written while global switching is paused unless the operation forces it,
-/// and the preview is never shown then.
+/// and the preview is never shown then. Only displays whose colors can be adjusted
+/// (<see cref="ConnectedDisplay.CanAdjustColors"/>) are written, and only those count as written:
+/// without the NVIDIA API nothing is written and nothing is reported as written.
 /// </summary>
-internal sealed class DisplayColorController(NvidiaService nvidia, ProfileStore profiles, SwitchingState switching)
+internal sealed class DisplayColorController(NvidiaService nvidia, DisplayService displays, ProfileStore profiles, SwitchingState switching)
 {
     private readonly HashSet<string> pending = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> written = new(StringComparer.OrdinalIgnoreCase);
@@ -129,15 +131,15 @@ internal sealed class DisplayColorController(NvidiaService nvidia, ProfileStore 
         pendingAll = false;
         forced = false;
         pending.Clear();
-        if (!nvidia.IsInitialized || !ProfileApplicationCore.CanApply(switching.GlobalPaused, force))
+        if (!ProfileApplicationCore.CanApply(switching.GlobalPaused, force))
             return;
 
         var showPreview = !switching.GlobalPaused;
         var source = baseProfile ?? profiles.Windows;
         ExceptionDispatchInfo? failure = null;
-        foreach (var display in nvidia.Displays)
+        foreach (var display in displays.Displays)
         {
-            if (!all && !marked.Contains(display.MonitorId, StringComparer.OrdinalIgnoreCase))
+            if (!display.CanAdjustColors || (!all && !marked.Contains(display.MonitorId, StringComparer.OrdinalIgnoreCase)))
                 continue;
 
             int vibrance, hue;

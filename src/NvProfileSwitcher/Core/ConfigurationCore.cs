@@ -80,7 +80,11 @@ internal static class ConfigurationCore
         HasNumber(display, nameof(ProfileDisplaySettings.Gamma)) &&
         HasInteger(display, nameof(ProfileDisplaySettings.DigitalVibrance)) &&
         HasInteger(display, nameof(ProfileDisplaySettings.Hue)) &&
-        HasOptionalResolution(display);
+        HasOptionalResolution(display) &&
+        HasOptionalBoolean(display, nameof(ProfileDisplaySettings.ColorsPending));
+
+    private static bool HasOptionalBoolean(JsonElement element, string name) =>
+        !element.TryGetProperty(name, out var value) || value.ValueKind is JsonValueKind.True or JsonValueKind.False;
 
     // Absent or null when the profile leaves the monitor's resolution unchanged.
     private static bool HasOptionalResolution(JsonElement display)

@@ -62,14 +62,16 @@ public sealed class NvTweakInitializationTests
             Factory = new FakeBackendFactory { Configure = configure };
             Nvidia = new NvidiaService(Factory.Create);
             Nvidia.Initialize();
-            Nvidia.RefreshDisplays();
-            Colors = new DisplayColorController(Nvidia, session.Profiles, new SwitchingState());
-            Sync = new DisplayProfileSyncService(session.Profiles, Nvidia, Colors, session.Service, registry.Read);
+            Displays = new DisplayService(Factory, Nvidia);
+            Displays.Refresh();
+            Colors = new DisplayColorController(Nvidia, Displays, session.Profiles, new SwitchingState());
+            Sync = new DisplayProfileSyncService(session.Profiles, Displays, Nvidia, Colors, session.Service, registry.Read);
         }
 
         public ConfigSession Session { get; }
         public FakeBackendFactory Factory { get; }
         public NvidiaService Nvidia { get; }
+        public DisplayService Displays { get; }
         public DisplayColorController Colors { get; }
         public DisplayProfileSyncService Sync { get; }
 
@@ -140,7 +142,7 @@ public sealed class NvTweakInitializationTests
         registry.Reads.Clear();
         registry.Keys[Device1] = Values(120, 120, 280);
 
-        setup.Nvidia.RefreshDisplays();
+        setup.Displays.Refresh();
         setup.Sync.Synchronize();
 
         Assert.Empty(registry.Reads);
@@ -247,8 +249,9 @@ public sealed class NvTweakInitializationTests
         var factory = new FakeBackendFactory { Configure = ThreeMonitors };
         using var nvidia = new NvidiaService(factory.Create);
         nvidia.Initialize();
-        nvidia.RefreshDisplays();
-        new DisplayProfileSyncService(session.Profiles, nvidia, new DisplayColorController(nvidia, session.Profiles, new SwitchingState()), session.Service)
+        var displays = new DisplayService(factory, nvidia);
+        displays.Refresh();
+        new DisplayProfileSyncService(session.Profiles, displays, nvidia, new DisplayColorController(nvidia, displays, session.Profiles, new SwitchingState()), session.Service)
             .Synchronize();
 
         Assert.Equal((100d, 100d, 1d, 60, 0), Windows(session, Asus1));

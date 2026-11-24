@@ -75,11 +75,11 @@ internal sealed class StartupCoordinator
 
         try
         {
-            // One operation: each display is written once. A failed write is thrown before
-            // switching starts, as in the original.
+            // One operation: each display is written once. Without the NVIDIA API the displays,
+            // their resolutions and switching work all the same; only the colors are unavailable.
             using (colors.Batch(throwOnFailure: true))
             {
-                nvidia.Initialize();
+                nvidia.TryInitialize();
                 activeProfile.PublishActiveProfile();
                 // The refresh also starts a clean draft over on the refreshed displays.
                 displayRefresh.Refresh();
@@ -91,9 +91,11 @@ internal sealed class StartupCoordinator
 
             automaticSwitching.Start();
         }
-        catch (Exception)
+        catch (Exception exception)
         {
-            nvidia.ReportUnavailable();
+            // A color the NVIDIA API could not write is thrown before switching starts, and the
+            // API is reported as unavailable, as in the original.
+            nvidia.ReportUnavailable(exception);
         }
 
         // Not awaited: it runs in the background on every opening, also when the NVIDIA API failed.

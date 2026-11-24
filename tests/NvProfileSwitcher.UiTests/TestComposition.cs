@@ -42,6 +42,7 @@ internal sealed class TestComposition : IDisposable
             ConfigPath,
             isDevelopmentBuild,
             Factory.Create,
+            Factory,
             DisplayModes,
             () => InstalledDriverVersion,
             deviceId => NvTweakColors.GetValueOrDefault(deviceId),
@@ -91,6 +92,7 @@ internal sealed class TestComposition : IDisposable
     public SwitchingState Switching => app.Services.Switching;
     public ConfigurationService Configuration => app.Services.Configuration;
     public NvidiaService Nvidia => app.Services.Nvidia;
+    public DisplayService Displays => app.Services.Displays;
     public DisplayTopologyService Topology => app.Services.Topology;
     public DisplayColorController Colors => app.Services.Colors;
     public ActiveProfileService ActiveProfile => app.Services.ActiveProfile;

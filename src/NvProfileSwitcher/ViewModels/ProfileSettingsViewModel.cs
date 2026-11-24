@@ -126,6 +126,16 @@ internal sealed partial class ProfileSettingsViewModel : ObservableObject
 
     public IReadOnlyList<ConnectedDisplay> Displays => editor.Displays;
 
+    /// <summary>
+    /// Whether the selected display's colors can be adjusted: the color controls, Copy settings and
+    /// Reset are disabled otherwise, and nothing is shown as applied.
+    /// </summary>
+    public bool AreColorsAvailable => editor.SelectedDisplay?.CanAdjustColors == true;
+
+    public string ColorsUnavailableToolTip =>
+        "Brightness, contrast, gamma, digital vibrance and hue need an NVIDIA GPU driving this display, " +
+        "with the NVIDIA driver available. The saved values are kept; the resolution can still be set.";
+
     public ConnectedDisplay? SelectedDisplay
     {
         get => editor.SelectedDisplay;
@@ -331,7 +341,10 @@ internal sealed partial class ProfileSettingsViewModel : ObservableObject
     private void OnEditorPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName is nameof(ProfileEditor.Displays) or nameof(ProfileEditor.SelectedDisplay))
+        {
             Load(() => OnPropertyChanged(e.PropertyName));
+            OnPropertyChanged(nameof(AreColorsAvailable));
+        }
         if (e.PropertyName == nameof(ProfileEditor.SelectedDisplay))
             LoadResolution();
     }

@@ -283,12 +283,15 @@ public sealed class ArchitectureTests
         Assert.Empty(violations);
     }
 
-    // NvidiaService owns only the NVIDIA API, displays and driver; DisplayTopologyService only
-    // detects topology changes. Neither depends on profiles, configuration, switching or UI.
+    // NvidiaService owns only the NVIDIA API, its status, the driver and the colors of the displays
+    // it controls; DisplayService only the connected displays, from Windows, and their capabilities;
+    // DisplayTopologyService only detects topology changes. None depends on profiles,
+    // configuration, switching or UI.
     [Theory]
-    [InlineData(typeof(NvidiaService), "NvProfileSwitcher.Nvidia")]
-    [InlineData(typeof(DisplayTopologyService), null)]
-    public void DisplayServicesDependOnlyOnTheirOwnConcerns(Type service, string? allowedNamespace)
+    [InlineData(typeof(NvidiaService), new[] { "NvProfileSwitcher.Nvidia" }, new[] { typeof(ConnectedDisplay), typeof(NvidiaHandle), typeof(NvidiaStatus) })]
+    [InlineData(typeof(DisplayService), new[] { "NvProfileSwitcher.Platform" }, new[] { typeof(ConnectedDisplay), typeof(NvidiaService) })]
+    [InlineData(typeof(DisplayTopologyService), new string[0], new Type[0])]
+    public void DisplayServicesDependOnlyOnTheirOwnConcerns(Type service, string[] allowedNamespaces, Type[] allowedTypes)
     {
         foreach (var dependency in Dependencies(service))
         {
@@ -297,9 +300,31 @@ public sealed class ArchitectureTests
                 ns == "System" || ns.StartsWith("System.", StringComparison.Ordinal) ||
                 ns == "Avalonia" || ns.StartsWith("Avalonia.", StringComparison.Ordinal) ||
                 ns.StartsWith("CommunityToolkit.", StringComparison.Ordinal) ||
-                ns == allowedNamespace,
+                allowedNamespaces.Contains(ns) || allowedTypes.Contains(dependency),
                 $"{service.Name} depends on {dependency.FullName}.");
         }
+    }
+
+    // NvidiaService no longer holds the displays: the display list belongs to DisplayService, which
+    // works without the NVIDIA API, and only Platform asks Windows for the displays.
+    [Fact]
+    public void TheDisplaysComeFromWindowsNotFromTheNvidiaApi()
+    {
+        Assert.Null(typeof(NvidiaService).GetProperty("Displays"));
+        Assert.Null(typeof(Nvidia.IDisplayColorBackend).GetMethod("EnumerateDisplays"));
+
+        var enumerators = ApplicationSources()
+            .Where(path => File.ReadAllText(path).Contains("EnumDisplayDevices", StringComparison.Ordinal))
+            .Select(path => Path.GetRelativePath(SourceRoot(), path).Replace('\\', '/'))
+            .ToList();
+        Assert.Equal(["Platform/DisplayEnumerator.cs"], enumerators);
+
+        var holders = AppAssembly.GetTypes()
+            .Where(type => !type.IsNested && Dependencies(type).Contains(typeof(Platform.IDisplayEnumerator)))
+            .Select(type => type.Name)
+            .Order()
+            .ToList();
+        Assert.Equal(["AppPlatform", "DisplayService", "ServiceEnvironment"], holders);
     }
 
     // The color, switching, preview and startup registration services depend only on services, shared

@@ -68,7 +68,7 @@ internal sealed class NvApi : IDisplayColorBackend
             getDriverVersion = TryResolve<GetDriverVersionFn>(GetDriverVersionHash);
             getLuidFromDisplayId = TryResolve<GetLuidFromDisplayIdFn>(GetLuidFromDisplayIdHash);
             var status = init();
-            if (status != 0) throw new InvalidOperationException($"NvAPI_Initialize failed: {status}");
+            if (status != 0) throw new NvApiInitializationException(status);
         }
         catch
         {
@@ -107,40 +107,25 @@ internal sealed class NvApi : IDisplayColorBackend
         }
     }
 
-    public IReadOnlyList<ConnectedDisplay> EnumerateDisplays()
+    /// <summary>
+    /// The NVIDIA handle and id of the display shown on <paramref name="gdiName"/>, or null when
+    /// the NVIDIA driver does not control it (a monitor on another adapter). The API takes the
+    /// name with or without the "\\.\" prefix depending on the driver, so both are tried.
+    /// </summary>
+    public NvidiaHandle? ResolveDisplay(string gdiName)
     {
-        var result = new List<ConnectedDisplay>();
-        for (uint i = 0; ; i++)
-        {
-            var dd = DisplayDevice.Create();
-            if (!EnumDisplayDevices(null, i, ref dd, 0)) break;
-            if ((dd.StateFlags & 0x1) == 0 || (dd.StateFlags & 0x8) != 0) continue;
-
-            var gdi = dd.DeviceName;
-            var nvName = gdi.StartsWith(@"\\.\", StringComparison.Ordinal) ? @"\\" + gdi[4..] : gdi;
-            if (getHandle(nvName, out var handle) != 0 && getHandle(gdi, out handle) != 0) continue;
-            if (getId(nvName, out var id) != 0 && getId(gdi, out id) != 0) continue;
-
-            var mon = DisplayDevice.Create();
-            var friendly = EnumDisplayDevices(gdi, 0, ref mon, 0) && !string.IsNullOrWhiteSpace(mon.DeviceString)
-                ? mon.DeviceString : (!string.IsNullOrWhiteSpace(dd.DeviceString) ? dd.DeviceString : "NVIDIA display");
-            var primary = (dd.StateFlags & 0x4) != 0;
-            var monitor = MonitorIdentity.ReadForGdi(gdi);
-            var mode = DisplayMode.Create();
-            var hasMode = EnumDisplaySettings(gdi, -1, ref mode);
-            var width = hasMode ? (int)mode.dmPelsWidth : 0;
-            var height = hasMode ? (int)mode.dmPelsHeight : 0;
-            var refreshRate = hasMode && mode.dmDisplayFrequency > 1 ? (int)mode.dmDisplayFrequency : 0;
-            result.Add(new ConnectedDisplay(gdi, friendly, handle, id, primary, string.Empty, width, height, refreshRate) { Monitor = monitor });
-        }
-        return result.OrderByDescending(x => x.Primary).ToArray();
+        var nvName = gdiName.StartsWith(@"\\.\", StringComparison.Ordinal) ? @"\\" + gdiName[4..] : gdiName;
+        if (getHandle(nvName, out var handle) != 0 && getHandle(gdiName, out handle) != 0) return null;
+        if (getId(nvName, out var id) != 0 && getId(gdiName, out id) != 0) return null;
+        return new NvidiaHandle(handle, id);
     }
 
     public unsafe int? GetVibrance(ConnectedDisplay display)
     {
+        if (display.Nvidia is not { } nvidia) return null;
         var d = default(DvcInfoEx);
         d.version = (uint)(sizeof(DvcInfoEx) | (1 << 16));
-        if (getDvc(display.Handle, 0, &d) != 0) return null;
+        if (getDvc(nvidia.Handle, 0, &d) != 0) return null;
         if (d.currentLevel >= d.defaultLevel)
         {
             var span = d.maxLevel - d.defaultLevel;
@@ -155,36 +140,40 @@ internal sealed class NvApi : IDisplayColorBackend
 
     public unsafe bool SetVibrance(ConnectedDisplay display, int percent)
     {
+        if (display.Nvidia is not { } nvidia) return false;
         var d = default(DvcInfoEx);
         d.version = (uint)(sizeof(DvcInfoEx) | (1 << 16));
-        if (getDvc(display.Handle, 0, &d) != 0) return false;
+        if (getDvc(nvidia.Handle, 0, &d) != 0) return false;
         percent = Math.Clamp(percent, 0, 100);
         d.currentLevel = percent >= 50
             ? (int)Math.Round(d.defaultLevel + ((percent - 50) / 50.0) * (d.maxLevel - d.defaultLevel))
             : (int)Math.Round(d.defaultLevel - ((50 - percent) / 50.0) * (d.defaultLevel - d.minLevel));
         d.currentLevel = Math.Clamp(d.currentLevel, d.minLevel, d.maxLevel);
-        return setDvc(display.Handle, 0, &d) == 0;
+        return setDvc(nvidia.Handle, 0, &d) == 0;
     }
 
     public unsafe uint? GetNvTweakDeviceId(ConnectedDisplay display)
     {
-        if (getLuidFromDisplayId is null) return null;
+        if (getLuidFromDisplayId is null || display.Nvidia is not { } nvidia) return null;
         // NvAPI_SYS_GetLUIDFromDisplayID writes a 16-byte LUID; its second 32-bit word names the display's key.
         uint* luid = stackalloc uint[4];
-        return getLuidFromDisplayId(display.DisplayId, 1, luid) == 0 ? NvTweakColorCore.DeviceIdFromLuid(luid[1]) : null;
+        return getLuidFromDisplayId(nvidia.DisplayId, 1, luid) == 0 ? NvTweakColorCore.DeviceIdFromLuid(luid[1]) : null;
     }
 
     public unsafe int? GetHue(ConnectedDisplay display)
     {
+        if (display.Nvidia is not { } nvidia) return null;
         var h = default(HueInfo);
         h.version = (uint)(sizeof(HueInfo) | (1 << 16));
-        return getHue(display.Handle, 0, &h) == 0 ? (int)(h.currentAngle % 360) : null;
+        return getHue(nvidia.Handle, 0, &h) == 0 ? (int)(h.currentAngle % 360) : null;
     }
 
-    public bool SetHue(ConnectedDisplay display, int angle) => setHue(display.Handle, 0, (uint)(((angle % 360) + 360) % 360)) == 0;
+    public bool SetHue(ConnectedDisplay display, int angle) =>
+        display.Nvidia is { } nvidia && setHue(nvidia.Handle, 0, (uint)(((angle % 360) + 360) % 360)) == 0;
 
     public unsafe bool SetGamma(ConnectedDisplay display, double brightness, double contrast, double gamma)
     {
+        if (display.Nvidia is not { } nvidia) return false;
         var data = default(GammaCorrectionEx);
         data.version = (uint)(sizeof(GammaCorrectionEx) | (1 << 16));
         data.unknown = 1;
@@ -207,7 +196,7 @@ internal sealed class NvApi : IDisplayColorBackend
             data.gammaRamp[i * 3 + 1] = f;
             data.gammaRamp[i * 3 + 2] = f;
         }
-        return setGamma(display.DisplayId, &data) == 0;
+        return setGamma(nvidia.DisplayId, &data) == 0;
     }
 
     public bool Apply(ConnectedDisplay display, int vibrance, double brightness, double contrast, double gamma, int hue) =>
@@ -220,91 +209,13 @@ internal sealed class NvApi : IDisplayColorBackend
         try { unload(); } catch { }
         NativeLibrary.Free(module);
     }
-
-    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
-    private static extern bool EnumDisplayDevices(string? lpDevice, uint iDevNum, ref DisplayDevice lpDisplayDevice, uint dwFlags);
-
-    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
-    private static extern bool EnumDisplaySettings(string lpszDeviceName, int iModeNum, ref DisplayMode lpDevMode);
-
-    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
-    private struct DisplayMode
-    {
-        private const int CchDeviceName = 32;
-        private const int CchFormName = 32;
-
-        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = CchDeviceName)] public string dmDeviceName;
-        public ushort dmSpecVersion, dmDriverVersion, dmSize, dmDriverExtra;
-        public uint dmFields;
-        public int dmPositionX, dmPositionY;
-        public uint dmDisplayOrientation, dmDisplayFixedOutput;
-        public short dmColor, dmDuplex, dmYResolution, dmTTOption, dmCollate;
-        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = CchFormName)] public string dmFormName;
-        public ushort dmLogPixels;
-        public uint dmBitsPerPel, dmPelsWidth, dmPelsHeight, dmDisplayFlags, dmDisplayFrequency;
-        public uint dmICMMethod, dmICMIntent, dmMediaType, dmDitherType, dmReserved1, dmReserved2, dmPanningWidth, dmPanningHeight;
-
-        public static DisplayMode Create() => new()
-        {
-            dmDeviceName = string.Empty,
-            dmFormName = string.Empty,
-            dmSize = (ushort)Marshal.SizeOf<DisplayMode>()
-        };
-    }
-
-    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
-    private struct DisplayDevice
-    {
-        public int cb;
-        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)] public string DeviceName;
-        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)] public string DeviceString;
-        public uint StateFlags;
-        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)] public string DeviceID;
-        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)] public string DeviceKey;
-        public static DisplayDevice Create() => new() { cb = Marshal.SizeOf<DisplayDevice>(), DeviceName = "", DeviceString = "", DeviceID = "", DeviceKey = "" };
-    }
 }
 
-internal sealed record ConnectedDisplay(
-    string GdiName,
-    string Name,
-    nint Handle,
-    uint DisplayId,
-    bool Primary,
-    string MonitorId,
-    int Width = 0,
-    int Height = 0,
-    int RefreshRate = 0)
+/// <summary>NvAPI_Initialize failed; <see cref="Status"/> is the NVAPI status it returned.</summary>
+internal sealed class NvApiInitializationException(int status) : InvalidOperationException($"NvAPI_Initialize failed: {status}")
 {
-    /// <summary>What Windows reports about the monitor; null when it could not be read.</summary>
-    public MonitorDescriptor? Monitor { get; init; }
+    /// <summary>NVAPI_NVIDIA_DEVICE_NOT_FOUND: the library is installed but no NVIDIA GPU is active.</summary>
+    public const int NvidiaDeviceNotFound = -6;
 
-    /// <summary>
-    /// The physical identity of a monitor that shares it with another one, which therefore has
-    /// its connection identity as <see cref="MonitorId"/>; null otherwise.
-    /// </summary>
-    public string? PhysicalMonitorId { get; init; }
-
-    public string Label => $"{Name}{(Primary ? " (Primary)" : "")}";
-
-    public string SelectorLabel
-    {
-        get
-        {
-            var label = Label;
-            if (Width > 0 && Height > 0)
-                label += $" · {Width}×{Height}";
-            if (RefreshRate > 0)
-                label += $" · {RefreshRate} Hz";
-            return label;
-        }
-    }
-
-    public override string ToString() => Label;
+    public int Status { get; } = status;
 }
-
-/// <summary>
-/// The monitor of a display as Windows reports it: its hardware id (model), its device instance
-/// (the connection) and its EDID serial number, or null when the EDID has none.
-/// </summary>
-internal sealed record MonitorDescriptor(string Hardware, string Instance, string? Serial);

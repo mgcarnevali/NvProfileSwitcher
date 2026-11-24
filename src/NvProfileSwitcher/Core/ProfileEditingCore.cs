@@ -27,7 +27,8 @@ public static class ProfileEditingCore
         Gamma = source.Gamma,
         DigitalVibrance = source.DigitalVibrance,
         Hue = source.Hue,
-        Resolution = source.Resolution
+        Resolution = source.Resolution,
+        ColorsPending = source.ColorsPending
     };
 
     /// <summary>
@@ -63,9 +64,11 @@ public static class ProfileEditingCore
         {
             var sourceValues = source.DisplayProfiles.FirstOrDefault(values =>
                 DisplayCore.SameMonitorId(values.MonitorId, destinationValues.MonitorId));
-            if (sourceValues is null)
+            // Pending colors were never set: there is nothing to copy.
+            if (sourceValues is null || sourceValues.ColorsPending)
                 continue;
 
+            destinationValues.ColorsPending = false;
             destinationValues.Brightness = sourceValues.Brightness;
             destinationValues.Contrast = sourceValues.Contrast;
             destinationValues.Gamma = sourceValues.Gamma;
@@ -117,7 +120,8 @@ public static class ProfileEditingCore
                 x.Gamma != y.Gamma ||
                 x.DigitalVibrance != y.DigitalVibrance ||
                 x.Hue != y.Hue ||
-                x.Resolution != y.Resolution)
+                x.Resolution != y.Resolution ||
+                x.ColorsPending != y.ColorsPending)
                 return false;
         }
 

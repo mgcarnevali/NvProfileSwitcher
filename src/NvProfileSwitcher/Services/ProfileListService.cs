@@ -20,7 +20,7 @@ internal sealed class ProfileListService(
     HotkeyService hotkeys,
     ConfigurationService configuration,
     ActiveProfileService activeProfile,
-    NvidiaService nvidia,
+    DisplayService displays,
     DisplayColorController colors,
     IDialogService dialogs)
 {
@@ -34,7 +34,7 @@ internal sealed class ProfileListService(
             return;
 
         preview.Suspend();
-        editor.AddUnsaved(ProfileDefaultsCore.NewProfile(store.Windows, nvidia.Displays));
+        editor.AddUnsaved(ProfileDefaultsCore.NewProfile(store.Windows, displays.Displays));
     }
 
     /// <summary>Removes the selected application profile once confirmed and selects the profile at its place.</summary>

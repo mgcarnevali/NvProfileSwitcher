@@ -9,6 +9,7 @@ namespace NvProfileSwitcher.Services;
 /// </summary>
 internal sealed class DisplayProfileSyncService(
     ProfileStore profiles,
+    DisplayService displays,
     NvidiaService nvidia,
     DisplayColorController colors,
     ConfigurationService configuration,
@@ -22,7 +23,7 @@ internal sealed class DisplayProfileSyncService(
     {
         var marked = profiles.MarkNonUnique(newlySharedIds ?? []);
         var result = DisplayProfileSyncCore.Synchronize(
-            profiles.Profiles, nvidia.Displays, profiles.NonUniqueMonitorIds, nvidia.UnidentifiedCount, ReadVibrance, ReadHue,
+            profiles.Profiles, displays.Displays, profiles.NonUniqueMonitorIds, displays.UnidentifiedCount, ReadVibrance, ReadHue,
             ReadControlPanelColors);
         if (marked || result.Changed)
             configuration.Save();
@@ -32,13 +33,13 @@ internal sealed class DisplayProfileSyncService(
     // A display shows colors of its own only until this application writes it; after that it
     // shows a profile or a preview, which must not become the Windows values of a monitor
     // (deliberate deviation: the original read it anyway), so the NVIDIA defaults are used.
-    private int? ReadVibrance(Nvidia.ConnectedDisplay display) => colors.HasWritten(display.MonitorId) ? null : nvidia.GetVibrance(display);
+    private int? ReadVibrance(ConnectedDisplay display) => colors.HasWritten(display.MonitorId) ? null : nvidia.GetVibrance(display);
 
-    private int? ReadHue(Nvidia.ConnectedDisplay display) => colors.HasWritten(display.MonitorId) ? null : nvidia.GetHue(display);
+    private int? ReadHue(ConnectedDisplay display) => colors.HasWritten(display.MonitorId) ? null : nvidia.GetHue(display);
 
     // Read only for a display new to the Windows profile, as vibrance and hue: the NVIDIA Control
     // Panel settings start its values once; after that this application owns them.
-    private ControlPanelColors? ReadControlPanelColors(Nvidia.ConnectedDisplay display) =>
+    private ControlPanelColors? ReadControlPanelColors(ConnectedDisplay display) =>
         readNvTweakColors is null || colors.HasWritten(display.MonitorId) || nvidia.GetNvTweakDeviceId(display) is not { } deviceId
             ? null
             : NvTweakColorCore.Parse(readNvTweakColors(deviceId));

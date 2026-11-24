@@ -62,13 +62,19 @@ internal sealed class ProfileEditingService(
     /// <summary>The user moved a slider: the draft takes the values and the preview shows them.</summary>
     public void SetValues(ColorValues values)
     {
+        if (!CanAdjustColors) return;
         editor.SetCurrentValues(values);
         preview.Preview();
     }
 
+    // The color actions need a display whose colors can be adjusted: without one, nothing is
+    // edited, previewed or copied, and the saved values stay as they are.
+    private bool CanAdjustColors => editor.SelectedDisplay?.CanAdjustColors == true;
+
     /// <summary>Shows the NVIDIA defaults for the visible display and previews them; nothing is saved.</summary>
     public void Reset()
     {
+        if (!CanAdjustColors) return;
         editor.ResetValues();
         preview.Preview();
     }
@@ -76,7 +82,7 @@ internal sealed class ProfileEditingService(
     /// <summary>Copies the color settings of a chosen profile into the draft and previews them; nothing is saved.</summary>
     public async Task CopySettingsAsync()
     {
-        if (editor.Session is not { } session)
+        if (editor.Session is not { } session || !CanAdjustColors)
             return;
 
         editor.CompleteDraft();
