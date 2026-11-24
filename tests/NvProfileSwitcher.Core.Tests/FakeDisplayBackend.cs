@@ -17,7 +17,7 @@ internal sealed class FakeDisplayBackend : IDisplayColorBackend
     public int Number { get; }
     public int DisposeCount { get; private set; }
     public string DriverVersion { get; set; } = "581.57";
-    public List<NvidiaDisplay> Displays { get; } = [];
+    public List<ConnectedDisplay> Displays { get; } = [];
     public Dictionary<string, int?> Vibrance { get; } = [];
     public Dictionary<string, int?> Hue { get; } = [];
 
@@ -37,21 +37,21 @@ internal sealed class FakeDisplayBackend : IDisplayColorBackend
     public HashSet<string> RejectedMonitors { get; } = [];
 
     /// <summary>An exception thrown when applying to a display, as a failing native call would.</summary>
-    public Func<NvidiaDisplay, Exception?>? ApplyFailure { get; set; }
+    public Func<ConnectedDisplay, Exception?>? ApplyFailure { get; set; }
 
-    public IReadOnlyList<NvidiaDisplay> EnumerateDisplays()
+    public IReadOnlyList<ConnectedDisplay> EnumerateDisplays()
     {
         EnumerationCount++;
         return EnumerationFailure is null ? Displays.ToArray() : throw EnumerationFailure;
     }
 
-    public int? GetVibrance(NvidiaDisplay display) => Vibrance.GetValueOrDefault(display.MonitorId);
+    public int? GetVibrance(ConnectedDisplay display) => Vibrance.GetValueOrDefault(display.MonitorId);
 
-    public int? GetHue(NvidiaDisplay display) => Hue.GetValueOrDefault(display.MonitorId);
+    public int? GetHue(ConnectedDisplay display) => Hue.GetValueOrDefault(display.MonitorId);
 
-    public uint? GetNvTweakDeviceId(NvidiaDisplay display) => NvTweakDeviceIds.GetValueOrDefault(display.MonitorId);
+    public uint? GetNvTweakDeviceId(ConnectedDisplay display) => NvTweakDeviceIds.GetValueOrDefault(display.MonitorId);
 
-    public bool Apply(NvidiaDisplay display, int vibrance, double brightness, double contrast, double gamma, int hue)
+    public bool Apply(ConnectedDisplay display, int vibrance, double brightness, double contrast, double gamma, int hue)
     {
         if (ApplyFailure?.Invoke(display) is { } failure)
             throw failure;
@@ -70,7 +70,7 @@ internal sealed class FakeDisplayBackend : IDisplayColorBackend
     /// for a monitor with a serial number, "{hardware}" for one without (identified by its
     /// connection, the display number), or blank for a monitor whose identity cannot be read.
     /// </summary>
-    internal static NvidiaDisplay Display(string monitorId, string name, int number = 1) =>
+    internal static ConnectedDisplay Display(string monitorId, string name, int number = 1) =>
         new($@"\\.\DISPLAY{number}", name, Handle: number, DisplayId: (uint)number, Primary: number == 1, monitorId)
         {
             Monitor = Monitor(monitorId, number)

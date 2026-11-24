@@ -14,7 +14,7 @@ public sealed class DisplayProfileSyncCoreTests
 
     private static bool Synchronize(
         List<ProfileListItem> profiles,
-        IReadOnlyList<NvidiaDisplay> displays,
+        IReadOnlyList<ConnectedDisplay> displays,
         int? vibrance = 70,
         int? hue = 15) =>
         DisplayProfileSyncCore.Synchronize(profiles, displays, NoSharedIds, 0, _ => vibrance, _ => hue).Changed;
@@ -89,7 +89,7 @@ public sealed class DisplayProfileSyncCoreTests
     public void UnchangedProfilesReportNoChange()
     {
         var profiles = Profiles(new ProfileListItem("Game"));
-        IReadOnlyList<NvidiaDisplay> displays = [Display(Dell, "DELL U2720Q"), Display(Lg, "LG ULTRAGEAR", 2)];
+        IReadOnlyList<ConnectedDisplay> displays = [Display(Dell, "DELL U2720Q"), Display(Lg, "LG ULTRAGEAR", 2)];
         Synchronize(profiles, displays);
 
         Assert.False(Synchronize(profiles, displays));
@@ -140,14 +140,14 @@ public sealed class DisplayProfileSyncCoreTests
     private const string Model = "GSM5B7F";
     private static string At(int number) => $"{Model}@{Instance(number)}";
 
-    private static NvidiaDisplay WithoutSerial(int number) =>
+    private static ConnectedDisplay WithoutSerial(int number) =>
         Display("", $"LG {number}", number) with { MonitorId = At(number), Monitor = new MonitorDescriptor(Model, Instance(number), null) };
 
     private static ProfileDisplaySettings Values(string monitorId, int vibrance) =>
         new() { DisplayName = monitorId, MonitorId = monitorId, DigitalVibrance = vibrance };
 
     private static DisplaySyncResult Sync(
-        List<ProfileListItem> profiles, IReadOnlyList<NvidiaDisplay> displays, IReadOnlySet<string>? shared = null, int unidentified = 0) =>
+        List<ProfileListItem> profiles, IReadOnlyList<ConnectedDisplay> displays, IReadOnlySet<string>? shared = null, int unidentified = 0) =>
         DisplayProfileSyncCore.Synchronize(
             profiles, displays, shared ?? new HashSet<string>(StringComparer.OrdinalIgnoreCase), unidentified, _ => 70, _ => 15);
 
@@ -208,7 +208,7 @@ public sealed class DisplayProfileSyncCoreTests
     {
         var profiles = Profiles();
         profiles[0].DisplayProfiles.Add(Values(At(1), 55));
-        NvidiaDisplay[] displays = reversed ? [WithoutSerial(3), WithoutSerial(2)] : [WithoutSerial(2), WithoutSerial(3)];
+        ConnectedDisplay[] displays = reversed ? [WithoutSerial(3), WithoutSerial(2)] : [WithoutSerial(2), WithoutSerial(3)];
 
         var result = Sync(profiles, displays);
 
@@ -273,7 +273,7 @@ public sealed class DisplayProfileSyncCoreTests
         var profiles = Profiles(game);
         profiles[0].DisplayProfiles.Add(Values(physical, 52));
         var shared = new HashSet<string>([physical], StringComparer.OrdinalIgnoreCase);
-        NvidiaDisplay Twin(int number) => Display("", $"Samsung {number}", number) with
+        ConnectedDisplay Twin(int number) => Display("", $"Samsung {number}", number) with
         {
             MonitorId = $"SAM0F12@{Instance(number)}",
             PhysicalMonitorId = physical,
@@ -295,7 +295,7 @@ public sealed class DisplayProfileSyncCoreTests
     // The NVIDIA Control Panel settings start the brightness, contrast and gamma of a display
     // new to the Windows profile; vibrance and hue still come from the API.
     private static DisplaySyncResult SyncWithControlPanel(
-        List<ProfileListItem> profiles, IReadOnlyList<NvidiaDisplay> displays, Func<NvidiaDisplay, ControlPanelColors?> controlPanel) =>
+        List<ProfileListItem> profiles, IReadOnlyList<ConnectedDisplay> displays, Func<ConnectedDisplay, ControlPanelColors?> controlPanel) =>
         DisplayProfileSyncCore.Synchronize(profiles, displays, NoSharedIds, 0, _ => 60, _ => 0, controlPanel);
 
     private static (double, double, double, int, int) Colors(ProfileDisplaySettings values) =>

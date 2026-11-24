@@ -42,11 +42,11 @@ internal sealed class ProfileEditor(ProfileStore store) : INotifyPropertyChanged
     public ProfileEditorSession? Session { get; private set; }
 
     /// <summary>The displays of the editor's display selector, as of the last display refresh.</summary>
-    public IReadOnlyList<NvidiaDisplay> Displays { get; private set; } = [];
+    public IReadOnlyList<ConnectedDisplay> Displays { get; private set; } = [];
 
     public int SelectedDisplayIndex { get; private set; } = -1;
 
-    public NvidiaDisplay? SelectedDisplay =>
+    public ConnectedDisplay? SelectedDisplay =>
         SelectedDisplayIndex >= 0 && SelectedDisplayIndex < Displays.Count ? Displays[SelectedDisplayIndex] : null;
 
     /// <summary>The values of the five sliders.</summary>
@@ -160,7 +160,7 @@ internal sealed class ProfileEditor(ProfileStore store) : INotifyPropertyChanged
     }
 
     /// <summary>The user chose another display in the editor.</summary>
-    public void SelectDisplay(NvidiaDisplay? display)
+    public void SelectDisplay(ConnectedDisplay? display)
     {
         var index = display is null ? -1 : Displays.ToList().IndexOf(display);
         SelectDisplayIndex(index);
@@ -172,7 +172,7 @@ internal sealed class ProfileEditor(ProfileStore store) : INotifyPropertyChanged
     /// follow the monitor ids whose values the synchronization moved (<paramref name="remaps"/>),
     /// as the selection does.
     /// </summary>
-    public void RefreshDisplays(IReadOnlyList<NvidiaDisplay> displays, IReadOnlyList<DisplayRemap>? remaps = null)
+    public void RefreshDisplays(IReadOnlyList<ConnectedDisplay> displays, IReadOnlyList<DisplayRemap>? remaps = null)
     {
         var previousId = SelectedDisplay?.MonitorId;
         foreach (var remap in remaps ?? [])

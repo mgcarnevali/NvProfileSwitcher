@@ -9,7 +9,7 @@ internal static class ProfileDefaultsCore
     /// An enabled "New Profile" with values for every connected display: the Windows profile's
     /// values for that monitor, or the NVIDIA neutral values when it has none.
     /// </summary>
-    internal static ProfileListItem NewProfile(ProfileListItem? windows, IEnumerable<NvidiaDisplay> displays)
+    internal static ProfileListItem NewProfile(ProfileListItem? windows, IEnumerable<ConnectedDisplay> displays)
     {
         var profile = new ProfileListItem("New Profile") { Enabled = true };
         foreach (var display in displays)

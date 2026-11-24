@@ -107,9 +107,9 @@ internal sealed class NvApi : IDisplayColorBackend
         }
     }
 
-    public IReadOnlyList<NvidiaDisplay> EnumerateDisplays()
+    public IReadOnlyList<ConnectedDisplay> EnumerateDisplays()
     {
-        var result = new List<NvidiaDisplay>();
+        var result = new List<ConnectedDisplay>();
         for (uint i = 0; ; i++)
         {
             var dd = DisplayDevice.Create();
@@ -131,12 +131,12 @@ internal sealed class NvApi : IDisplayColorBackend
             var width = hasMode ? (int)mode.dmPelsWidth : 0;
             var height = hasMode ? (int)mode.dmPelsHeight : 0;
             var refreshRate = hasMode && mode.dmDisplayFrequency > 1 ? (int)mode.dmDisplayFrequency : 0;
-            result.Add(new NvidiaDisplay(gdi, friendly, handle, id, primary, string.Empty, width, height, refreshRate) { Monitor = monitor });
+            result.Add(new ConnectedDisplay(gdi, friendly, handle, id, primary, string.Empty, width, height, refreshRate) { Monitor = monitor });
         }
         return result.OrderByDescending(x => x.Primary).ToArray();
     }
 
-    public unsafe int? GetVibrance(NvidiaDisplay display)
+    public unsafe int? GetVibrance(ConnectedDisplay display)
     {
         var d = default(DvcInfoEx);
         d.version = (uint)(sizeof(DvcInfoEx) | (1 << 16));
@@ -153,7 +153,7 @@ internal sealed class NvApi : IDisplayColorBackend
         }
     }
 
-    public unsafe bool SetVibrance(NvidiaDisplay display, int percent)
+    public unsafe bool SetVibrance(ConnectedDisplay display, int percent)
     {
         var d = default(DvcInfoEx);
         d.version = (uint)(sizeof(DvcInfoEx) | (1 << 16));
@@ -166,7 +166,7 @@ internal sealed class NvApi : IDisplayColorBackend
         return setDvc(display.Handle, 0, &d) == 0;
     }
 
-    public unsafe uint? GetNvTweakDeviceId(NvidiaDisplay display)
+    public unsafe uint? GetNvTweakDeviceId(ConnectedDisplay display)
     {
         if (getLuidFromDisplayId is null) return null;
         // NvAPI_SYS_GetLUIDFromDisplayID writes a 16-byte LUID; its second 32-bit word names the display's key.
@@ -174,16 +174,16 @@ internal sealed class NvApi : IDisplayColorBackend
         return getLuidFromDisplayId(display.DisplayId, 1, luid) == 0 ? NvTweakColorCore.DeviceIdFromLuid(luid[1]) : null;
     }
 
-    public unsafe int? GetHue(NvidiaDisplay display)
+    public unsafe int? GetHue(ConnectedDisplay display)
     {
         var h = default(HueInfo);
         h.version = (uint)(sizeof(HueInfo) | (1 << 16));
         return getHue(display.Handle, 0, &h) == 0 ? (int)(h.currentAngle % 360) : null;
     }
 
-    public bool SetHue(NvidiaDisplay display, int angle) => setHue(display.Handle, 0, (uint)(((angle % 360) + 360) % 360)) == 0;
+    public bool SetHue(ConnectedDisplay display, int angle) => setHue(display.Handle, 0, (uint)(((angle % 360) + 360) % 360)) == 0;
 
-    public unsafe bool SetGamma(NvidiaDisplay display, double brightness, double contrast, double gamma)
+    public unsafe bool SetGamma(ConnectedDisplay display, double brightness, double contrast, double gamma)
     {
         var data = default(GammaCorrectionEx);
         data.version = (uint)(sizeof(GammaCorrectionEx) | (1 << 16));
@@ -210,7 +210,7 @@ internal sealed class NvApi : IDisplayColorBackend
         return setGamma(display.DisplayId, &data) == 0;
     }
 
-    public bool Apply(NvidiaDisplay display, int vibrance, double brightness, double contrast, double gamma, int hue) =>
+    public bool Apply(ConnectedDisplay display, int vibrance, double brightness, double contrast, double gamma, int hue) =>
         SetVibrance(display, vibrance) && SetHue(display, hue) && SetGamma(display, brightness, contrast, gamma);
 
     public void Dispose()
@@ -265,7 +265,7 @@ internal sealed class NvApi : IDisplayColorBackend
     }
 }
 
-internal sealed record NvidiaDisplay(
+internal sealed record ConnectedDisplay(
     string GdiName,
     string Name,
     nint Handle,

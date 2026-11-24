@@ -92,12 +92,12 @@
           <ComboBox Grid.Row="1" HorizontalAlignment="Stretch"
                     ItemsSource="{CompiledBinding Displays}" SelectedItem="{CompiledBinding SelectedDisplay}">
             <ComboBox.SelectionBoxItemTemplate>
-              <DataTemplate x:DataType="nvidia:NvidiaDisplay">
+              <DataTemplate x:DataType="nvidia:ConnectedDisplay">
                 <TextBlock Text="{CompiledBinding SelectorLabel}" VerticalAlignment="Center"/>
               </DataTemplate>
             </ComboBox.SelectionBoxItemTemplate>
             <ComboBox.ItemTemplate>
-              <DataTemplate x:DataType="nvidia:NvidiaDisplay">
+              <DataTemplate x:DataType="nvidia:ConnectedDisplay">
                 <StackPanel Orientation="Horizontal" Spacing="8">
                   <CheckBox IsChecked="{CompiledBinding IsSelected,
                                             RelativeSource={RelativeSource AncestorType=ComboBoxItem},

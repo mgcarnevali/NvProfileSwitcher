@@ -27,7 +27,7 @@ internal sealed partial class NvidiaService(
 
     public bool IsInitialized => backend is not null;
 
-    public IReadOnlyList<NvidiaDisplay> Displays { get; private set; } = [];
+    public IReadOnlyList<ConnectedDisplay> Displays { get; private set; } = [];
 
     /// <summary>
     /// Initializes the NVIDIA API. A new instance replaces the current one only after its own
@@ -87,14 +87,14 @@ internal sealed partial class NvidiaService(
         return identification.NewlySharedIds;
     }
 
-    public int? GetVibrance(NvidiaDisplay display) => backend?.GetVibrance(display);
+    public int? GetVibrance(ConnectedDisplay display) => backend?.GetVibrance(display);
 
-    public int? GetHue(NvidiaDisplay display) => backend?.GetHue(display);
+    public int? GetHue(ConnectedDisplay display) => backend?.GetHue(display);
 
-    public uint? GetNvTweakDeviceId(NvidiaDisplay display) => backend?.GetNvTweakDeviceId(display);
+    public uint? GetNvTweakDeviceId(ConnectedDisplay display) => backend?.GetNvTweakDeviceId(display);
 
     /// <summary>Applies color values to a display; false when the API rejects a setting or is not initialized.</summary>
-    public bool Apply(NvidiaDisplay display, int vibrance, double brightness, double contrast, double gamma, int hue) =>
+    public bool Apply(ConnectedDisplay display, int vibrance, double brightness, double contrast, double gamma, int hue) =>
         backend?.Apply(display, vibrance, brightness, contrast, gamma, hue) ?? false;
 
     public void Dispose()

@@ -10,7 +10,7 @@ internal static class SavedDisplaysCore
     /// order and named by their label, then the disconnected ones, in the order they were
     /// found. A saved name that is only the monitor id takes the first display name found.
     /// </summary>
-    internal static List<SavedDisplayInfo> Build(IEnumerable<ProfileListItem> profiles, IEnumerable<NvidiaDisplay> connectedDisplays)
+    internal static List<SavedDisplayInfo> Build(IEnumerable<ProfileListItem> profiles, IEnumerable<ConnectedDisplay> connectedDisplays)
     {
         var saved = new List<SavedDisplayInfo>();
         foreach (var profile in profiles)

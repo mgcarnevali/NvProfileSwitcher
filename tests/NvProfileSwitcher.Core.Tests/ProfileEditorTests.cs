@@ -44,7 +44,7 @@ public sealed class ProfileEditorTests
     public void WithoutAPrimaryDisplayTheFirstIsSelected()
     {
         using var app = new SwitchingFixture();
-        NvidiaDisplay[] displays = [Display(Lg, "LG ULTRAGEAR", 2), Display(Dell, "DELL U2720Q", 3)];
+        ConnectedDisplay[] displays = [Display(Lg, "LG ULTRAGEAR", 2), Display(Dell, "DELL U2720Q", 3)];
         app.Editor.RefreshDisplays(displays);
         app.Editor.Begin(app.Game, null);
 

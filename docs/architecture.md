@@ -229,7 +229,7 @@ src/NvProfileSwitcher/
   Models/       AppConfig  ProfileListItem (+ ProfileDisplaySettings)  ExecutableComboItem
                 ColorValues  AppSettings  SwitchingState  ActiveProfileDisplay  HotkeyField
                 SavedDisplayInfo
-  Nvidia/       NvApi (+ NvidiaDisplay, MonitorDescriptor)  IDisplayColorBackend  MonitorIdentity
+  Nvidia/       NvApi (+ ConnectedDisplay, MonitorDescriptor)  IDisplayColorBackend  MonitorIdentity
                 NvTweakColorRegistry
   Platform/     ForegroundWatcher  IForegroundMonitor  ForegroundProcess  ProfileIconLoader
                 SingleInstanceService  Win32HotkeyRegistrar  IHotkeyRegistrar

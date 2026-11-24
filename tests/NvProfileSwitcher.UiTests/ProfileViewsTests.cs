@@ -188,7 +188,7 @@ public sealed class ProfileViewsTests
         Assert.Equal("Game", NameBox(window).Text);
         var combos = editor.GetVisualDescendants().OfType<ComboBox>().ToList();
         Assert.Equal("game.exe", ((ExecutableComboItem)combos[0].SelectedItem!).Text);
-        Assert.Equal(Dell, ((Nvidia.NvidiaDisplay)combos[1].SelectedItem!).MonitorId);
+        Assert.Equal(Dell, ((Nvidia.ConnectedDisplay)combos[1].SelectedItem!).MonitorId);
         Assert.Same(app.Profiles.Profiles[1], app.Editor.Session!.Source);
         window.Close();
     }

@@ -32,7 +32,7 @@ internal sealed partial class ProfileSettingsViewModel : ObservableObject
     private readonly HotkeyCaptureController capture;
     private readonly IDialogService dialogs;
     // Reads the resolutions a display offers; it changes nothing.
-    private readonly Func<NvidiaDisplay, IReadOnlyList<DisplayModeInfo>> offeredModes;
+    private readonly Func<ConnectedDisplay, IReadOnlyList<DisplayModeInfo>> offeredModes;
 
     // True while the controls are loaded from the editor state: what the controls write back
     // meanwhile (a selection cleared by new items) is not a user change.
@@ -52,7 +52,7 @@ internal sealed partial class ProfileSettingsViewModel : ObservableObject
         HotkeyService hotkeys,
         HotkeyCaptureController capture,
         IDialogService dialogs,
-        Func<NvidiaDisplay, IReadOnlyList<DisplayModeInfo>> offeredModes)
+        Func<ConnectedDisplay, IReadOnlyList<DisplayModeInfo>> offeredModes)
     {
         this.editor = editor;
         this.editing = editing;
@@ -124,9 +124,9 @@ internal sealed partial class ProfileSettingsViewModel : ObservableObject
 
     public HotkeyFieldViewModel ProfileHotkey { get; }
 
-    public IReadOnlyList<NvidiaDisplay> Displays => editor.Displays;
+    public IReadOnlyList<ConnectedDisplay> Displays => editor.Displays;
 
-    public NvidiaDisplay? SelectedDisplay
+    public ConnectedDisplay? SelectedDisplay
     {
         get => editor.SelectedDisplay;
         set

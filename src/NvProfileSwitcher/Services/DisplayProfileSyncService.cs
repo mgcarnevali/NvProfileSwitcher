@@ -32,13 +32,13 @@ internal sealed class DisplayProfileSyncService(
     // A display shows colors of its own only until this application writes it; after that it
     // shows a profile or a preview, which must not become the Windows values of a monitor
     // (deliberate deviation: the original read it anyway), so the NVIDIA defaults are used.
-    private int? ReadVibrance(Nvidia.NvidiaDisplay display) => colors.HasWritten(display.MonitorId) ? null : nvidia.GetVibrance(display);
+    private int? ReadVibrance(Nvidia.ConnectedDisplay display) => colors.HasWritten(display.MonitorId) ? null : nvidia.GetVibrance(display);
 
-    private int? ReadHue(Nvidia.NvidiaDisplay display) => colors.HasWritten(display.MonitorId) ? null : nvidia.GetHue(display);
+    private int? ReadHue(Nvidia.ConnectedDisplay display) => colors.HasWritten(display.MonitorId) ? null : nvidia.GetHue(display);
 
     // Read only for a display new to the Windows profile, as vibrance and hue: the NVIDIA Control
     // Panel settings start its values once; after that this application owns them.
-    private ControlPanelColors? ReadControlPanelColors(Nvidia.NvidiaDisplay display) =>
+    private ControlPanelColors? ReadControlPanelColors(Nvidia.ConnectedDisplay display) =>
         readNvTweakColors is null || colors.HasWritten(display.MonitorId) || nvidia.GetNvTweakDeviceId(display) is not { } deviceId
             ? null
             : NvTweakColorCore.Parse(readNvTweakColors(deviceId));

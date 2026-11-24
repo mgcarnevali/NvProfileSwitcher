@@ -21,12 +21,12 @@ internal static class DisplayProfileSyncCore
     /// </summary>
     internal static DisplaySyncResult Synchronize(
         IReadOnlyList<ProfileListItem> profiles,
-        IReadOnlyList<NvidiaDisplay> displays,
+        IReadOnlyList<ConnectedDisplay> displays,
         IReadOnlySet<string> nonUniqueIds,
         int unidentifiedCount,
-        Func<NvidiaDisplay, int?> readVibrance,
-        Func<NvidiaDisplay, int?> readHue,
-        Func<NvidiaDisplay, ControlPanelColors?>? readControlPanelColors = null)
+        Func<ConnectedDisplay, int?> readVibrance,
+        Func<ConnectedDisplay, int?> readHue,
+        Func<ConnectedDisplay, ControlPanelColors?>? readControlPanelColors = null)
     {
         var windows = profiles.FirstOrDefault(p => p.IsWindowsProfile);
         if (windows is null) return new DisplaySyncResult(false, []);
@@ -94,7 +94,7 @@ internal static class DisplayProfileSyncCore
     /// saved one. The caller adopts nothing while any display has no identity, as it could be
     /// one of them.
     /// </summary>
-    internal static IReadOnlyList<DisplayRemap> Adopt(IReadOnlyList<ProfileListItem> profiles, IReadOnlyList<NvidiaDisplay> displays)
+    internal static IReadOnlyList<DisplayRemap> Adopt(IReadOnlyList<ProfileListItem> profiles, IReadOnlyList<ConnectedDisplay> displays)
     {
         var connected = displays.Select(d => d.MonitorId).ToHashSet(StringComparer.OrdinalIgnoreCase);
         var saved = profiles.SelectMany(p => p.DisplayProfiles).Select(v => v.MonitorId)
@@ -120,7 +120,7 @@ internal static class DisplayProfileSyncCore
     // The saved values of a physical identity found shared go to the connection identity of
     // every connected monitor that shared it, unless a profile already has values for it.
     private static IReadOnlyList<DisplayRemap> CarryOverSharedIds(
-        IReadOnlyList<ProfileListItem> profiles, IReadOnlyList<NvidiaDisplay> displays, IReadOnlySet<string> nonUniqueIds)
+        IReadOnlyList<ProfileListItem> profiles, IReadOnlyList<ConnectedDisplay> displays, IReadOnlySet<string> nonUniqueIds)
     {
         var saved = profiles.SelectMany(p => p.DisplayProfiles).Select(v => v.MonitorId).ToHashSet(StringComparer.OrdinalIgnoreCase);
         return displays
@@ -134,7 +134,7 @@ internal static class DisplayProfileSyncCore
     /// Moves the values of <see cref="DisplayRemap.From"/> to every monitor id of
     /// <see cref="DisplayRemap.To"/> that the profile has no values for, and removes them.
     /// </summary>
-    internal static void Remap(IEnumerable<ProfileListItem> profiles, DisplayRemap remap, IReadOnlyList<NvidiaDisplay> displays)
+    internal static void Remap(IEnumerable<ProfileListItem> profiles, DisplayRemap remap, IReadOnlyList<ConnectedDisplay> displays)
     {
         foreach (var profile in profiles)
         {

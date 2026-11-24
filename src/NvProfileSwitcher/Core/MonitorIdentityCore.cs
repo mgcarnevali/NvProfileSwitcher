@@ -74,11 +74,11 @@ internal static class MonitorIdentityCore
     /// Gives every enumerated display its monitor id and leaves out the displays without an
     /// identity. A physical identity that two connected monitors share, or that was found
     /// shared before (<paramref name="nonUniqueIds"/>), is not an identity: those monitors take
-    /// their connection identity, and keep the physical one as <see cref="NvidiaDisplay.PhysicalMonitorId"/>
+    /// their connection identity, and keep the physical one as <see cref="ConnectedDisplay.PhysicalMonitorId"/>
     /// so its saved values can be carried over. Returns the physical identities found shared for
     /// the first time in this enumeration.
     /// </summary>
-    internal static MonitorIdentification Identify(IReadOnlyList<NvidiaDisplay> enumerated, IReadOnlySet<string> nonUniqueIds)
+    internal static MonitorIdentification Identify(IReadOnlyList<ConnectedDisplay> enumerated, IReadOnlySet<string> nonUniqueIds)
     {
         var physicalCounts = enumerated
             .Where(display => display.Monitor?.Serial is not null)
@@ -89,7 +89,7 @@ internal static class MonitorIdentityCore
             .Select(entry => entry.Key)
             .ToList();
 
-        var identified = new List<NvidiaDisplay>();
+        var identified = new List<ConnectedDisplay>();
         var unidentified = 0;
         foreach (var display in enumerated)
         {
@@ -117,6 +117,6 @@ internal static class MonitorIdentityCore
 
 /// <summary>The identified displays of an enumeration, how many had no identity, and the physical identities found shared.</summary>
 internal sealed record MonitorIdentification(
-    IReadOnlyList<NvidiaDisplay> Displays,
+    IReadOnlyList<ConnectedDisplay> Displays,
     int UnidentifiedCount,
     IReadOnlyList<string> NewlySharedIds);

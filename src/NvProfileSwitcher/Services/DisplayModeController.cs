@@ -132,7 +132,7 @@ internal sealed class DisplayModeController(
     /// The resolutions offered for <paramref name="display"/>, each with the mode it would be applied
     /// with from the monitor's desktop mode. Read only when the user opens the list.
     /// </summary>
-    public IReadOnlyList<DisplayModeInfo> OfferedModes(NvidiaDisplay display)
+    public IReadOnlyList<DisplayModeInfo> OfferedModes(ConnectedDisplay display)
     {
         if (string.IsNullOrWhiteSpace(display.GdiName))
             return [];
@@ -214,7 +214,7 @@ internal sealed class DisplayModeController(
     }
 
     // True when the mode changed.
-    private bool ApplyResolution(NvidiaDisplay display, DisplayResolution resolution)
+    private bool ApplyResolution(ConnectedDisplay display, DisplayResolution resolution)
     {
         owned.TryGetValue(display.MonitorId, out var previous);
         var current = backend.GetCurrent(display.GdiName);
@@ -252,7 +252,7 @@ internal sealed class DisplayModeController(
     }
 
     // True when the mode changed. The entry stays until the monitor shows its desktop mode again.
-    private bool Restore(NvidiaDisplay display, Owned monitor)
+    private bool Restore(ConnectedDisplay display, Owned monitor)
     {
         var current = backend.GetCurrent(display.GdiName);
         if (current is not { } now)

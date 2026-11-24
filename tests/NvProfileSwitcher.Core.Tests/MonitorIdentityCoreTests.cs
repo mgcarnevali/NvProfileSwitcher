@@ -23,7 +23,7 @@ public sealed class MonitorIdentityCoreTests
         return edid;
     }
 
-    private static NvidiaDisplay Connected(int number, string hardware, string? serial) =>
+    private static ConnectedDisplay Connected(int number, string hardware, string? serial) =>
         Display("", $"Monitor {number}", number) with { Monitor = new MonitorDescriptor(hardware, Instance(number), serial) };
 
     [Fact]

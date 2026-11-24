@@ -47,7 +47,7 @@ public sealed class DisplayModeControllerTests
         app.Nvidia.RefreshDisplays();
     }
 
-    private static void Connect(SwitchingFixture app, NvidiaDisplay display)
+    private static void Connect(SwitchingFixture app, ConnectedDisplay display)
     {
         app.Backend.Displays.Add(display);
         app.Nvidia.RefreshDisplays();
