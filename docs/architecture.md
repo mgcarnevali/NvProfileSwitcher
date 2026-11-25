@@ -1366,7 +1366,11 @@ desktop mode again, resolution and rate.
   the desktop mode and the supported modes). The rates offered are those of the resolution chosen,
   or the desktop one; "Desktop rate" and "Highest available" show the rate they would apply, and a
   saved rate the resolution does not offer stays chosen, marked "not supported", until the user
-  changes it. Neither is shown for the Windows profile. They share the Display row; when the
+  changes it. The fixed rates follow a "Fixed refresh rate" separator and caption, drawn in the
+  first fixed rate's item rather than as an item of their own: in Avalonia 12.1.2 the arrow keys
+  of a closed ComboBox stop on disabled items, so a header item would be landed on. The selected
+  display is trimmed with an ellipsis; the list and its tooltip keep the full label. Neither mode
+  selector is shown for the Windows profile. They share the Display row; when the
   editor is narrow (the two-column layouts), a container query in `ProfileSettingsView` moves them
   below the display selector, which then takes the whole width.
 - **Ownership.** For each monitor the controller keeps the desktop mode, the mode requested and the

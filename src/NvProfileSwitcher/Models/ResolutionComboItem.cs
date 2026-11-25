@@ -19,11 +19,19 @@ internal sealed class ResolutionComboItem
 /// <summary>
 /// An item of the Refresh rate selector: the desktop rate (the default), the highest rate, or an
 /// explicit one. Once the display's modes are read, the first two show the rate they would apply.
+/// The first explicit rate shows the "Fixed refresh rate" separator and caption above it, so the
+/// list holds only rates: nothing in it is a header the keyboard or a selection could land on.
 /// </summary>
 internal sealed class RefreshRateComboItem
 {
     public string Text { get; init; } = string.Empty;
     public RefreshRateSetting? Rate { get; init; }
+
+    /// <summary>Whether the fixed rates start with this one: the list shows their caption above it.</summary>
+    public bool StartsFixedRates { get; init; }
+
+    /// <summary>This item, as the first of the fixed rates.</summary>
+    public RefreshRateComboItem AsFirstFixed() => new() { Text = Text, Rate = Rate, StartsFixedRates = true };
 
     public static RefreshRateComboItem Desktop(int? hertz) =>
         new() { Text = hertz is { } value ? $"Desktop rate · {value} Hz" : "Desktop rate" };

@@ -1,7 +1,9 @@
 using System.Text.Json.Nodes;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
+using Avalonia.Input;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using NvProfileSwitcher.Core;
@@ -158,6 +160,133 @@ public sealed class RefreshRateSelectorTests
         await app.ProfileSettings.CancelCommand.ExecuteAsync(null);
 
         Assert.Equal("Highest available", app.ProfileSettings.SelectedRefreshRateItem!.Text);
+        window.Close();
+    }
+
+    // ---- The "Fixed refresh rate" caption ----
+
+    private static ComboBox RateCombo(MainWindow window) => Editor<ComboBox>(window, "refreshRateCombo");
+
+    private static ComboBoxItem Container(MainWindow window, int index) =>
+        Assert.IsType<ComboBoxItem>(RateCombo(window).ContainerFromIndex(index));
+
+    // Chooses a rate in the selector itself, as the user does.
+    private static void ChooseInSelector(TestComposition app, MainWindow window, string text)
+    {
+        RateCombo(window).SelectedItem = app.ProfileSettings.RefreshRateItems.Single(item => item.Text == text);
+        Dispatcher.UIThread.RunJobs();
+    }
+
+    private static TextBlock? Caption(Control container) =>
+        container.GetVisualDescendants().OfType<TextBlock>().SingleOrDefault(t => t.Classes.Contains("refreshRateHeader") && t.IsEffectivelyVisible);
+
+    // The caption is drawn above the first fixed rate only, and only when there are fixed rates;
+    // every item in the list is a rate, enabled, with nothing between them to land on.
+    [AvaloniaFact]
+    public void TheCaptionIsShownAboveTheFirstFixedRateOnly()
+    {
+        var (app, window) = Show();
+        using var _ = app;
+        SelectRow(window, 1);
+        Assert.DoesNotContain(app.ProfileSettings.RefreshRateItems, item => item.StartsFixedRates);
+
+        RateCombo(window).IsDropDownOpen = true;
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal([false, false, true], app.ProfileSettings.RefreshRateItems.Select(item => item.StartsFixedRates));
+        Assert.Null(Caption(Container(window, 0)));
+        Assert.Null(Caption(Container(window, 1)));
+        Assert.Equal("Fixed refresh rate", Caption(Container(window, 2))!.Text);
+        Assert.All(Enumerable.Range(0, app.ProfileSettings.RefreshRateItems.Count), i => Assert.True(Container(window, i).IsEnabled));
+        window.Close();
+    }
+
+    // Chosen, the first fixed rate shows its rate alone, without the caption.
+    [AvaloniaFact]
+    public void TheSelectedFirstFixedRateShowsTheRateAlone()
+    {
+        var (app, window) = Show();
+        using var _ = app;
+        SelectRow(window, 1);
+        app.ProfileSettings.IsRefreshRateListOpen = true;
+
+        ChooseInSelector(app, window, "144 Hz");
+
+        Assert.True(app.ProfileSettings.SelectedRefreshRateItem!.StartsFixedRates);
+        var presenter = RateCombo(window).GetVisualDescendants().OfType<Avalonia.Controls.Presenters.ContentPresenter>().First(p => ReferenceEquals(p.Content, RateCombo(window).SelectionBoxItem));
+        Assert.Null(Caption(presenter));
+        Assert.Contains(presenter.GetVisualDescendants().OfType<TextBlock>(), t => t.Text == "144 Hz");
+        window.Close();
+    }
+
+    // The arrow keys move from the automatic rates to the fixed ones and back, one item at a time.
+    [AvaloniaFact]
+    public void TheKeyboardMovesBetweenRatesWithoutStopping()
+    {
+        var (app, window) = Show();
+        using var _ = app;
+        SelectRow(window, 1);
+        app.ProfileSettings.IsRefreshRateListOpen = true;
+        app.ProfileSettings.IsRefreshRateListOpen = false;
+        ChooseInSelector(app, window, "Highest available · 144 Hz");
+        RateCombo(window).Focus();
+        Dispatcher.UIThread.RunJobs();
+
+        window.KeyPressQwerty(PhysicalKey.ArrowDown, RawInputModifiers.None);
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal("144 Hz", app.ProfileSettings.SelectedRefreshRateItem!.Text);
+        Assert.Same(app.ProfileSettings.SelectedRefreshRateItem, RateCombo(window).SelectedItem);
+
+        window.KeyPressQwerty(PhysicalKey.ArrowUp, RawInputModifiers.None);
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal("Highest available · 144 Hz", app.ProfileSettings.SelectedRefreshRateItem!.Text);
+        Assert.Same(app.ProfileSettings.SelectedRefreshRateItem, RateCombo(window).SelectedItem);
+        window.Close();
+    }
+
+    // Saved profiles load with their rate chosen, before and after the list is read.
+    [AvaloniaTheory]
+    [InlineData("", "Desktop rate", "Desktop rate · 144 Hz")]
+    [InlineData(",\"RefreshRate\":\"Highest\"", "Highest available", "Highest available · 144 Hz")]
+    [InlineData(",\"RefreshRate\":144", "144 Hz", "144 Hz")]
+    [InlineData(",\"RefreshRate\":75", "75 Hz", "75 Hz · not supported")]
+    public void SavedRatesLoadChosenWithTheHeader(string rate, string beforeOpening, string afterOpening)
+    {
+        var (app, window) = Show(Config(rate));
+        using var _ = app;
+        SelectRow(window, 1);
+        Assert.Equal(beforeOpening, app.ProfileSettings.SelectedRefreshRateItem!.Text);
+        Assert.Same(app.ProfileSettings.SelectedRefreshRateItem, RateCombo(window).SelectedItem);
+
+        app.ProfileSettings.IsRefreshRateListOpen = true;
+
+        Assert.Equal(afterOpening, app.ProfileSettings.SelectedRefreshRateItem!.Text);
+        Assert.Same(app.ProfileSettings.SelectedRefreshRateItem, RateCombo(window).SelectedItem);
+        Assert.False(app.ProfileSettings.CanCancel);
+        window.Close();
+    }
+
+    // ---- The display selector ----
+
+    // The selected display is trimmed with an ellipsis; the list and the tooltip keep the full label.
+    [AvaloniaFact]
+    public void TheSelectedDisplayIsTrimmedAndItsFullLabelIsKept()
+    {
+        var (app, window) = Show();
+        using var _ = app;
+        SelectRow(window, 1);
+        var display = window.GetVisualDescendants().OfType<ProfileSettingsView>().Single()
+            .GetVisualDescendants().OfType<ComboBox>().Single(c => ReferenceEquals(c.ItemsSource, app.ProfileSettings.Displays));
+        var label = app.ProfileSettings.SelectedDisplay!.SelectorLabel;
+
+        Assert.Equal(label, ToolTip.GetTip(display));
+        var selection = display.GetVisualDescendants().OfType<TextBlock>().Single(t => t.Text == label);
+        Assert.Equal(Avalonia.Media.TextTrimming.CharacterEllipsis, selection.TextTrimming);
+
+        display.IsDropDownOpen = true;
+        Dispatcher.UIThread.RunJobs();
+        var listed = Assert.IsType<ComboBoxItem>(display.ContainerFromIndex(0)).GetVisualDescendants().OfType<TextBlock>().Single(t => t.Text == label);
+        Assert.Equal(Avalonia.Media.TextTrimming.None, listed.TextTrimming);
         window.Close();
     }
 

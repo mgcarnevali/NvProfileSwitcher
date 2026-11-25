@@ -136,10 +136,13 @@
           <TextBlock Classes="refreshRateLabel" Text="Refresh rate" VerticalAlignment="Center"
                      IsVisible="{CompiledBinding IsApplicationProfile}"/>
           <ComboBox Classes="displayCombo" Margin="0,6,0,0" HorizontalAlignment="Stretch"
-                    ItemsSource="{CompiledBinding Displays}" SelectedItem="{CompiledBinding SelectedDisplay}">
+                    ItemsSource="{CompiledBinding Displays}" SelectedItem="{CompiledBinding SelectedDisplay}"
+                    ToolTip.Tip="{CompiledBinding SelectedDisplay.SelectorLabel}">
+            <!-- The selected display is trimmed with an ellipsis when the row is narrow; the list
+                 and the tooltip show the full label. -->
             <ComboBox.SelectionBoxItemTemplate>
               <DataTemplate x:DataType="local:ConnectedDisplay">
-                <TextBlock Text="{CompiledBinding SelectorLabel}" VerticalAlignment="Center"/>
+                <TextBlock Text="{CompiledBinding SelectorLabel}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
               </DataTemplate>
             </ComboBox.SelectionBoxItemTemplate>
             <ComboBox.ItemTemplate>
@@ -172,9 +175,23 @@
                     ItemsSource="{CompiledBinding RefreshRateItems}"
                     SelectedItem="{CompiledBinding SelectedRefreshRateItem}"
                     IsDropDownOpen="{CompiledBinding IsRefreshRateListOpen, Mode=TwoWay}">
-            <ComboBox.ItemTemplate>
+            <!-- The automatic rates first; the fixed rates below a separator and a caption, drawn in
+                 the first fixed rate's item, so every item in the list is a rate (keyboard and
+                 selection never land on a header). The selected value shows the rate alone. -->
+            <ComboBox.SelectionBoxItemTemplate>
               <DataTemplate x:DataType="local:RefreshRateComboItem">
                 <TextBlock Text="{CompiledBinding Text}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+              </DataTemplate>
+            </ComboBox.SelectionBoxItemTemplate>
+            <ComboBox.ItemTemplate>
+              <DataTemplate x:DataType="local:RefreshRateComboItem">
+                <StackPanel Spacing="4">
+                  <StackPanel Spacing="4" IsVisible="{CompiledBinding StartsFixedRates}">
+                    <Separator Margin="0"/>
+                    <TextBlock Classes="refreshRateHeader" Text="Fixed refresh rate"/>
+                  </StackPanel>
+                  <TextBlock Text="{CompiledBinding Text}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                </StackPanel>
               </DataTemplate>
             </ComboBox.ItemTemplate>
           </ComboBox>

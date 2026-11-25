@@ -133,6 +133,12 @@
     <Setter Property="BorderThickness" Value="{DynamicResource TextControlBorderThemeThicknessFocused}"/>
   </Style>
 
+  <!-- The header of the fixed rates in the Refresh rate list: secondary, as the status labels. -->
+  <Style Selector="TextBlock.refreshRateHeader">
+    <Setter Property="FontSize" Value="12"/>
+    <Setter Property="Opacity" Value="0.62"/>
+  </Style>
+
   <!-- The notice shown instead of applying colors a display cannot show. -->
   <Style Selector="TextBlock.colorsUnavailable">
     <Setter Property="FontSize" Value="12"/>

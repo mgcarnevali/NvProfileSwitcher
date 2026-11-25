@@ -444,10 +444,12 @@ internal sealed partial class ProfileSettingsViewModel : ObservableObject
         RefreshRateItems.Clear();
         foreach (var item in defaults)
             RefreshRateItems.Add(item);
-        foreach (var hertz in rates)
-            RefreshRateItems.Add(RefreshRateComboItem.Offered(hertz));
+        var fixedRates = rates.Select(RefreshRateComboItem.Offered).ToList();
         if (saved is { IsHighest: false } && !rates.Contains(saved.Hertz))
-            RefreshRateItems.Add(RefreshRateComboItem.Saved(saved, supported: options is null));
+            fixedRates.Add(RefreshRateComboItem.Saved(saved, supported: options is null));
+        // The first fixed rate carries the group's caption: the list holds only rates.
+        for (var i = 0; i < fixedRates.Count; i++)
+            RefreshRateItems.Add(i == 0 ? fixedRates[i].AsFirstFixed() : fixedRates[i]);
         selectedRefreshRateItem = RefreshRateItems.First(item => item.Rate == saved);
         OnPropertyChanged(nameof(SelectedRefreshRateItem));
     });
