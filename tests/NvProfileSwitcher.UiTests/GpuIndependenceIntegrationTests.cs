@@ -123,7 +123,7 @@ public sealed class GpuIndependenceIntegrationTests
         Assert.False(Control<Button>(window, b => (b.Content as string) == "Copy settings").IsEffectivelyEnabled);
         Assert.False(Control<Button>(window, b => (b.Content as string) == "Reset").IsEffectivelyEnabled);
         Assert.True(Control<ComboBox>(window, c => c.Classes.Contains("resolutionCombo")).IsEffectivelyEnabled);
-        Assert.Contains("colors unavailable", Assert.Single(app.ProfileSettings.Displays).SelectorLabel);
+        Assert.Contains("Colors unavailable", Assert.Single(app.ProfileSettings.Displays).SelectorLabel);
         window.Close();
     }
 

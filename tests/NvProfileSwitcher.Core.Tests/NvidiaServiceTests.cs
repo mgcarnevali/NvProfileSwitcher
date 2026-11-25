@@ -163,8 +163,8 @@ public sealed class NvidiaServiceTests
         displays.Refresh();
 
         Assert.Equal([true, false], displays.Displays.Select(d => d.CanAdjustColors));
-        Assert.EndsWith("colors unavailable", displays.Displays[1].SelectorLabel);
-        Assert.DoesNotContain("colors unavailable", displays.Displays[0].SelectorLabel);
+        Assert.EndsWith("Colors unavailable", displays.Displays[1].SelectorLabel);
+        Assert.DoesNotContain("Colors unavailable", displays.Displays[0].SelectorLabel);
     }
 
     [Theory]

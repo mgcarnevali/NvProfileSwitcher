@@ -16,7 +16,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 - Lists of the drop-down selectors now open from the selector's left edge, so a long display name extends the list to the right instead of on both sides.
 - Removed the decorative check box from the Display list in Profile Settings: the chosen display is highlighted as in the other lists, and its items are as tall as theirs.
-- Unified the capitalization of interface texts: "Digital vibrance (%)", "Sort by name (A–Z)" and "(Z–A)", "Driver:" in the status bar and "Update cancelled.".
+- Unified the capitalization of interface texts: "Digital vibrance (%)", "Sort by name (A–Z)" and "(Z–A)", "Driver:" in the status bar, "Update cancelled.", and "Not supported" and "Colors unavailable" after a "·" in the Profile Settings selectors.
 
 ### Notes
 

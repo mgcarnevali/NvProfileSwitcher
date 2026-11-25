@@ -140,8 +140,8 @@ public sealed class RefreshRateSelectorTests
         Assert.Equal("144 Hz", app.ProfileSettings.SelectedRefreshRateItem!.Text);
 
         app.ProfileSettings.IsRefreshRateListOpen = true;
-        Assert.Equal(["Desktop rate · 120 Hz", "Highest available · 120 Hz", "120 Hz", "144 Hz · not supported"], Rates(app));
-        Assert.Equal("144 Hz · not supported", app.ProfileSettings.SelectedRefreshRateItem!.Text);
+        Assert.Equal(["Desktop rate · 120 Hz", "Highest available · 120 Hz", "120 Hz", "144 Hz · Not supported"], Rates(app));
+        Assert.Equal("144 Hz · Not supported", app.ProfileSettings.SelectedRefreshRateItem!.Text);
         Assert.False(app.ProfileSettings.CanCancel);
 
         Choose(app, "1920 × 1080");
@@ -335,7 +335,7 @@ public sealed class RefreshRateSelectorTests
     [InlineData("", "Desktop rate", "Desktop rate · 144 Hz")]
     [InlineData(",\"RefreshRate\":\"Highest\"", "Highest available", "Highest available · 144 Hz")]
     [InlineData(",\"RefreshRate\":144", "144 Hz", "144 Hz")]
-    [InlineData(",\"RefreshRate\":75", "75 Hz", "75 Hz · not supported")]
+    [InlineData(",\"RefreshRate\":75", "75 Hz", "75 Hz · Not supported")]
     public void SavedRatesLoadChosenWithTheHeader(string rate, string beforeOpening, string afterOpening)
     {
         var (app, window) = Show(Config(rate));

@@ -149,7 +149,7 @@ public sealed class ResolutionSelectorTests
 
         app.ProfileSettings.IsResolutionListOpen = true;
 
-        Assert.Equal("800 × 600 · not supported", app.ProfileSettings.SelectedResolutionItem!.Text);
+        Assert.Equal("800 × 600 · Not supported", app.ProfileSettings.SelectedResolutionItem!.Text);
         Assert.False(app.ProfileSettings.CanCancel);
         window.Close();
     }

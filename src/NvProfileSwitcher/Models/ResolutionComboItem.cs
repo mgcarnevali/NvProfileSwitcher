@@ -13,7 +13,7 @@ internal sealed class ResolutionComboItem
 
     /// <summary>The saved resolution before the list is read, or one the display does not offer.</summary>
     public static ResolutionComboItem Saved(DisplayResolution resolution, bool supported) =>
-        new() { Text = supported ? $"{resolution.Width} × {resolution.Height}" : $"{resolution.Width} × {resolution.Height} · not supported", Resolution = resolution };
+        new() { Text = supported ? $"{resolution.Width} × {resolution.Height}" : $"{resolution.Width} × {resolution.Height} · Not supported", Resolution = resolution };
 }
 
 /// <summary>
@@ -44,5 +44,5 @@ internal sealed class RefreshRateComboItem
 
     /// <summary>The saved rate before the list is read, or one the resolution does not offer.</summary>
     public static RefreshRateComboItem Saved(RefreshRateSetting rate, bool supported) =>
-        new() { Text = supported ? $"{rate.Hertz} Hz" : $"{rate.Hertz} Hz · not supported", Rate = rate };
+        new() { Text = supported ? $"{rate.Hertz} Hz" : $"{rate.Hertz} Hz · Not supported", Rate = rate };
 }

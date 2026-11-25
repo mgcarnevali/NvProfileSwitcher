@@ -915,10 +915,12 @@ supersede an earlier decision; that is noted in place.
   Settings, Manage Displays, Running Applications, NvProfileSwitcher Update); the names of
   features above keep their capitals wherever they appear; everything else is in sentence case:
   labels, buttons, options, tooltips, messages and the titles of message, confirmation and file
-  dialogs, which name the action that opened them ("Copy settings", "Import configuration"). A
-  suffix after "·" continues its label in lowercase ("· not supported", "· colors unavailable").
-  The texts that did not follow it became "Digital vibrance (%)", "Sort by name (A–Z)" and
-  "(Z–A)", "Driver:" (as the other status bar labels) and "Update cancelled.".
+  dialogs, which name the action that opened them ("Copy settings", "Import configuration").
+  Each part separated by "·" is in sentence case on its own, as a label ("Click to change · Press
+  Esc to clear", "75 Hz · Not supported"); numbers and units are kept as they are. The texts that
+  did not follow it became "Digital vibrance (%)", "Sort by name (A–Z)" and "(Z–A)", "Driver:"
+  (as the other status bar labels), "Update cancelled.", "· Not supported" and "· Colors
+  unavailable".
 - **3.0-2 New monitors start from the NVIDIA Control Panel settings** (§22.6). The brightness,
   contrast and gamma of a monitor new to the Windows profile come from the NVIDIA Control Panel
   when they can be used; the reference, and earlier versions, started them at 100, 100 and 1.00.
@@ -1374,7 +1376,7 @@ desktop mode again, resolution and rate.
   saved values; opening either reads the display's modes once (`DisplayModeController.ModeOptions`:
   the desktop mode and the supported modes). The rates offered are those of the resolution chosen,
   or the desktop one; "Desktop rate" and "Highest available" show the rate they would apply, and a
-  saved rate the resolution does not offer stays chosen, marked "not supported", until the user
+  saved rate the resolution does not offer stays chosen, marked "Not supported", until the user
   changes it. The fixed rates follow a "Fixed refresh rate" title with a separator. It is not an
   item (in Avalonia 12.1.2 the arrow keys of a closed ComboBox stop on disabled items): a
   ControlTheme based on the standard ComboBoxItem one draws it above the first fixed rate, outside

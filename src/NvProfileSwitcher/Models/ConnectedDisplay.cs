@@ -42,7 +42,7 @@ internal sealed record ConnectedDisplay(
             if (RefreshRate > 0)
                 label += $" · {RefreshRate} Hz";
             if (!CanAdjustColors)
-                label += " · colors unavailable";
+                label += " · Colors unavailable";
             return label;
         }
     }
