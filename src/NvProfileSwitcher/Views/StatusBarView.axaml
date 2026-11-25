@@ -55,7 +55,7 @@
       <Border Classes="statusSeparator"/>
       <Image Width="16" Height="16" Stretch="Uniform" RenderOptions.BitmapInterpolationMode="HighQuality"
              Source="avares://NvProfileSwitcher/Assets/icons/nvidia.png" VerticalAlignment="Center"/>
-      <TextBlock Classes="status statusLabel" Text="Driver" Margin="7,0,0,0"/>
+      <TextBlock Classes="status statusLabel" Text="Driver:" Margin="7,0,0,0"/>
       <TextBlock Classes="status" Text="{CompiledBinding DriverText}" Margin="8,0,0,0"/>
     </StackPanel>
     <StackPanel Classes="switchingStatus" Orientation="Horizontal" VerticalAlignment="Center">

@@ -53,7 +53,7 @@ public sealed class DialogServiceTests
         main.Close();
     }
 
-    // Sort by Name asks first, saying that the list order is the switching priority.
+    // Sort by name asks first, saying that the list order is the switching priority.
     [AvaloniaTheory]
     [InlineData(false, "Sort", true)]
     [InlineData(true, "Cancel", false)]
@@ -161,7 +161,7 @@ public sealed class DialogServiceTests
         if (outcome == "failed")
             Assert.Equal("Update failed. Your current installation was not changed.\nCould not start the update helper.", progress.Text);
         if (outcome == "uac-cancelled")
-            Assert.Equal("Update cancelled\nThe update was cancelled. NvProfileSwitcher has not been modified.", progress.Text);
+            Assert.Equal("Update cancelled.\nThe update was cancelled. NvProfileSwitcher has not been modified.", progress.Text);
         dialog.Close();
         main.Close();
     }

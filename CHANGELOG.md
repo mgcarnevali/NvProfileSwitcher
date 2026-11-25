@@ -12,6 +12,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 - NvProfileSwitcher now works on computers without an NVIDIA GPU, or with displays connected to another GPU (such as the built-in display of a laptop with Intel and NVIDIA graphics). Profiles, automatic switching, overrides, hotkeys, the tray icon and resolutions work on every display; the color settings are available only for displays driven by an NVIDIA GPU, are shown disabled for the others, and their saved values are kept. The status bar shows "Not detected" when no NVIDIA driver is installed.
 
+### Changed
+
+- Lists of the drop-down selectors now open from the selector's left edge, so a long display name extends the list to the right instead of on both sides.
+- Unified the capitalization of interface texts: "Digital vibrance (%)", "Sort by name (A–Z)" and "(Z–A)", "Driver:" in the status bar and "Update cancelled.".
+
 ### Notes
 
 - Displays connected to a GPU other than NVIDIA, which were not listed before, now appear in Profile Settings with their colors unavailable.

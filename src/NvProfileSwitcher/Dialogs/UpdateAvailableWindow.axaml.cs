@@ -40,7 +40,7 @@ public partial class UpdateAvailableWindow : Window
         }
         catch (UpdateCancelledException)
         {
-            ProgressText.Text = "Update cancelled\nThe update was cancelled. NvProfileSwitcher has not been modified.";
+            ProgressText.Text = "Update cancelled.\nThe update was cancelled. NvProfileSwitcher has not been modified.";
             UpdateButton.IsEnabled = true;
             LaterButton.IsEnabled = true;
         }

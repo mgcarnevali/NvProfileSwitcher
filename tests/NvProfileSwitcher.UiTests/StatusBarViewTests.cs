@@ -33,11 +33,11 @@ public sealed class StatusBarViewTests
     private static TextBlock StatusText(StatusBarView bar) =>
         bar.GetVisualDescendants().OfType<TextBlock>().Single(t => t.Classes.Contains("nvApiStatus"));
 
-    // The value right after the "Driver" label.
+    // The value right after the "Driver:" label.
     private static TextBlock DriverText(StatusBarView bar)
     {
         var texts = bar.GetVisualDescendants().OfType<TextBlock>().ToList();
-        return texts[texts.FindIndex(t => t.Text == "Driver") + 1];
+        return texts[texts.FindIndex(t => t.Text == "Driver:") + 1];
     }
 
     private static Color ColorOf(IBrush? brush) => Assert.IsAssignableFrom<ISolidColorBrush>(brush).Color;

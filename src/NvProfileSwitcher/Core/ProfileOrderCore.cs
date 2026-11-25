@@ -1,6 +1,6 @@
 namespace NvProfileSwitcher.Core;
 
-/// <summary>The order Sort by Name gives the application profiles.</summary>
+/// <summary>The order Sort by name gives the application profiles.</summary>
 internal static class ProfileOrderCore
 {
     /// <summary>

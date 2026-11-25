@@ -46,7 +46,7 @@ internal sealed partial class ProfilesViewModel : ObservableObject
 
     public ReadOnlyObservableCollection<ProfileListItem> Profiles => store.Profiles;
 
-    /// <summary>Whether Sort by Name has two application profiles to order.</summary>
+    /// <summary>Whether Sort by name has two application profiles to order.</summary>
     public bool CanSortByName => store.ApplicationProfiles.Count >= 2;
 
     /// <summary>

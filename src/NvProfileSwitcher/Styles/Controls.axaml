@@ -13,6 +13,11 @@
     <Setter Property="Background" Value="{DynamicResource NvFieldBackgroundBrush}"/>
     <Setter Property="BorderBrush" Value="{DynamicResource NvBorderBrush}"/>
   </Style>
+  <!-- A list wider than its selector opens from the selector's left edge and grows to the right;
+       Fluent centers it. Near the edge of the screen it moves back so it stays fully visible. -->
+  <Style Selector="ComboBox /template/ Popup#PART_Popup">
+    <Setter Property="Placement" Value="BottomEdgeAlignedLeft"/>
+  </Style>
   <Style Selector="Button">
     <Setter Property="Background" Value="{DynamicResource NvSecondaryBackgroundBrush}"/>
     <Setter Property="BorderBrush" Value="{DynamicResource NvBorderBrush}"/>

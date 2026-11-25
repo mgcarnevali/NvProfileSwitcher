@@ -495,7 +495,7 @@ public sealed class ProfileEditingIntegrationTests
         Assert.Equal(["Windows", "Game", "Notepad", "Editor"], Names(app));
     }
 
-    // Sort by Name: a permanent order, as the arrows give, confirmed first because it changes
+    // Sort by name: a permanent order, as the arrows give, confirmed first because it changes
     // the switching priority. The Windows profile stays first.
     [AvaloniaTheory]
     [InlineData(false, new[] { "Windows", "Editor", "Game", "Notepad" })]

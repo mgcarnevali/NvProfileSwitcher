@@ -26,13 +26,14 @@ public sealed class RefreshRateSelectorTests
            "Display Profiles":[{"DisplayName":"DELL","MonitorId":"{{Dell}}","Brightness":100,"Contrast":100,"Gamma":1,"DigitalVibrance":50,"Hue":0{{mode}}}]}]}
         """;
 
-    private static (TestComposition App, MainWindow Window) Show(string? config = null, double width = 1180, double height = 720)
+    private static (TestComposition App, MainWindow Window) Show(
+        string? config = null, double width = 1180, double height = 720, string displayName = "DELL U2720Q")
     {
         var app = new TestComposition(
             config ?? Config(), createWindow: viewModel => new MainWindow { Width = width, Height = height, DataContext = viewModel });
         app.DisplayModes.AddMonitor(DellGdi, new DisplayModeInfo(2560, 1440, 144),
             new DisplayModeInfo(1920, 1080, 144), new DisplayModeInfo(1920, 1080, 60), new DisplayModeInfo(1280, 960, 120));
-        app.Factory.Configure = backend => backend.Displays.Add(Display(Dell, "DELL U2720Q"));
+        app.Factory.Configure = backend => backend.Displays.Add(Display(Dell, displayName));
         app.ShowActive();
         return (app, (MainWindow)app.Window);
     }
@@ -373,6 +374,58 @@ public sealed class RefreshRateSelectorTests
         var listed = Assert.IsType<ComboBoxItem>(display.ContainerFromIndex(0)).GetVisualDescendants().OfType<TextBlock>().Single(t => t.Text == label);
         Assert.Equal(Avalonia.Media.TextTrimming.None, listed.TextTrimming);
         window.Close();
+    }
+
+    // A display list wider than its selector opens from the selector's left edge, as the other
+    // lists, and grows to the right while there is room.
+    [AvaloniaFact]
+    public void AWideDisplayListOpensFromTheLeftEdgeOfTheSelector()
+    {
+        var (app, window) = Show(displayName: LongDisplayName);
+        using var _ = app;
+        SelectRow(window, 1);
+
+        var (selector, list) = OpenDisplayList(window);
+
+        Assert.True(list.Width > selector.Width, "the list is not wider than the selector");
+        Assert.Equal(selector.X, list.X, 0.5);
+        Assert.True(list.Right <= window.Bounds.Width + 0.5, "the list leaves the window");
+        window.Close();
+    }
+
+    // Without room on the right the list moves back and stays fully visible: its right edge
+    // lines up with the selector's.
+    [AvaloniaFact]
+    public void WithoutRoomOnTheRightTheDisplayListStaysVisible()
+    {
+        var (app, window) = Show(width: 820, displayName: LongDisplayName);
+        using var _ = app;
+        SelectRow(window, 1);
+
+        var (selector, list) = OpenDisplayList(window);
+
+        Assert.True(selector.X + list.Width > window.Bounds.Width, "there is room on the right");
+        Assert.True(list.X >= -0.5 && list.Right <= window.Bounds.Width + 0.5, "the list leaves the window");
+        Assert.Equal(selector.Right, list.Right, 0.5);
+        window.Close();
+    }
+
+    private const string LongDisplayName = "DELL U2720Q with a model name long enough to be wider than its selector";
+
+    // The bounds of the display selector and of its open list, in window coordinates.
+    private static (Rect Selector, Rect List) OpenDisplayList(MainWindow window)
+    {
+        var combo = Editor<ComboBox>(window, "displayCombo");
+        combo.IsDropDownOpen = true;
+        Dispatcher.UIThread.RunJobs();
+        var list = combo.GetVisualDescendants().OfType<Avalonia.Controls.Primitives.Popup>().Single(p => p.Name == "PART_Popup").Child!;
+        var origin = window.PointToScreen(new Point(0, 0));
+        Rect InWindow(Visual visual)
+        {
+            var screen = visual.PointToScreen(new Point(0, 0));
+            return new Rect(screen.X - origin.X, screen.Y - origin.Y, visual.Bounds.Width, visual.Bounds.Height);
+        }
+        return (InWindow(combo), InWindow(list));
     }
 
     // The three selectors are visible, usable and inside the editor panel at every window size

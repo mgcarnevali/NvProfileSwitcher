@@ -204,7 +204,7 @@ Dialogs: About · AdvancedSettings · UpdateAvailable · RunningApps · ManageDi
     that does not throw could not write a display, and the composition makes the active profile
     forget its name, so the next check applies it again.
 - `ProfileListService` uses `ProfileEditingService` (Add confirms the discard; Move selects
-  another profile; Sort by Name selects nothing); `ProfileEditingService` never uses `ProfileListService`, because discarding the
+  another profile; Sort by name selects nothing); `ProfileEditingService` never uses `ProfileListService`, because discarding the
   unsaved profile only needs the store.
 - Window conditions reach services as plain facts (`Func<bool>`, `Action<bool>`) passed in the
   `ServiceEnvironment`, so services never depend on the Shell.
@@ -276,7 +276,7 @@ reference Core tests run unchanged. New code uses the namespace of its folder.
 
 | Class | Owns | Main API | From MW |
 |---|---|---|---|
-| `ProfileStore` | the list (Windows first), `UnsavedNewProfile`, the physical monitor identities found shared | read-only `Profiles`, `Windows`, `ApplicationProfiles`, `NonUniqueMonitorIds`; `Load`, `AddUnsaved`, `MarkSaved`, `Remove`, `Move`, `Reorder` (Sort by Name, 3.1-1), each keeping the ▲▼ state, the unsaved profile and the profile override consistent (§11); `LoadNonUniqueMonitorIds`, `MarkNonUnique` (§22.1) | 290–372, 2050 |
+| `ProfileStore` | the list (Windows first), `UnsavedNewProfile`, the physical monitor identities found shared | read-only `Profiles`, `Windows`, `ApplicationProfiles`, `NonUniqueMonitorIds`; `Load`, `AddUnsaved`, `MarkSaved`, `Remove`, `Move`, `Reorder` (Sort by name, 3.1-1), each keeping the ▲▼ state, the unsaved profile and the profile override consistent (§11); `LoadNonUniqueMonitorIds`, `MarkNonUnique` (§22.1) | 290–372, 2050 |
 | `AppSettings` | the five checkboxes, the two "Remember" flags, the four global hotkeys | INPC properties | `loadedConfig`, checkboxes |
 | `SwitchingState` | `OverrideMode`, `OverrideProfileIndex`, `GlobalPaused`, `ActiveProfileName`, `DisplayedActiveProfile` | INPC properties | fields 28–30, 49 |
 | `ConfigurationService` | config path, `savingBlocked`, `pendingChanges`, the pending load notice | `Load`, `ReportLoadProblem`, `Save`, `Save(profile, replacement, reportFailure)`, `SaveIfPending`, `ImportAsync`, `ExportAsync` (§12) | 326, 1647, 1945–2077 |
@@ -534,7 +534,7 @@ cause instead:
 |---|---|---|
 | Remove | `ProfileListService.RemoveSelectedAsync` | after the change, with the message |
 | Move | `ProfileListService.MoveAsync` | after the change, with the message (as the reference, which reported hotkeys that cannot be enabled) |
-| Sort by Name | `ProfileListService.SortByNameAsync` | after the change, with the message, as Move |
+| Sort by name | `ProfileListService.SortByNameAsync` | after the change, with the message, as Move |
 | Enable or disable | `ProfileListService.ToggleEnabled` | after the change, with the message |
 | A profile hotkey | `ProfileEditingService.SaveAsync` (through `ProfileEditor.Commit`) | after the save, with the message |
 | Global hotkeys | `HotkeyCaptureController` | when the capture ends |
@@ -903,20 +903,29 @@ supersede an earlier decision; that is noted in place.
 **Version 3.0**
 - **3.0-1 Interface texts unified.** Hotkeys, Global Switching, Windows Override, Support and
   Running Applications are the names of their features wherever they appear; messages say "hotkey"
-  ("shortcut" is kept for Windows shortcuts in the installer). Changed texts: "Check for updates
-  automatically" (the Application Settings checkbox; the actions keep "Check for updates"),
+  ("shortcut" is kept for Windows shortcuts in the installer). Changed texts: "Check for updates"
+  (the Application Settings checkbox and the actions),
   "Global Switching", "Windows Override", "Resume auto switching", "Remember Windows Override
   state", "Support", "NVIDIA API:", "+ Running apps..." and the tooltip "Reset to NVIDIA
   defaults" without a final period. While Global Switching is off the active profile shows
   "Windows"; the reference showed "Windows (global off)", and "Global Switching: OFF" already
   shows the state. Configuration keys, internal names and behavior are unchanged.
+  Capitalization: Title Case for panel titles (Profiles, Profile Settings, Application Settings,
+  Hotkeys) and the titles of the application's own windows (About NvProfileSwitcher, Advanced
+  Settings, Manage Displays, Running Applications, NvProfileSwitcher Update); the names of
+  features above keep their capitals wherever they appear; everything else is in sentence case:
+  labels, buttons, options, tooltips, messages and the titles of message, confirmation and file
+  dialogs, which name the action that opened them ("Copy settings", "Import configuration"). A
+  suffix after "·" continues its label in lowercase ("· not supported", "· colors unavailable").
+  The texts that did not follow it became "Digital vibrance (%)", "Sort by name (A–Z)" and
+  "(Z–A)", "Driver:" (as the other status bar labels) and "Update cancelled.".
 - **3.0-2 New monitors start from the NVIDIA Control Panel settings** (§22.6). The brightness,
   contrast and gamma of a monitor new to the Windows profile come from the NVIDIA Control Panel
   when they can be used; the reference, and earlier versions, started them at 100, 100 and 1.00.
 
 **Version 3.1**
-- **3.1-1 Sort by Name.** A compact button right of the Profiles title opens a menu with Sort by
-  Name (A–Z) and Sort by Name (Z–A). It orders the application profiles as the ▲▼ arrows do, at
+- **3.1-1 Sort by name.** A compact button right of the Profiles title opens a menu with Sort by
+  name (A–Z) and Sort by name (Z–A). It orders the application profiles as the ▲▼ arrows do, at
   once and permanently: the list order is the priority of automatic switching and the order of
   `"Application Profiles"` in `config.json`, saved with `ConfigurationService.Save`; there is no
   sort preference. It asks first, since it changes that priority, and does nothing when the
@@ -1371,7 +1380,11 @@ desktop mode again, resolution and rate.
   ControlTheme based on the standard ComboBoxItem one draws it above the first fixed rate, outside
   `PART_ContentPresenter` and not hit-testable, so it is never highlighted, never takes a click and
   never changes the selection. The selected
-  display is trimmed with an ellipsis; the list and its tooltip keep the full label. Neither mode
+  display is trimmed with an ellipsis; the list and its tooltip keep the full label. Every
+  ComboBox list opens from the selector's left edge (`Popup.Placement` `BottomEdgeAlignedLeft`
+  in `Styles/Controls.axaml`; Fluent centers it), so a display list wider than its selector grows
+  to the right; without room there, the popup's constraint adjustment flips it to end at the
+  selector's right edge, fully visible. Neither mode
   selector is shown for the Windows profile. They share the Display row; when the
   editor is narrow (the two-column layouts), a container query in `ProfileSettingsView` moves them
   below the display selector, which then takes the whole width.

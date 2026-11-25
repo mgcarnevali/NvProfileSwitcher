@@ -96,7 +96,7 @@ public sealed class ProfileViewsTests
         window.Close();
     }
 
-    // Sort by Name sits in the panel header, right of the title, as a compact button whose menu
+    // Sort by name sits in the panel header, right of the title, as a compact button whose menu
     // offers A–Z and Z–A; the selected row stays selected in the list after the sort.
     [AvaloniaFact]
     public void TheSortMenuSortsAndKeepsTheSelectedRowSelected()
@@ -113,7 +113,7 @@ public sealed class ProfileViewsTests
         Assert.Equal(1, Grid.GetColumn(sort));
         var flyout = Assert.IsType<MenuFlyout>(sort.Flyout);
         var items = flyout.Items.OfType<MenuItem>().ToList();
-        Assert.Equal(["Sort by Name (A–Z)", "Sort by Name (Z–A)"], items.Select(i => i.Header));
+        Assert.Equal(["Sort by name (A–Z)", "Sort by name (Z–A)"], items.Select(i => i.Header));
 
         // Opened from its button, the menu's items reach the panel's commands.
         flyout.ShowAt(sort);

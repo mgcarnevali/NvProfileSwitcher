@@ -13,7 +13,7 @@
           </Viewbox>
           <TextBlock Classes="panelTitle" Text="Profiles"/>
         </StackPanel>
-        <!-- Sort by Name: a permanent order, as the arrows give, so it changes the switching
+        <!-- Sort by name: a permanent order, as the arrows give, so it changes the switching
              priority. Its negative margin keeps the header as tall as the title. -->
         <Button Grid.Column="1" Classes="sortButton" ToolTip.Tip="Sort profiles"
                 IsEnabled="{CompiledBinding CanSortByName}">
@@ -22,8 +22,8 @@
           </Viewbox>
           <Button.Flyout>
             <MenuFlyout Placement="BottomEdgeAlignedRight">
-              <MenuItem Header="Sort by Name (A–Z)" Command="{CompiledBinding SortByNameAscendingCommand}"/>
-              <MenuItem Header="Sort by Name (Z–A)" Command="{CompiledBinding SortByNameDescendingCommand}"/>
+              <MenuItem Header="Sort by name (A–Z)" Command="{CompiledBinding SortByNameAscendingCommand}"/>
+              <MenuItem Header="Sort by name (Z–A)" Command="{CompiledBinding SortByNameDescendingCommand}"/>
             </MenuFlyout>
           </Button.Flyout>
         </Button>

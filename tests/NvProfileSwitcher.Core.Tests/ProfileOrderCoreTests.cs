@@ -3,7 +3,7 @@ using Xunit;
 
 namespace NvProfileSwitcher.Core.Tests;
 
-// The order Sort by Name gives the application profiles: by name, ignoring case, with equal
+// The order Sort by name gives the application profiles: by name, ignoring case, with equal
 // names in their order, and the unsaved new profile last.
 public sealed class ProfileOrderCoreTests
 {

@@ -128,7 +128,7 @@ public sealed class ProfileStoreTests
         Assert.Equal((OverrideMode.Windows, -1), (switching.OverrideMode, switching.OverrideProfileIndex));
     }
 
-    // Sort by Name reorders the application profiles at once: the Windows profile stays first,
+    // Sort by name reorders the application profiles at once: the Windows profile stays first,
     // the ▲▼ state follows, and a profile override stays on its profile.
     [Fact]
     public void ReorderPutsTheApplicationProfilesInTheGivenOrder()

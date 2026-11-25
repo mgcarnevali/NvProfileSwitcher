@@ -118,7 +118,7 @@ Every control is configured **per profile, per monitor**.
 | Brightness | 80–120 | 100 |
 | Contrast | 80–120 | 100 |
 | Gamma | 0.30–2.80 | 1.00 |
-| Digital Vibrance | 0–100% | 50% |
+| Digital vibrance | 0–100% | 50% |
 | Hue | 0–359° | 0° |
 
 All five controls are applied through NVIDIA interfaces. **Digital Vibrance and Hue** use NVAPI color controls; **Brightness, Contrast, and Gamma** use NVIDIA's target gamma functionality.
