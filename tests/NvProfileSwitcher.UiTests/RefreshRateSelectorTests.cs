@@ -219,6 +219,74 @@ public sealed class RefreshRateSelectorTests
         window.Close();
     }
 
+    // ---- The title under the mouse ----
+
+    // The list's top level (the popup) and the centers of the title and of the first fixed rate's
+    // selectable part in it.
+    private static (TopLevel List, Point Title, Point Rate, ComboBoxItem Item) TitleAndRate(MainWindow window, int firstFixedIndex)
+    {
+        var item = Container(window, firstFixedIndex);
+        var list = TopLevel.GetTopLevel(item)!;
+        var title = item.GetVisualDescendants().OfType<StackPanel>().Single(p => p.Classes.Contains("fixedRatesTitle"));
+        var rate = item.GetVisualDescendants().OfType<Avalonia.Controls.Presenters.ContentPresenter>().Single(p => p.Name == "PART_ContentPresenter");
+        Point Center(Visual visual) => visual.TranslatePoint(new Point(visual.Bounds.Width / 2, visual.Bounds.Height / 2), list)!.Value;
+        return (list, Center(title), Center(rate), item);
+    }
+
+    private static (TestComposition App, MainWindow Window) ShowListOpen()
+    {
+        var (app, window) = Show();
+        SelectRow(window, 1);
+        RateCombo(window).IsDropDownOpen = true;
+        Dispatcher.UIThread.RunJobs();
+        return (app, window);
+    }
+
+    // The title is never highlighted: only the rate below it is.
+    [AvaloniaFact]
+    public void TheTitleIsNotHighlightedUnderTheMouse()
+    {
+        var (app, window) = ShowListOpen();
+        using var _ = app;
+        var (list, title, rate, item) = TitleAndRate(window, 2);
+
+        list.MouseMove(title, RawInputModifiers.None);
+        Dispatcher.UIThread.RunJobs();
+        Assert.DoesNotContain(":pointerover", item.Classes);
+
+        list.MouseMove(rate, RawInputModifiers.None);
+        Dispatcher.UIThread.RunJobs();
+        Assert.Contains(":pointerover", item.Classes);
+        window.Close();
+    }
+
+    // A click on the title chooses nothing and leaves the list open; a click on the rate chooses it.
+    [AvaloniaFact]
+    public void AClickOnTheTitleChangesNothing()
+    {
+        var (app, window) = ShowListOpen();
+        using var _ = app;
+        var (list, title, rate, item) = TitleAndRate(window, 2);
+
+        list.MouseDown(title, MouseButton.Left, RawInputModifiers.None);
+        list.MouseUp(title, MouseButton.Left, RawInputModifiers.None);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.True(RateCombo(window).IsDropDownOpen);
+        Assert.DoesNotContain(":pressed", item.Classes);
+        Assert.Equal("Desktop rate · 144 Hz", app.ProfileSettings.SelectedRefreshRateItem!.Text);
+        Assert.Equal(0, RateCombo(window).SelectedIndex);
+        Assert.False(app.ProfileSettings.CanCancel);
+
+        list.MouseDown(rate, MouseButton.Left, RawInputModifiers.None);
+        list.MouseUp(rate, MouseButton.Left, RawInputModifiers.None);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal("144 Hz", app.ProfileSettings.SelectedRefreshRateItem!.Text);
+        Assert.False(RateCombo(window).IsDropDownOpen);
+        window.Close();
+    }
+
     // The arrow keys move from the automatic rates to the fixed ones and back, one item at a time.
     [AvaloniaFact]
     public void TheKeyboardMovesBetweenRatesWithoutStopping()

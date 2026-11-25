@@ -1366,9 +1366,11 @@ desktop mode again, resolution and rate.
   the desktop mode and the supported modes). The rates offered are those of the resolution chosen,
   or the desktop one; "Desktop rate" and "Highest available" show the rate they would apply, and a
   saved rate the resolution does not offer stays chosen, marked "not supported", until the user
-  changes it. The fixed rates follow a "Fixed refresh rate" separator and caption, drawn in the
-  first fixed rate's item rather than as an item of their own: in Avalonia 12.1.2 the arrow keys
-  of a closed ComboBox stop on disabled items, so a header item would be landed on. The selected
+  changes it. The fixed rates follow a "Fixed refresh rate" title with a separator. It is not an
+  item (in Avalonia 12.1.2 the arrow keys of a closed ComboBox stop on disabled items): a
+  ControlTheme based on the standard ComboBoxItem one draws it above the first fixed rate, outside
+  `PART_ContentPresenter` and not hit-testable, so it is never highlighted, never takes a click and
+  never changes the selection. The selected
   display is trimmed with an ellipsis; the list and its tooltip keep the full label. Neither mode
   selector is shown for the Windows profile. They share the Display row; when the
   editor is narrow (the two-column layouts), a container query in `ProfileSettingsView` moves them

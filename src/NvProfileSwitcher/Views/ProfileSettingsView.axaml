@@ -5,6 +5,39 @@
              xmlns:b="using:NvProfileSwitcher.Behaviors"
              x:Class="NvProfileSwitcher.Views.ProfileSettingsView"
              x:DataType="vm:ProfileSettingsViewModel">
+  <UserControl.Resources>
+    <!-- The items of the Refresh rate list: the standard ComboBoxItem theme (its colors and its
+         pointer-over, pressed and selected states, which style PART_ContentPresenter), with the
+         "Fixed refresh rate" title drawn above the first fixed rate. The title is outside the
+         presenter and not hit-testable, and nothing behind it has a background, so it is never
+         highlighted, never takes a click and never changes the selection. Only the presenter of
+         the Fluent 12.1.2 template is repeated here. -->
+    <ControlTheme x:Key="RefreshRateItemTheme" TargetType="ComboBoxItem" BasedOn="{StaticResource {x:Type ComboBoxItem}}">
+      <Setter Property="Template">
+        <ControlTemplate>
+          <StackPanel>
+            <StackPanel Classes="fixedRatesTitle" Spacing="4" Margin="11,6,11,4" IsHitTestVisible="False"
+                        IsVisible="{CompiledBinding StartsFixedRates, DataType={x:Type local:RefreshRateComboItem}}">
+              <Separator Margin="0"/>
+              <TextBlock Classes="refreshRateHeader" Text="Fixed refresh rate"/>
+            </StackPanel>
+            <ContentPresenter Name="PART_ContentPresenter"
+                              Foreground="{TemplateBinding Foreground}"
+                              Background="{TemplateBinding Background}"
+                              BorderBrush="{TemplateBinding BorderBrush}"
+                              BorderThickness="{TemplateBinding BorderThickness}"
+                              CornerRadius="{TemplateBinding CornerRadius}"
+                              ContentTemplate="{TemplateBinding ContentTemplate}"
+                              Content="{TemplateBinding Content}"
+                              HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                              VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
+                              Padding="{TemplateBinding Padding}"/>
+          </StackPanel>
+        </ControlTemplate>
+      </Setter>
+    </ControlTheme>
+  </UserControl.Resources>
+
   <UserControl.Styles>
     <!-- The Display row, wide (default): labels above, the display selector, Resolution and
          Refresh rate side by side. The cells are set here, not on the controls, so the narrow
@@ -174,24 +207,15 @@
                     ToolTip.Tip="Refresh rate of this display while the profile is active"
                     ItemsSource="{CompiledBinding RefreshRateItems}"
                     SelectedItem="{CompiledBinding SelectedRefreshRateItem}"
-                    IsDropDownOpen="{CompiledBinding IsRefreshRateListOpen, Mode=TwoWay}">
-            <!-- The automatic rates first; the fixed rates below a separator and a caption, drawn in
-                 the first fixed rate's item, so every item in the list is a rate (keyboard and
-                 selection never land on a header). The selected value shows the rate alone. -->
-            <ComboBox.SelectionBoxItemTemplate>
-              <DataTemplate x:DataType="local:RefreshRateComboItem">
-                <TextBlock Text="{CompiledBinding Text}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
-              </DataTemplate>
-            </ComboBox.SelectionBoxItemTemplate>
+                    IsDropDownOpen="{CompiledBinding IsRefreshRateListOpen, Mode=TwoWay}"
+                    ItemContainerTheme="{StaticResource RefreshRateItemTheme}">
+            <!-- The automatic rates first; the fixed rates below the "Fixed refresh rate" title,
+                 which the item container theme draws outside the selectable part of the first fixed
+                 rate. Every item in the list is a rate: the keyboard and the selection never land on
+                 the title. -->
             <ComboBox.ItemTemplate>
               <DataTemplate x:DataType="local:RefreshRateComboItem">
-                <StackPanel Spacing="4">
-                  <StackPanel Spacing="4" IsVisible="{CompiledBinding StartsFixedRates}">
-                    <Separator Margin="0"/>
-                    <TextBlock Classes="refreshRateHeader" Text="Fixed refresh rate"/>
-                  </StackPanel>
-                  <TextBlock Text="{CompiledBinding Text}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
-                </StackPanel>
+                <TextBlock Text="{CompiledBinding Text}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
               </DataTemplate>
             </ComboBox.ItemTemplate>
           </ComboBox>
