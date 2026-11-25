@@ -1372,9 +1372,16 @@ desktop mode again, resolution and rate.
   supported". The desktop mode is read right before the first change of a monitor and kept until
   it is restored, so a profile that follows another one never takes the previous profile's rate as
   its reference. Two profiles that differ only by rate are different targets.
-- **Editor.** Resolution and Refresh rate are two selectors. Until one is opened they show the
-  saved values; opening either reads the display's modes once (`DisplayModeController.ModeOptions`:
-  the desktop mode and the supported modes). The rates offered are those of the resolution chosen,
+- **Editor.** Resolution and Refresh rate are two selectors. For an application profile the
+  selected display's modes are read when the profile or the display is chosen
+  (`DisplayModeController.ModeOptions`: the desktop mode and the supported modes, one
+  `EnumDisplaySettingsExW` pass over that display only; measured at 13–29 ms for 424–809 modes on
+  an RTX 3090), so the selectors show the same texts before and after a list is opened. The read is
+  kept for the display it was made for (the ViewModel's `options`, no cache): another profile on
+  the same display, opening the lists and choosing a resolution reuse it; another display or a
+  display refresh, which replaces the display instances, reads again. A failed read leaves the
+  defaults without their rate and is not retried until then. The Windows profile reads nothing.
+  The rates offered are those of the resolution chosen,
   or the desktop one; "Desktop rate" and "Highest available" show the rate they would apply, and a
   saved rate the resolution does not offer stays chosen, marked "Not supported", until the user
   changes it. The fixed rates follow a "Fixed refresh rate" title with a separator. It is not an

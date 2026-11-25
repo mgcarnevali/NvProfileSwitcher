@@ -59,19 +59,29 @@ public sealed class RefreshRateSelectorTests
     private static JsonNode SavedValues(TestComposition app) =>
         JsonNode.Parse(File.ReadAllText(app.ConfigPath))!["Application Profiles"]![0]!["Display Profiles"]![0]!;
 
+    private static IEnumerable<string> ModeReads(TestComposition app) =>
+        app.DisplayModes.Calls.Where(call => call.StartsWith("modes", StringComparison.Ordinal));
+
+    // Shown for application profiles only, with the rate each default applies from the start: the
+    // selected display's modes are read once, with the profile. The Windows profile reads nothing.
     [AvaloniaFact]
-    public void TheSelectorIsShownOnlyForApplicationProfilesAndReadsNothingUntilOpened()
+    public void TheSelectorShowsTheRateEachDefaultAppliesBeforeItIsOpened()
     {
         var (app, window) = Show();
         using var _ = app;
         Assert.False(Editor<ComboBox>(window, "refreshRateCombo").IsVisible);
+        Assert.Empty(app.DisplayModes.Calls);
 
         SelectRow(window, 1);
 
         Assert.True(Editor<ComboBox>(window, "refreshRateCombo").IsVisible);
-        Assert.Equal(["Desktop rate", "Highest available"], Rates(app));
-        Assert.Equal("Desktop rate", app.ProfileSettings.SelectedRefreshRateItem!.Text);
-        Assert.Empty(app.DisplayModes.Calls);
+        Assert.Equal(["Desktop rate · 144 Hz", "Highest available · 144 Hz", "144 Hz"], Rates(app));
+        Assert.Equal("Desktop rate · 144 Hz", app.ProfileSettings.SelectedRefreshRateItem!.Text);
+        Assert.Equal([@"modes \\.\DISPLAY1"], ModeReads(app));
+
+        // Back to the Windows profile: nothing more is read.
+        SelectRow(window, 0);
+        Assert.Single(ModeReads(app));
         window.Close();
     }
 
@@ -86,9 +96,9 @@ public sealed class RefreshRateSelectorTests
         Dispatcher.UIThread.RunJobs();
 
         Assert.Equal(["Desktop rate · 144 Hz", "Highest available · 144 Hz", "144 Hz"], Rates(app));
-        // Both lists come from one reading of the display's modes.
+        // Both lists come from the one reading made with the profile.
         app.ProfileSettings.IsResolutionListOpen = true;
-        Assert.Single(app.DisplayModes.Calls, call => call.StartsWith("modes", StringComparison.Ordinal));
+        Assert.Single(ModeReads(app));
         window.Close();
     }
 
@@ -102,6 +112,8 @@ public sealed class RefreshRateSelectorTests
 
         Choose(app, "1920 × 1080");
         Assert.Equal(["Desktop rate · 144 Hz", "Highest available · 144 Hz", "144 Hz", "60 Hz"], Rates(app));
+        // The rates of the new resolution come from the modes already read.
+        Assert.Single(ModeReads(app));
         ChooseRate(app, "60 Hz");
         await app.ProfileSettings.SaveCommand.ExecuteAsync(null);
 
@@ -137,9 +149,8 @@ public sealed class RefreshRateSelectorTests
         var (app, window) = Show(Config(""","Resolution":{"Width":1280,"Height":960},"RefreshRate":144"""));
         using var _ = app;
         SelectRow(window, 1);
-        Assert.Equal("144 Hz", app.ProfileSettings.SelectedRefreshRateItem!.Text);
-
         app.ProfileSettings.IsRefreshRateListOpen = true;
+
         Assert.Equal(["Desktop rate · 120 Hz", "Highest available · 120 Hz", "120 Hz", "144 Hz · Not supported"], Rates(app));
         Assert.Equal("144 Hz · Not supported", app.ProfileSettings.SelectedRefreshRateItem!.Text);
         Assert.False(app.ProfileSettings.CanCancel);
@@ -155,12 +166,12 @@ public sealed class RefreshRateSelectorTests
         var (app, window) = Show(Config(",\"RefreshRate\":\"Highest\""));
         using var _ = app;
         SelectRow(window, 1);
-        Assert.Equal("Highest available", app.ProfileSettings.SelectedRefreshRateItem!.Text);
+        Assert.Equal("Highest available · 144 Hz", app.ProfileSettings.SelectedRefreshRateItem!.Text);
 
-        ChooseRate(app, "Desktop rate");
+        ChooseRate(app, "Desktop rate · 144 Hz");
         await app.ProfileSettings.CancelCommand.ExecuteAsync(null);
 
-        Assert.Equal("Highest available", app.ProfileSettings.SelectedRefreshRateItem!.Text);
+        Assert.Equal("Highest available · 144 Hz", app.ProfileSettings.SelectedRefreshRateItem!.Text);
         window.Close();
     }
 
@@ -189,7 +200,6 @@ public sealed class RefreshRateSelectorTests
         var (app, window) = Show();
         using var _ = app;
         SelectRow(window, 1);
-        Assert.DoesNotContain(app.ProfileSettings.RefreshRateItems, item => item.StartsFixedRates);
 
         RateCombo(window).IsDropDownOpen = true;
         Dispatcher.UIThread.RunJobs();
@@ -330,23 +340,24 @@ public sealed class RefreshRateSelectorTests
         window.Close();
     }
 
-    // Saved profiles load with their rate chosen, before and after the list is read.
+    // Saved profiles load with their rate chosen, shown the same before and after the list is opened.
     [AvaloniaTheory]
-    [InlineData("", "Desktop rate", "Desktop rate · 144 Hz")]
-    [InlineData(",\"RefreshRate\":\"Highest\"", "Highest available", "Highest available · 144 Hz")]
-    [InlineData(",\"RefreshRate\":144", "144 Hz", "144 Hz")]
-    [InlineData(",\"RefreshRate\":75", "75 Hz", "75 Hz · Not supported")]
-    public void SavedRatesLoadChosenWithTheHeader(string rate, string beforeOpening, string afterOpening)
+    [InlineData("", "Desktop rate · 144 Hz")]
+    [InlineData(",\"RefreshRate\":\"Highest\"", "Highest available · 144 Hz")]
+    [InlineData(",\"RefreshRate\":144", "144 Hz")]
+    [InlineData(",\"RefreshRate\":75", "75 Hz · Not supported")]
+    public void SavedRatesLoadChosenWithTheHeader(string rate, string shown)
     {
         var (app, window) = Show(Config(rate));
         using var _ = app;
         SelectRow(window, 1);
-        Assert.Equal(beforeOpening, app.ProfileSettings.SelectedRefreshRateItem!.Text);
+        Assert.Equal(shown, app.ProfileSettings.SelectedRefreshRateItem!.Text);
         Assert.Same(app.ProfileSettings.SelectedRefreshRateItem, RateCombo(window).SelectedItem);
 
-        app.ProfileSettings.IsRefreshRateListOpen = true;
+        RateCombo(window).IsDropDownOpen = true;
+        Dispatcher.UIThread.RunJobs();
 
-        Assert.Equal(afterOpening, app.ProfileSettings.SelectedRefreshRateItem!.Text);
+        Assert.Equal(shown, app.ProfileSettings.SelectedRefreshRateItem!.Text);
         Assert.Same(app.ProfileSettings.SelectedRefreshRateItem, RateCombo(window).SelectedItem);
         Assert.False(app.ProfileSettings.CanCancel);
         window.Close();
@@ -381,6 +392,8 @@ public sealed class RefreshRateSelectorTests
     {
         var app = new TestComposition(
             Config(), createWindow: viewModel => new MainWindow { Width = 1180, Height = 720, DataContext = viewModel });
+        app.DisplayModes.AddMonitor(DellGdi, new DisplayModeInfo(2560, 1440, 144), new DisplayModeInfo(1920, 1080, 60));
+        app.DisplayModes.AddMonitor(@"\\.\DISPLAY2", new DisplayModeInfo(1920, 1080, 75), new DisplayModeInfo(1920, 1080, 60));
         app.Factory.Configure = backend =>
         {
             backend.Displays.Add(Display(Dell, "DELL U2720Q"));
@@ -397,6 +410,54 @@ public sealed class RefreshRateSelectorTests
         combo.IsDropDownOpen = true;
         Dispatcher.UIThread.RunJobs();
         return Assert.IsType<ComboBoxItem>(combo.ContainerFromIndex(index));
+    }
+
+    // Choosing another display reads its modes, and only its modes, once; choosing it in the
+    // lists reads nothing more.
+    [AvaloniaFact]
+    public void AnotherDisplayReadsOnlyItsOwnModesOnce()
+    {
+        var (app, window) = ShowTwoDisplays();
+        using var _ = app;
+        Assert.Equal([@"modes \\.\DISPLAY1"], ModeReads(app));
+
+        Editor<ComboBox>(window, "displayCombo").SelectedIndex = 1;
+        Dispatcher.UIThread.RunJobs();
+        RateCombo(window).IsDropDownOpen = true;
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal(["Desktop rate · 75 Hz", "Highest available · 75 Hz", "75 Hz", "60 Hz"], Rates(app));
+        Assert.Equal([@"modes \\.\DISPLAY1", @"modes \\.\DISPLAY2"], ModeReads(app));
+        window.Close();
+    }
+
+    // A failed read leaves the defaults without their rate and the editor working: a rate is still
+    // chosen and saved, and opening the list does not try again.
+    [AvaloniaFact]
+    public async Task AFailedReadKeepsTheEditorWorking()
+    {
+        var app = new TestComposition(
+            Config(), createWindow: viewModel => new MainWindow { Width = 1180, Height = 720, DataContext = viewModel });
+        app.DisplayModes.AddMonitor(DellGdi, new DisplayModeInfo(2560, 1440, 144));
+        app.DisplayModes.Failure = _ => new InvalidOperationException("EnumDisplaySettingsExW failed");
+        app.Factory.Configure = backend => backend.Displays.Add(Display(Dell, "DELL U2720Q"));
+        app.ShowActive();
+        using var _ = app;
+        var window = (MainWindow)app.Window;
+        SelectRow(window, 1);
+
+        Assert.Equal(["Desktop rate", "Highest available"], Rates(app));
+        Assert.Equal(["Don't change"], app.ProfileSettings.ResolutionItems.Select(item => item.Text));
+        // One attempt, which failed at its first call; opening the list does not try again.
+        Assert.Single(app.DisplayModes.Calls);
+        RateCombo(window).IsDropDownOpen = true;
+        Dispatcher.UIThread.RunJobs();
+        Assert.Single(app.DisplayModes.Calls);
+
+        ChooseRate(app, "Highest available");
+        await app.ProfileSettings.SaveCommand.ExecuteAsync(null);
+        Assert.Equal("Highest", (string)SavedValues(app)["RefreshRate"]!);
+        window.Close();
     }
 
     // The display items are as tall as the items of the other lists: text alone, nothing that

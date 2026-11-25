@@ -52,18 +52,20 @@ public sealed class ResolutionSelectorTests
         using var _ = app;
 
         Assert.False(ResolutionCombo(window).IsVisible);
+        // The Windows profile has no mode selectors and reads nothing.
+        Assert.Empty(app.DisplayModes.Calls);
 
         SelectRow(window, 1);
         Assert.True(ResolutionCombo(window).IsVisible);
-        Assert.Equal(["Don't change"], Texts(app));
+        Assert.Equal(["Don't change", "2560 × 1440", "1920 × 1080", "1280 × 960"], Texts(app));
         Assert.Equal("Don't change", app.ProfileSettings.SelectedResolutionItem!.Text);
-        // Nothing is read until the list is opened.
-        Assert.Empty(app.DisplayModes.Calls);
+        // The selected display's modes are read once, with the profile.
+        Assert.Equal([@"modes \\.\DISPLAY1"], app.DisplayModes.Calls.Where(call => call.StartsWith("modes", StringComparison.Ordinal)));
         window.Close();
     }
 
     [AvaloniaFact]
-    public void OpeningTheListReadsTheModesOfTheSelectedDisplay()
+    public void OpeningTheListReusesTheModesReadWithTheProfile()
     {
         var (app, window) = Show();
         using var _ = app;
@@ -99,6 +101,8 @@ public sealed class ResolutionSelectorTests
         Assert.True(TestComposition.RunUntil(() => backend.EnumerationCount > enumerations, TimeSpan.FromSeconds(3)));
 
         Assert.Equal(["Don't change", "2560 × 1440", "1920 × 1080", "1280 × 960"], Texts(app));
+        // The refreshed display's modes are read once more: its modes may have changed.
+        Assert.Equal(2, app.DisplayModes.Calls.Count(call => call.StartsWith("modes", StringComparison.Ordinal)));
         Assert.Equal("Don't change", app.ProfileSettings.SelectedResolutionItem!.Text);
         window.Close();
     }

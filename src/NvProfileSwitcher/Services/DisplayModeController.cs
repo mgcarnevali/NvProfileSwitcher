@@ -132,7 +132,7 @@ internal sealed class DisplayModeController(
     /// <summary>
     /// The desktop mode of <paramref name="display"/> (the one it is restored to, while this
     /// controller owns it) and the modes it supports, which the editor offers from; null when they
-    /// cannot be read. Read only when the user opens a list.
+    /// cannot be read. Read for the display selected in the editor of an application profile.
     /// </summary>
     public DisplayModeOptions? ModeOptions(ConnectedDisplay display)
     {

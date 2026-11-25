@@ -46,9 +46,10 @@ internal sealed partial class ProfileSettingsViewModel : ObservableObject
     private bool resolutionListOpen;
     private bool refreshRateListOpen;
 
-    // The selected display's modes, read when one of the lists is first opened for it; null until then.
+    // The modes of the display they were read for (null when the read failed): read once per
+    // display, and again after a display refresh, which replaces the display instances.
     private DisplayModeOptions? options;
-    private bool optionsLoaded;
+    private ConnectedDisplay? optionsDisplay;
 
     public ProfileSettingsViewModel(
         ProfileEditor editor,
@@ -151,8 +152,8 @@ internal sealed partial class ProfileSettingsViewModel : ObservableObject
     }
 
     /// <summary>
-    /// The Resolution selector of the selected display: "Don't change" and the saved resolution
-    /// until a list is opened, then every resolution the display offers.
+    /// The Resolution selector of the selected display: "Don't change" and every resolution the
+    /// display offers, with the saved one marked when it does not offer it.
     /// </summary>
     public ObservableCollection<ResolutionComboItem> ResolutionItems { get; } = [];
 
@@ -171,8 +172,8 @@ internal sealed partial class ProfileSettingsViewModel : ObservableObject
 
     /// <summary>
     /// The Refresh rate selector of the selected display, independent of the resolution: "Desktop
-    /// rate", "Highest available" and the saved rate until a list is opened, then every rate the
-    /// selected resolution (or the desktop one) offers.
+    /// rate" and "Highest available" with the rate each applies, then every rate the selected
+    /// resolution (or the desktop one) offers, with the saved rate marked when it does not offer it.
     /// </summary>
     public ObservableCollection<RefreshRateComboItem> RefreshRateItems { get; } = [];
 
@@ -187,7 +188,7 @@ internal sealed partial class ProfileSettingsViewModel : ObservableObject
         }
     }
 
-    /// <summary>Opening the Resolution list reads the display's modes, only then.</summary>
+    /// <summary>Whether the Resolution list is open; it shows the modes already read, reading them only if they were not.</summary>
     public bool IsResolutionListOpen
     {
         get => resolutionListOpen;
@@ -201,7 +202,7 @@ internal sealed partial class ProfileSettingsViewModel : ObservableObject
         }
     }
 
-    /// <summary>Opening the Refresh rate list reads the display's modes, only then.</summary>
+    /// <summary>Whether the Refresh rate list is open; it shows the modes already read, reading them only if they were not.</summary>
     public bool IsRefreshRateListOpen
     {
         get => refreshRateListOpen;
@@ -387,22 +388,29 @@ internal sealed partial class ProfileSettingsViewModel : ObservableObject
             LoadModes();
     }
 
-    // The selected display's resolution and rate, without reading its modes unless a list is open,
-    // as when a display refresh starts the draft over while the user is choosing.
+    // The selected display's resolution and rate. For an application profile the display's modes
+    // are read here, so "Desktop rate" and "Highest available" show their rate before a list is
+    // opened; another profile on the same display, the lists and a change of resolution reuse them.
+    // They are read again for another display or after a display refresh; a failed read leaves the
+    // defaults without their rate until then. The Windows profile has no mode selectors and reads
+    // nothing.
     private void LoadModes()
     {
-        optionsLoaded = false;
-        options = null;
+        if (!ReferenceEquals(optionsDisplay, editor.SelectedDisplay))
+        {
+            optionsDisplay = null;
+            options = null;
+        }
         ShowResolutionItems();
         ShowRefreshRateItems();
-        if (resolutionListOpen || refreshRateListOpen)
+        if (isApplicationProfile || resolutionListOpen || refreshRateListOpen)
             LoadOptions();
     }
 
     private void LoadOptions()
     {
-        if (optionsLoaded || editor.SelectedDisplay is not { } display) return;
-        optionsLoaded = true;
+        if (editor.SelectedDisplay is not { } display || ReferenceEquals(optionsDisplay, display)) return;
+        optionsDisplay = display;
         options = modeOptions(display);
         ShowResolutionItems();
         ShowRefreshRateItems();
