@@ -4,7 +4,9 @@ All notable changes to NvProfileSwitcher will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project follows [Semantic Versioning](https://semver.org/).
 
-## Unreleased
+## 4.0.0 --- Unreleased
+
+NvProfileSwitcher 4.0 manages each monitor's resolution and refresh rate as well as its colors, and no longer needs an NVIDIA GPU to run.
 
 ### Added
 
@@ -14,6 +16,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ### Changed
 
+- When the NVIDIA API cannot be used at startup or after resuming from sleep, automatic switching, resolutions, hotkeys and the tray keep working without colors; earlier versions did not start automatic switching. The colors return without restarting once the API can be initialized again: at the next display change, when the window is opened again, or after resuming.
 - Lists of the drop-down selectors now open from the selector's left edge, so a long display name extends the list to the right instead of on both sides.
 - Removed the decorative check box from the Display list in Profile Settings: the chosen display is highlighted as in the other lists, and its items are as tall as theirs.
 - Unified the capitalization of interface texts: "Digital vibrance (%)", "Sort by name (A–Z)" and "(Z–A)", "Driver:" in the status bar, "Update cancelled.", and "Not supported" and "Colors unavailable" after a "·" in the Profile Settings selectors.
@@ -21,7 +24,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 ### Notes
 
 - Displays connected to a GPU other than NVIDIA, which were not listed before, now appear in Profile Settings with their colors unavailable.
-- Profiles with a resolution can still be opened by earlier versions, which ignore it; saving the configuration in an earlier version removes the resolutions.
+- Configurations from earlier versions are read as they are; profiles without a resolution or refresh rate keep the current display mode.
+- Profiles with a resolution or refresh rate can still be opened by earlier versions, which ignore them; saving the configuration in an earlier version removes them.
+- Monitors whose mode NvProfileSwitcher changed are recorded in `display-modes.json`, next to `config.json`, until they are restored.
 
 ## 3.1.0 --- 2026-11-08
 

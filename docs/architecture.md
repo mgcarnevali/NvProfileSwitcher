@@ -61,6 +61,9 @@ The commit hashes and Windows CI run numbers in this document belong to the arch
 | 11 | Displays and colors (§22): monitor identity, one color writer in batches, saved values that never come from written colors, one retry for monitors without identity | `bc53720` (superseded by `93fdf2a`), `4b869a9`, `93fdf2a`, `4127598`, `6f04236` and this document | Windows CI #81; hardware test of the preview while disconnecting a monitor |
 | 12 | Recovery after resume (§22.4) | `1b746b9`, `9ad94d3` | Windows CI #82; resume simulation on hardware pending (§20) |
 | 13 | Installed driver version (§22.5) | `c54ecef`, `e96e57e` (read on display changes), the registry as its source and this document | Local suites (§18); Windows CI in this repository; driver update while the application runs, on hardware (GeForce RTX 3090) |
+| 14 | Version 4.0: resolution per profile (§22.7) | `70cb7a7`, `0f6a70a` | Windows CI in this repository; development build |
+| 15 | Version 4.0: without the NVIDIA API (§22.8) | `ffc9d8e`, `4304b7e`, `d59ef4c` | Windows CI in this repository; development build on a laptop without an NVIDIA GPU |
+| 16 | Version 4.0: refresh rate per profile and editor refinements (§22.7, 4.0-3) | `8c0dbaf`, `7a11fbb`, `0d49dfb`, `5ebe8f2`, `16149af`, `ff8e714`, `48093da`, `b1de921`, `806e178` | Windows CI in this repository; development builds; mode reading measured on hardware (GeForce RTX 3090) |
 
 ---
 
@@ -910,17 +913,6 @@ supersede an earlier decision; that is noted in place.
   defaults" without a final period. While Global Switching is off the active profile shows
   "Windows"; the reference showed "Windows (global off)", and "Global Switching: OFF" already
   shows the state. Configuration keys, internal names and behavior are unchanged.
-  Capitalization: Title Case for panel titles (Profiles, Profile Settings, Application Settings,
-  Hotkeys) and the titles of the application's own windows (About NvProfileSwitcher, Advanced
-  Settings, Manage Displays, Running Applications, NvProfileSwitcher Update); the names of
-  features above keep their capitals wherever they appear; everything else is in sentence case:
-  labels, buttons, options, tooltips, messages and the titles of message, confirmation and file
-  dialogs, which name the action that opened them ("Copy settings", "Import configuration").
-  Each part separated by "·" is in sentence case on its own, as a label ("Click to change · Press
-  Esc to clear", "75 Hz · Not supported"); numbers and units are kept as they are. The texts that
-  did not follow it became "Digital vibrance (%)", "Sort by name (A–Z)" and "(Z–A)", "Driver:"
-  (as the other status bar labels), "Update cancelled.", "· Not supported" and "· Colors
-  unavailable".
 - **3.0-2 New monitors start from the NVIDIA Control Panel settings** (§22.6). The brightness,
   contrast and gamma of a monitor new to the Windows profile come from the NVIDIA Control Panel
   when they can be used; the reference, and earlier versions, started them at 100, 100 and 1.00.
@@ -938,6 +930,29 @@ supersede an earlier decision; that is noted in place.
   as they were (`ProfileStore.Reorder`). As moving, it registers the hotkeys again and does not
   reevaluate the active profile, which follows the new priority at the next check. The button is
   enabled with two application profiles or more. The reference had no sort.
+
+**Version 4.0**
+- **4.0-1 Resolution and refresh rate per profile** (§22.7). Application profiles can set each
+  monitor's resolution and refresh rate while their application is in the foreground; the
+  reference changed colors only.
+- **4.0-2 Without the NVIDIA API** (§22.8). The displays come from Windows, not from the NVIDIA
+  API; profiles, switching, overrides, hotkeys and resolutions work on every display, and the
+  colors only on the displays the API controls. When the API fails at startup, switching starts
+  all the same; the reference, and earlier versions, did not start it.
+- **4.0-3 Interface.** Every ComboBox list opens from its selector's left edge (§22.7); the
+  display list has no decorative check box (§22.7); "Desktop rate" and "Highest available" show
+  their rate before a list is opened (§22.7).
+  Capitalization: Title Case for panel titles (Profiles, Profile Settings, Application Settings,
+  Hotkeys) and the titles of the application's own windows (About NvProfileSwitcher, Advanced
+  Settings, Manage Displays, Running Applications, NvProfileSwitcher Update); the names of the
+  features in 3.0-1 keep their capitals wherever they appear; everything else is in sentence case:
+  labels, buttons, options, tooltips, messages and the titles of message, confirmation and file
+  dialogs, which name the action that opened them ("Copy settings", "Import configuration").
+  Each part separated by "·" is in sentence case on its own, as a label ("Click to change · Press
+  Esc to clear", "75 Hz · Not supported"); numbers and units are kept as they are. The texts that
+  did not follow it became "Digital vibrance (%)", "Sort by name (A–Z)" and "(Z–A)", "Driver:"
+  (as the other status bar labels), "Update cancelled.", "· Not supported" and "· Colors
+  unavailable".
 ---
 
 ## 16. Reference behavior kept on purpose
@@ -1164,6 +1179,14 @@ draft, and Exit from the tray twice while the confirmation is open; second insta
 - Windows CI and the hardware checklist (§18), with a local build or a draft release (§19), for
   phases 10 and 11; for phase 12, the resume simulation (§22.4) on hardware.
 - The body scrollbar stays pending; it is not touched.
+- Version 4.0, on hardware: the desktop mode a monitor is restored to when Windows reports another
+  one at the first change (§22.7); the NVIDIA handles after a mode change on a display the API
+  controls (§22.7); colors on NVIDIA hardware with the displays now enumerated by Windows (§22.8);
+  hybrid laptops with displays on both GPUs; custom resolutions.
+- NVIDIA driver update while the application runs (§22.5, §22.8): whether the colors return
+  without reopening the window, since the API is initialized again only when it was reported
+  unavailable, at an opening of the window or after resume, and the library loaded at start stays
+  in the process (§17.2). To be measured on hardware before any change.
 - Possible later improvement, outside the migration: ignore the automatic update check while
   another one runs or the update dialog is open (§16).
 - Releases are built and published from this repository with `release.yml` (§19); the source is

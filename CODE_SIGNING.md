@@ -15,8 +15,9 @@ itself, establish that code signing has taken place.
 
 ## Project
 
-NvProfileSwitcher automatically switches NVIDIA display color profiles based
-on the foreground application. Its source code is available under the
+NvProfileSwitcher automatically switches display profiles (NVIDIA color
+settings and, optionally, each monitor's resolution and refresh rate) based on
+the foreground application. Its source code is available under the
 [GNU General Public License v3.0](LICENSE).
 
 ## Team roles
@@ -44,8 +45,11 @@ No other user information is intentionally transferred to networked systems.
 
 The installer writes application files, registers the application for Windows
 uninstallation, and creates Start Menu shortcuts. A desktop shortcut is optional.
-The portable edition runs without installation. NVIDIA color settings are changed
-only as directed by the user's profile configuration and controls.
+The portable edition runs without installation. NVIDIA color settings, and the
+resolution and refresh rate of a monitor, are changed only as directed by the
+user's profile configuration and controls. Resolution and refresh rate changes
+are not saved to the Windows display settings and are reverted when the
+profile stops applying or the application exits.
 The installed edition can be removed through Windows Installed apps.
 
 ## Build and release process

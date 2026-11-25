@@ -6,7 +6,7 @@
 
 ### Your display. Your colors. Your rules.
 
-**Automatic NVIDIA display color profiles for Windows — tailored to every game, application, and monitor.**
+**Automatic display profiles for Windows — NVIDIA colors, resolution, and refresh rate, tailored to every game, application, and monitor.**
 
 Set your favorite colors once. NvProfileSwitcher takes care of the rest.
 
@@ -30,7 +30,7 @@ Set your favorite colors once. NvProfileSwitcher takes care of the rest.
 | [**⬇ Download Installer**](https://mgcarnevali.github.io/NvProfileSwitcher/download/installer/) | [**⬇ Download Portable**](https://mgcarnevali.github.io/NvProfileSwitcher/download/portable/) |
 | Install and uninstall through Windows. | Extract the ZIP and run `NvProfileSwitcher.exe`. |
 
-> **Note:** Note: Download buttons automatically fetch the latest stable release from GitHub. If the download doesn't start, a manual download link is available.
+> **Note:** Download buttons automatically fetch the latest stable release from GitHub. If the download doesn't start, a manual download link is available.
 
 **Code signing policy:** See [CODE_SIGNING.md](CODE_SIGNING.md) for release provenance, maintainer roles, privacy, and signature verification. Current releases are not claimed to be signed. SignPath Foundation signing is planned, subject to approval.
 
@@ -40,13 +40,13 @@ Set your favorite colors once. NvProfileSwitcher takes care of the rest.
   <img src="assets/screenshots/nvprofileswitcher-main-window.png" alt="NvProfileSwitcher main window" width="100%">
 </div>
 
-NvProfileSwitcher watches the foreground application and automatically applies the color profile you've saved for it. Switch games, applications, or return to the desktop — your colors follow you.
+NvProfileSwitcher watches the foreground application and automatically applies the profile you've saved for it: its colors and, if you choose, its resolution and refresh rate. Switch games, applications, or return to the desktop — your settings follow you.
 
 **Five NVIDIA color controls:** Digital Vibrance · Hue · Brightness · Contrast · Gamma.
 
 ### Quick navigation
 
-[Highlights](#highlights) · [Getting started](#getting-started) · [Profiles](#profiles-and-editing) · [Color controls](#color-controls) · [Switching & overrides](#automatic-switching-global-switching-and-overrides) · [Hotkeys](#keyboard-shortcuts) · [Multiple monitors](#multiple-monitors) · [Updates & backups](#updates-configuration-and-backups) · [FAQ](#frequently-asked-questions)
+[Highlights](#highlights) · [Getting started](#getting-started) · [Profiles](#profiles-and-editing) · [Color controls](#color-controls) · [Resolution & refresh rate](#resolution-and-refresh-rate) · [Switching & overrides](#automatic-switching-global-switching-and-overrides) · [Hotkeys](#keyboard-shortcuts) · [Multiple monitors](#multiple-monitors) · [Updates & backups](#updates-configuration-and-backups) · [FAQ](#frequently-asked-questions)
 
 ---
 
@@ -56,6 +56,8 @@ NvProfileSwitcher watches the foreground application and automatically applies t
 |---|---|
 | **Automatic application switching** | Detects the foreground application and activates the first matching, enabled profile. |
 | **Five NVIDIA color controls** | Adjust **Digital Vibrance, Hue, Brightness, Contrast, and Gamma** independently for each monitor. |
+| **Resolution and refresh rate** | Switch each monitor to the resolution and refresh rate a profile needs, and back to your desktop mode when you leave it. |
+| **Works without NVIDIA** | Runs on any Windows PC: profiles, switching, hotkeys, and display modes work on every display; colors are available on displays driven by an NVIDIA GPU. |
 | **NVIDIA settings import** | Initializes newly detected monitors from available NVIDIA Control Panel brightness, contrast, and gamma settings. |
 | **Per-monitor settings** | Save distinct colors for each physical display in every profile. |
 | **Live Preview** | See adjustments immediately without committing them until you save. |
@@ -71,7 +73,7 @@ NvProfileSwitcher watches the foreground application and automatically applies t
 
 1. **Configure your Windows Profile.** This is your baseline for the desktop and any application without a matching profile.
 2. **Create an Application Profile.** Give it a name and select an executable using **Running apps...** or **Browse...**.
-3. **Adjust each display.** Select a monitor, tune its colors, and preview changes in real time.
+3. **Adjust each display.** Select a monitor, tune its colors, and preview changes in real time. Optionally, choose its resolution and refresh rate for this profile.
 4. **Save profile.** When a matching application comes to the foreground, NvProfileSwitcher applies its saved colors automatically.
 5. **Switch away.** The next matching application gets its own profile; otherwise, your Windows Profile returns.
 
@@ -101,6 +103,7 @@ Each application profile has its own name, executable associations, enabled stat
 - **Running apps...** lets you choose from detected running applications; **Browse...** selects an executable on disk.
 - **Enable/disable** using the power button beside a profile determines whether it participates in automatic switching and manual activation.
 - **Move up/down** changes matching priority.
+- **Resolution** and **Refresh rate** set the display mode each monitor uses while the profile is active (see [Resolution and refresh rate](#resolution-and-refresh-rate)).
 - **Copy settings** copies color settings from another profile for displays shared by both.
 - **Reset to NVIDIA defaults** returns the selected monitor's controls to neutral values (100 brightness, 100 contrast, 1.00 gamma, 50% Digital Vibrance, and 0° hue), not the values imported on first detection.
 - **Save profile** commits your edits; **Cancel** discards them. NvProfileSwitcher asks before discarding unsaved changes.
@@ -122,6 +125,21 @@ Every control is configured **per profile, per monitor**.
 | Hue | 0–359° | 0° |
 
 All five controls are applied through NVIDIA interfaces. **Digital Vibrance and Hue** use NVAPI color controls; **Brightness, Contrast, and Gamma** use NVIDIA's target gamma functionality.
+
+Color controls are available for displays driven by an NVIDIA GPU. Other displays, such as the built-in screen of a laptop connected to its integrated graphics, show them disabled with **Colors unavailable**; their saved colors are kept, and everything else in the profile still applies.
+
+### Resolution and refresh rate
+
+Application profiles can also set the **resolution** and **refresh rate** of each monitor:
+
+| Setting | Options |
+|---|---|
+| **Resolution** | **Don't change** (default), or any resolution the monitor offers. |
+| **Refresh rate** | **Desktop rate** (default), **Highest available**, or a specific rate the selected resolution offers. |
+
+Both options show the rate they would apply, such as **Desktop rate · 60 Hz** or **Highest available · 144 Hz**. Resolution and refresh rate can be set independently: for example, the highest refresh rate at your desktop resolution.
+
+While the profile's application is in the foreground, its monitors switch to that mode. Switching to another application, Windows Override, turning Global Switching off, or closing NvProfileSwitcher returns them to your desktop mode. Changes are never saved to Windows display settings, and a mode changed by a game or by you in the meantime is left alone. A saved value the monitor no longer offers is marked **Not supported** and is not applied.
 
 ### Live Preview
 
@@ -169,6 +187,8 @@ This initialization happens only once per monitor; subsequent changes in NVIDIA 
 
 Existing saved monitor settings are preserved. Newly created application profiles inherit their initial colors from the Windows Profile. Connection and disconnection events refresh the display setup automatically.
 
+Displays connected to a GPU other than NVIDIA are listed too, with their colors unavailable; their resolution and refresh rate can still be set.
+
 Use **Advanced Settings → Manage displays...** to review saved displays and remove disconnected displays you no longer use.
 
 <div align="center">
@@ -190,7 +210,7 @@ NvProfileSwitcher can run conveniently alongside your other applications:
 
 While NvProfileSwitcher is hidden in the system tray, its icon menu provides **Open NvProfileSwitcher**, **Global Switching**, **Check for updates**, **About NvProfileSwitcher**, and **Exit**. Clicking the tray icon reopens the window.
 
-**Closing the window with X exits NvProfileSwitcher** and restores the Windows Profile. Use minimize-to-tray when you want the application to keep running out of sight.
+**Closing the window with X exits NvProfileSwitcher**, restores the Windows Profile, and returns any monitor whose mode it changed to its desktop mode. Use minimize-to-tray when you want the application to keep running out of sight.
 
 ## Advanced Settings
 
@@ -210,7 +230,7 @@ Downloads are checked against their **SHA-256** verification files. The updater 
 
 ### Backup and restore
 
-**Export** saves a copy of your configuration, including profiles, settings, and hotkeys. **Import** restores a previously exported v3 configuration, replacing the current settings after confirmation.
+**Export** saves a copy of your configuration, including profiles, settings, and hotkeys. **Import** restores a previously exported v3 or v4 configuration, replacing the current settings after confirmation.
 
 The active configuration is stored locally at:
 
@@ -229,7 +249,7 @@ Get official builds from [**GitHub Releases**](https://github.com/mgcarnevali/Nv
 
 ### Requirements
 
-**Windows 10 or Windows 11, 64-bit (x64)**, a compatible NVIDIA GPU, and an NVIDIA display driver. The v3 executable is self-contained; **no separate .NET runtime installation** is needed.
+**Windows 10 or Windows 11, 64-bit (x64)**. Color controls require a compatible NVIDIA GPU and an NVIDIA display driver; profiles, automatic switching, hotkeys, resolution, and refresh rate work with any GPU. The executable is self-contained; **no separate .NET runtime installation** is needed.
 
 ## Frequently asked questions
 
@@ -241,6 +261,12 @@ Yes. Every profile can store independent settings for each recognized monitor.
 
 **What happens when I leave a game?**  
 NvProfileSwitcher activates the profile matching the new foreground application, or the Windows Profile if there is no match.
+
+**Do I need an NVIDIA GPU?**  
+Only for the color controls. Without an NVIDIA GPU, or on displays connected to another GPU, profiles, switching, hotkeys, resolution, and refresh rate still work; the status bar shows **NVIDIA API: Not detected** when no NVIDIA driver is installed.
+
+**Does changing the resolution modify my Windows display settings?**  
+No. Display modes are changed only while a profile is active and are never saved to Windows. Leaving the profile or closing NvProfileSwitcher returns each monitor to its desktop mode; if NvProfileSwitcher ends unexpectedly, the next start restores it.
 
 **Can I temporarily force one profile?**  
 Yes. Assign a profile hotkey, use Windows Override, or select Resume auto switching to return to automatic detection.

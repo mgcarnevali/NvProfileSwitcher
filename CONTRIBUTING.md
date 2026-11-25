@@ -13,14 +13,14 @@ Bug reports, feature requests, documentation improvements, and code contribution
 
 ## Development
 
-NvProfileSwitcher v3 is a Windows application written in **C#**, using **.NET** and **Avalonia UI**. It interacts with NVIDIA display settings through native interfaces and is distributed as a self-contained **NativeAOT** executable.
+NvProfileSwitcher is a Windows application written in **C#**, using **.NET** and **Avalonia UI**. It interacts with NVIDIA display settings and Windows display modes through native interfaces and is distributed as a self-contained **NativeAOT** executable.
 
 ### Requirements
 
 - Windows 10 or Windows 11 (x64) for running and testing the application.
 - A compatible .NET SDK for the version specified by the project files.
 - A supported C# development environment, such as Visual Studio or Visual Studio Code.
-- An NVIDIA GPU and driver for testing display color functionality.
+- An NVIDIA GPU and driver for testing display color functionality. Resolution, refresh rate and the rest of the application can be tested on any GPU.
 - The Windows native build prerequisites required by .NET NativeAOT when producing release executables.
 
 You can inspect the code and run tests without NVIDIA hardware, but hardware-dependent behavior must be verified on a compatible Windows system.
@@ -43,7 +43,7 @@ Do not commit generated build outputs or temporary files.
 2. Create a branch from `main`.
 3. Make your changes, following the existing project structure and conventions.
 4. Build the affected projects and run relevant automated tests.
-5. Test affected display-color functionality on Windows with an NVIDIA GPU whenever possible; mention any hardware testing limitations in your pull request.
+5. Test affected display-color functionality on Windows with an NVIDIA GPU, and display-mode functionality on Windows with any GPU, whenever possible; mention any hardware testing limitations in your pull request.
 6. Open a pull request describing what changed, why, and how it was tested.
 
 Please keep pull requests focused on a specific change whenever possible. Avoid unrelated UI or behavior changes.
@@ -53,8 +53,7 @@ Please keep pull requests focused on a specific change whenever possible. Avoid 
 When reporting a bug, please include:
 
 - Windows version.
-- NVIDIA GPU model.
-- NVIDIA driver version.
+- GPU model (and NVIDIA driver version, if any).
 - NvProfileSwitcher version.
 - A description of the problem.
 - Steps to reproduce it.
