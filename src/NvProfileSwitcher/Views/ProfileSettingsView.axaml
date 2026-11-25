@@ -183,15 +183,10 @@
                 <TextBlock Text="{CompiledBinding SelectorLabel}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
               </DataTemplate>
             </ComboBox.SelectionBoxItemTemplate>
+            <!-- The selected display is marked by the item's own selection, as in the other lists. -->
             <ComboBox.ItemTemplate>
               <DataTemplate x:DataType="local:ConnectedDisplay">
-                <StackPanel Orientation="Horizontal" Spacing="8">
-                  <CheckBox IsChecked="{CompiledBinding IsSelected,
-                                            RelativeSource={RelativeSource AncestorType=ComboBoxItem},
-                                            DataType={x:Type ComboBoxItem}}"
-                            IsHitTestVisible="False" Focusable="False" VerticalAlignment="Center"/>
-                  <TextBlock Text="{CompiledBinding SelectorLabel}" VerticalAlignment="Center"/>
-                </StackPanel>
+                <TextBlock Text="{CompiledBinding SelectorLabel}" VerticalAlignment="Center"/>
               </DataTemplate>
             </ComboBox.ItemTemplate>
           </ComboBox>

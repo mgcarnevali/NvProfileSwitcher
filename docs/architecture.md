@@ -1380,7 +1380,10 @@ desktop mode again, resolution and rate.
   ControlTheme based on the standard ComboBoxItem one draws it above the first fixed rate, outside
   `PART_ContentPresenter` and not hit-testable, so it is never highlighted, never takes a click and
   never changes the selection. The selected
-  display is trimmed with an ellipsis; the list and its tooltip keep the full label. Every
+  display is trimmed with an ellipsis; the list and its tooltip keep the full label. Its items are
+  the label alone, marked when chosen by the item's own selection as in the other lists; the
+  decorative check box of earlier versions, bound to that selection, made them 44 DIP tall
+  instead of 29 (the Fluent CheckBox template keeps a 32 DIP row). Every
   ComboBox list opens from the selector's left edge (`Popup.Placement` `BottomEdgeAlignedLeft`
   in `Styles/Controls.axaml`; Fluent centers it), so a display list wider than its selector grows
   to the right; without room there, the popup's constraint adjustment flips it to end at the

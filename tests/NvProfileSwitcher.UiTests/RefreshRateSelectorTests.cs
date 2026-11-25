@@ -376,6 +376,85 @@ public sealed class RefreshRateSelectorTests
         window.Close();
     }
 
+    // Two displays, for the tests of the display list.
+    private static (TestComposition App, MainWindow Window) ShowTwoDisplays()
+    {
+        var app = new TestComposition(
+            Config(), createWindow: viewModel => new MainWindow { Width = 1180, Height = 720, DataContext = viewModel });
+        app.Factory.Configure = backend =>
+        {
+            backend.Displays.Add(Display(Dell, "DELL U2720Q"));
+            backend.Displays.Add(Display("GSM5B7F-XYZ789", "LG ULTRAGEAR", 2));
+        };
+        app.ShowActive();
+        var window = (MainWindow)app.Window;
+        SelectRow(window, 1);
+        return (app, window);
+    }
+
+    private static ComboBoxItem OpenItem(ComboBox combo, int index)
+    {
+        combo.IsDropDownOpen = true;
+        Dispatcher.UIThread.RunJobs();
+        return Assert.IsType<ComboBoxItem>(combo.ContainerFromIndex(index));
+    }
+
+    // The display items are as tall as the items of the other lists: text alone, nothing that
+    // stretches them.
+    [AvaloniaFact]
+    public void TheDisplayItemsAreAsTallAsTheOtherLists()
+    {
+        var (app, window) = ShowTwoDisplays();
+        using var _ = app;
+
+        var executable = OpenItem(Editor<ComboBox>(window, "executableCombo"), 0);
+        var executableHeight = executable.Bounds.Height;
+        Editor<ComboBox>(window, "executableCombo").IsDropDownOpen = false;
+        var display = OpenItem(Editor<ComboBox>(window, "displayCombo"), 1);
+
+        Assert.True(executableHeight > 0);
+        Assert.Equal(executableHeight, display.Bounds.Height, 0.5);
+        Assert.Empty(display.GetVisualDescendants().OfType<CheckBox>());
+        Assert.Equal(app.ProfileSettings.Displays[1].SelectorLabel, display.GetVisualDescendants().OfType<TextBlock>().Single().Text);
+        window.Close();
+    }
+
+    // The chosen display is marked by the item's selection; a click and the arrow keys choose
+    // another one, and the editor follows.
+    [AvaloniaFact]
+    public void TheDisplayIsChosenWithTheMouseAndTheKeyboard()
+    {
+        var (app, window) = ShowTwoDisplays();
+        using var _ = app;
+        var combo = Editor<ComboBox>(window, "displayCombo");
+        Assert.Equal(0, combo.SelectedIndex);
+
+        var second = OpenItem(combo, 1);
+        Assert.True(Assert.IsType<ComboBoxItem>(combo.ContainerFromIndex(0)).IsSelected);
+        Assert.False(second.IsSelected);
+        var center = second.TranslatePoint(new Point(second.Bounds.Width / 2, second.Bounds.Height / 2), TopLevel.GetTopLevel(second)!)!.Value;
+        var root = (TopLevel)TopLevel.GetTopLevel(second)!;
+        root.MouseMove(center);
+        root.MouseDown(center, MouseButton.Left);
+        root.MouseUp(center, MouseButton.Left);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.False(combo.IsDropDownOpen);
+        Assert.Equal(1, combo.SelectedIndex);
+        Assert.Same(app.ProfileSettings.Displays[1], app.ProfileSettings.SelectedDisplay);
+
+        combo.Focus();
+        Dispatcher.UIThread.RunJobs();
+        window.KeyPressQwerty(PhysicalKey.ArrowUp, RawInputModifiers.None);
+        Dispatcher.UIThread.RunJobs();
+        Assert.Same(app.ProfileSettings.Displays[0], app.ProfileSettings.SelectedDisplay);
+        window.KeyPressQwerty(PhysicalKey.ArrowDown, RawInputModifiers.None);
+        Dispatcher.UIThread.RunJobs();
+        Assert.Same(app.ProfileSettings.Displays[1], app.ProfileSettings.SelectedDisplay);
+        Assert.True(OpenItem(combo, 1).IsSelected);
+        window.Close();
+    }
+
     // A display list wider than its selector opens from the selector's left edge, as the other
     // lists, and grows to the right while there is room.
     [AvaloniaFact]
