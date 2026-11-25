@@ -260,6 +260,23 @@ public sealed class RefreshRateSelectorTests
         window.Close();
     }
 
+    // The title area has the same background as the items at rest, not the lighter dropdown's.
+    [AvaloniaFact]
+    public void TheTitleHasTheBackgroundOfTheList()
+    {
+        var (app, window) = ShowListOpen();
+        using var _ = app;
+        var item = Container(window, 2);
+        var area = item.GetVisualDescendants().OfType<Border>().Single(b => b.Classes.Contains("fixedRatesTitleArea"));
+        var restingRate = Container(window, 1).GetVisualDescendants().OfType<Avalonia.Controls.Presenters.ContentPresenter>()
+            .Single(p => p.Name == "PART_ContentPresenter");
+        Avalonia.Media.Color ColorOf(Avalonia.Media.IBrush? brush) => Assert.IsAssignableFrom<Avalonia.Media.ISolidColorBrush>(brush).Color;
+
+        Assert.Equal(ColorOf(restingRate.Background), ColorOf(area.Background));
+        Assert.True(area.Bounds.Width >= item.Bounds.Width - 0.5, "the background does not cover the whole width");
+        window.Close();
+    }
+
     // A click on the title chooses nothing and leaves the list open; a click on the rate chooses it.
     [AvaloniaFact]
     public void AClickOnTheTitleChangesNothing()

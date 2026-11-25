@@ -16,11 +16,16 @@
       <Setter Property="Template">
         <ControlTemplate>
           <StackPanel>
-            <StackPanel Classes="fixedRatesTitle" Spacing="4" Margin="11,6,11,4" IsHitTestVisible="False"
-                        IsVisible="{CompiledBinding StartsFixedRates, DataType={x:Type local:RefreshRateComboItem}}">
-              <Separator Margin="0"/>
-              <TextBlock Classes="refreshRateHeader" Text="Fixed refresh rate"/>
-            </StackPanel>
+            <!-- The item background (not the dropdown's, which is lighter), so the title area looks
+                 like the rest of the list; it stays out of hit testing. -->
+            <Border Classes="fixedRatesTitleArea" Background="{TemplateBinding Background}" Padding="11,6,11,4"
+                    IsHitTestVisible="False"
+                    IsVisible="{CompiledBinding StartsFixedRates, DataType={x:Type local:RefreshRateComboItem}}">
+              <StackPanel Classes="fixedRatesTitle" Spacing="4">
+                <Separator Margin="0"/>
+                <TextBlock Classes="refreshRateHeader" Text="Fixed refresh rate"/>
+              </StackPanel>
+            </Border>
             <ContentPresenter Name="PART_ContentPresenter"
                               Foreground="{TemplateBinding Foreground}"
                               Background="{TemplateBinding Background}"
