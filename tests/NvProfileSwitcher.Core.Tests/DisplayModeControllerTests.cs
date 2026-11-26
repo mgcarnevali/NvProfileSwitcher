@@ -735,6 +735,115 @@ public sealed class DisplayModeControllerTests
         Assert.Equal(desktopAt60, restarted.DisplayModes.Current[DellGdi]);
     }
 
+    // ---- What the driver reports (issue #41) ----
+
+    // A monitor at 1920×1080 and 60 Hz that also offers 59 Hz, 1440×1080 at 60 and 59 Hz, and 120 Hz.
+    private static readonly DisplayModeInfo Desktop60 = new(1920, 1080, 60);
+    private static readonly DisplayModeInfo Desktop59 = new(1920, 1080, 59);
+    private static readonly DisplayModeInfo Desktop120 = new(1920, 1080, 120);
+    private static readonly DisplayModeInfo Stretched60 = new(1440, 1080, 60);
+    private static readonly DisplayModeInfo Stretched59 = new(1440, 1080, 59);
+
+    private static SwitchingFixture FixtureAt60()
+    {
+        var app = Fixture(withModes: false);
+        app.DisplayModes.AddMonitor(DellGdi, Desktop60, Desktop59, Desktop120, Stretched60, Stretched59);
+        return app;
+    }
+
+    // Windows accepts the change, but the read right after it still reports the previous mode;
+    // the monitor shows the new one a moment later. It stays recorded and is restored on leaving.
+    [Fact]
+    public void AChangeReportedLateIsStillRestored()
+    {
+        using var app = FixtureAt60();
+        SetResolution(app.Game, Dell, 1440, 1080);
+        app.DisplayModes.DuringApply = () => app.DisplayModes.Current[DellGdi] = Desktop60;
+
+        Focus(app, "game.exe");
+        app.DisplayModes.DuringApply = null;
+        app.DisplayModes.Current[DellGdi] = Stretched60;
+        app.Services.Modes.OnDisplaysChanged();
+
+        Assert.True(app.Services.Modes.OwnsAnyMonitor);
+        Assert.True(File.Exists(RecoveryPath(app)));
+        Focus(app, "explorer.exe");
+        Assert.Equal(Desktop60, app.DisplayModes.Current[DellGdi]);
+        Assert.False(app.Services.Modes.OwnsAnyMonitor);
+    }
+
+    // A change Windows rejects, which the read then reports as unchanged, is still not recorded.
+    [Fact]
+    public void ARejectedChangeIsStillNotRecorded()
+    {
+        using var app = FixtureAt60();
+        SetResolution(app.Game, Dell, 1440, 1080);
+        app.DisplayModes.Rejected.Add(DellGdi);
+
+        Focus(app, "game.exe");
+
+        Assert.Equal(Desktop60, app.DisplayModes.Current[DellGdi]);
+        Assert.False(app.Services.Modes.OwnsAnyMonitor);
+        Assert.False(File.Exists(RecoveryPath(app)));
+    }
+
+    // The mode applied is later reported 1 Hz off (a fractional rate rounded the other way): it is
+    // still this application's, and leaving restores the desktop mode.
+    [Fact]
+    public void TheAppliedModeReportedOneHertzOffIsStillRestored()
+    {
+        using var app = FixtureAt60();
+        SetResolution(app.Game, Dell, 1440, 1080);
+
+        Focus(app, "game.exe");
+        app.DisplayModes.Current[DellGdi] = Stretched59;
+        app.Services.Modes.OnDisplaysChanged();
+        Focus(app, "explorer.exe");
+
+        Assert.Equal(Desktop60, app.DisplayModes.Current[DellGdi]);
+        Assert.False(app.Services.Modes.OwnsAnyMonitor);
+    }
+
+    // 59 and 60 Hz are different choices: each is applied from the other and the desktop rate
+    // comes back exactly.
+    [Theory]
+    [InlineData(60, 59)]
+    [InlineData(59, 60)]
+    public void AnExplicitRateOneHertzFromTheDesktopIsAppliedAndRestored(int desktopRate, int profileRate)
+    {
+        using var app = Fixture(withModes: false);
+        var desktop = new DisplayModeInfo(1920, 1080, desktopRate);
+        var chosen = new DisplayModeInfo(1920, 1080, profileRate);
+        app.DisplayModes.AddMonitor(DellGdi, desktop, chosen);
+        SetRate(app.Game, Dell, RefreshRateSetting.Explicit(profileRate));
+
+        Focus(app, "game.exe");
+        Assert.Equal(chosen, app.DisplayModes.Current[DellGdi]);
+
+        Focus(app, "explorer.exe");
+        Assert.Equal(desktop, app.DisplayModes.Current[DellGdi]);
+        Assert.Equal([chosen, desktop], app.DisplayModes.Applied.Select(applied => applied.Mode));
+        Assert.False(app.Services.Modes.OwnsAnyMonitor);
+    }
+
+    // A rate the user sets while the profile is active, more than 1 Hz from the applied one, is
+    // theirs: leaving does not restore over it.
+    [Fact]
+    public void ARateTheUserSetIsNeverOverwritten()
+    {
+        using var app = FixtureAt60();
+        SetRate(app.Game, Dell, RefreshRateSetting.Explicit(59));
+
+        Focus(app, "game.exe");
+        app.DisplayModes.Current[DellGdi] = Desktop120;
+        app.Services.Modes.OnDisplaysChanged();
+        Focus(app, "explorer.exe");
+
+        Assert.Equal(Desktop120, app.DisplayModes.Current[DellGdi]);
+        Assert.False(app.Services.Modes.OwnsAnyMonitor);
+        Assert.False(File.Exists(RecoveryPath(app)));
+    }
+
     [Fact]
     public void WithoutResolutionsOrRatesTheBackendIsNeverReachedEvenWithTheWindowsProfileRate()
     {

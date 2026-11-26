@@ -22,6 +22,17 @@ internal sealed record DisplayModeOptions(DisplayModeInfo Desktop, IReadOnlyList
 internal static class DisplayModeCore
 {
     /// <summary>
+    /// Whether a monitor reporting <paramref name="current"/> still shows <paramref name="applied"/>,
+    /// a mode this application set: the same resolution, and a refresh rate at most 1 Hz apart,
+    /// since a fractional rate (59.94, 143.98) can be reported rounded either way. Only to
+    /// recognize the application's own mode; whether to apply or restore a mode is decided with
+    /// exact modes, so 59 and 60 Hz stay different choices.
+    /// </summary>
+    internal static bool StillShows(DisplayModeInfo current, DisplayModeInfo applied) =>
+        current.Width == applied.Width && current.Height == applied.Height &&
+        Math.Abs(current.RefreshRate - applied.RefreshRate) <= 1;
+
+    /// <summary>
     /// The mode a profile asks for among the <paramref name="supported"/> modes of a monitor whose
     /// desktop mode is <paramref name="desktop"/>: the <paramref name="resolution"/>, or the desktop
     /// one when null, at the <paramref name="rate"/>. Without a rate, the desktop rate when that

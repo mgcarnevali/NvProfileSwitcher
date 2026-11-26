@@ -404,4 +404,15 @@ public sealed class DisplayModeRecoveryStoreTests : IDisposable
 
         Assert.Null(new DisplayModeRecoveryStore(FilePath).Load());
     }
+
+    // Recognizing the application's own mode allows the 1 Hz a fractional rate can vary; a
+    // different resolution, or 2 Hz, is another mode.
+    [Theory]
+    [InlineData(1440, 1080, 60, true)]
+    [InlineData(1440, 1080, 59, true)]
+    [InlineData(1440, 1080, 61, true)]
+    [InlineData(1440, 1080, 58, false)]
+    [InlineData(1920, 1080, 60, false)]
+    public void StillShowsAllowsOneHertz(int width, int height, int rate, bool expected) =>
+        Assert.Equal(expected, DisplayModeCore.StillShows(new DisplayModeInfo(width, height, rate), new DisplayModeInfo(1440, 1080, 60)));
 }

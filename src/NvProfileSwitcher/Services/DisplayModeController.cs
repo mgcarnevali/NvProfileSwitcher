@@ -240,7 +240,10 @@ internal sealed class DisplayModeController(
 
         var applied = backend.Apply(display.GdiName, mode);
         var after = backend.GetCurrent(display.GdiName);
-        if (after == desktop && previous is null)
+        // A change Windows accepted may not be reported yet by the read right after it: the mode
+        // requested is then the one applied, and the display change that follows shows it.
+        var shown = applied && after == now ? mode : after;
+        if (shown == desktop && previous is null)
         {
             // Nothing changed: the monitor is not ours.
             owned.Remove(display.MonitorId);
@@ -248,9 +251,9 @@ internal sealed class DisplayModeController(
             return false;
         }
 
-        owned[display.MonitorId] = new Owned(desktop, mode, after ?? (applied ? mode : previous?.Applied));
+        owned[display.MonitorId] = new Owned(desktop, mode, shown ?? (applied ? mode : previous?.Applied));
         SaveRecovery();
-        return after != now;
+        return applied || after != now;
     }
 
     // True when the mode changed. The entry stays until the monitor shows its desktop mode again.
@@ -260,7 +263,11 @@ internal sealed class DisplayModeController(
         if (current is not { } now)
             return false;
 
-        if (now == monitor.Original || (now != monitor.Applied && now != monitor.Target))
+        // Exact: a desktop mode 1 Hz from the applied one (60 and 59 Hz) is not taken as back.
+        // The application's own mode is recognized with the 1 Hz a fractional rate can vary.
+        var ours = (monitor.Applied is { } applied && DisplayModeCore.StillShows(now, applied)) ||
+                   DisplayModeCore.StillShows(now, monitor.Target);
+        if (now == monitor.Original || !ours)
         {
             // Already back, or changed by the user or a game since: nothing to restore.
             owned.Remove(display.MonitorId);

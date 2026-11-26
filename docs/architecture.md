@@ -1432,6 +1432,16 @@ desktop mode again, resolution and rate.
   when it returns (Windows gives it its desktop mode) it gets the target again; a connected
   monitor is never changed twice for the same target. A change Windows rejects is not retried and
   shows no message.
+- **What the driver reports** (issue #41). A change Windows accepts is the monitor's even when
+  the read right after it still reports the previous mode: the mode requested is then recorded as
+  applied, and the display change that follows shows it. Before, such a monitor was taken as
+  unchanged and never restored. The application's own mode is recognized with a refresh rate up
+  to 1 Hz apart (`DisplayModeCore.StillShows`), since a fractional rate (59.94, 143.98) can be
+  reported rounded either way. Whether to apply a mode, and whether a monitor is back at its
+  desktop mode, are decided with exact modes, so 59 and 60 Hz stay different choices in both
+  directions. A rate the user sets more than 1 Hz from the applied one, or another resolution,
+  is still left alone. Not resolved: a driver that reports the applied rate exactly as the
+  desktop one (59 Hz applied, read as 60 over a 60 Hz desktop) makes the monitor look back.
 - **Failures.** The controller never throws: an unexpected failure on one monitor leaves its
   recovery entry for the next display change or start, requests no refresh (so it cannot loop),
   and the other monitors and the colors written after it go on. `ModeOptions` returns none.
