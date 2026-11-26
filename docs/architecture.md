@@ -1182,9 +1182,10 @@ draft, and Exit from the tray twice while the confirmation is open; second insta
 - Version 4.0, on hardware: the desktop mode a monitor is restored to when Windows reports another
   one at the first change (§22.7); the NVIDIA handles after a mode change on a display the API
   controls (§22.7); colors on NVIDIA hardware with the displays now enumerated by Windows (§22.8);
-  hybrid laptops with displays on both GPUs; custom resolutions; whether issue #41 (a profile's
-  resolution never restored, GeForce with two monitors) is solved by the restore rules of §22.7,
-  and the identity rules of §22.7 (H2) on monitors with a shared serial number.
+  hybrid laptops with displays on both GPUs; custom resolutions; issue #41 (a profile's resolution
+  never restored on a GeForce with two monitors): cause found with a diagnostic on that hardware
+  (the request copied from the current mode, §22.7), fix to be confirmed there; the identity rules
+  of §22.7 (H2) on monitors with a shared serial number.
 - NVIDIA driver update while the application runs (§22.5, §22.8): whether the colors return
   without reopening the window, since the API is initialized again only when it was reported
   unavailable, at an opening of the window or after resume, and the library loaded at start stays
@@ -1389,6 +1390,15 @@ desktop mode again, resolution and rate.
   `Apply(profile)` before `DisplayColorController.SetBase`, in the same batch, and
   `ReapplyRealColors` does the same, so turning Global Switching on or leaving an override
   applies the resolution of the real target. The call is synchronous on the UI thread.
+- **The request** (issue #41). `Win32DisplayModeBackend.Request` declares the resolution and the
+  refresh rate and no other field, to apply a mode and to restore one: position, orientation and
+  color depth stay as they are, and the scaling is the driver's choice for the new mode, as the
+  user configured it. It is never built from the current mode. A copy carried that mode's fields:
+  on a GeForce, the scaling the driver chose for a 1440×1080 mode (`dmDisplayFixedOutput`) made
+  the copied request for the 1920×1080 desktop mode invalid (`DISP_CHANGE_BADMODE` with
+  `CDS_TEST`, while the request with the resolution and rate alone was valid), so the desktop mode
+  was never restored. A monitor whose size changes is kept where it is; Windows moves the
+  monitors next to it, as it did with the copy.
 - **Choosing the mode.** `DisplayModeCore.ChooseMode` takes the profile's resolution, or the
   desktop one, at: the desktop rate when that resolution supports it, and otherwise its highest
   (no rate set); its highest (`Highest`); or exactly the rate set. A rate the user set that the

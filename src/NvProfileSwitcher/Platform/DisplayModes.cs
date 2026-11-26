@@ -22,15 +22,16 @@ internal interface IDisplayModeBackend
 
 /// <summary>
 /// <see cref="IDisplayModeBackend"/> over ChangeDisplaySettingsExW and EnumDisplaySettingsExW.
-/// Only the resolution and refresh rate change; position, orientation, color depth and the
-/// driver's scaling stay as they are.
+/// Only the resolution and refresh rate change: a request declares those three fields alone, so
+/// position, orientation and color depth stay as they are, and the scaling is the driver's own
+/// choice for the new mode, as the user configured it.
 /// </summary>
 internal sealed class Win32DisplayModeBackend : IDisplayModeBackend
 {
     private const int EnumCurrentSettings = -1;
-    private const uint DmPelsWidth = 0x00080000;
-    private const uint DmPelsHeight = 0x00100000;
-    private const uint DmDisplayFrequency = 0x00400000;
+    internal const uint DmPelsWidth = 0x00080000;
+    internal const uint DmPelsHeight = 0x00100000;
+    internal const uint DmDisplayFrequency = 0x00400000;
     private const uint DmInterlaced = 0x00000002;
     private const uint CdsTest = 0x00000002;
     private const int DispChangeSuccessful = 0;
@@ -68,20 +69,27 @@ internal sealed class Win32DisplayModeBackend : IDisplayModeBackend
 
     public bool Apply(string gdiName, DisplayModeInfo mode)
     {
-        var devMode = DevMode.Create();
-        if (!EnumDisplaySettingsEx(gdiName, EnumCurrentSettings, ref devMode, 0))
-            return false;
-
-        devMode.dmPelsWidth = (uint)mode.Width;
-        devMode.dmPelsHeight = (uint)mode.Height;
-        devMode.dmDisplayFrequency = (uint)mode.RefreshRate;
-        // Added to what the current mode declares: dropping its position would let Windows
-        // rearrange the monitors.
-        devMode.dmFields |= DmPelsWidth | DmPelsHeight | DmDisplayFrequency;
+        var devMode = Request(mode);
 
         // Validated first; then applied without CDS_UPDATEREGISTRY, for this session only.
         return ChangeDisplaySettingsEx(gdiName, ref devMode, IntPtr.Zero, CdsTest, IntPtr.Zero) == DispChangeSuccessful &&
                ChangeDisplaySettingsEx(gdiName, ref devMode, IntPtr.Zero, 0, IntPtr.Zero) == DispChangeSuccessful;
+    }
+
+    /// <summary>
+    /// The request for <paramref name="mode"/>: its resolution and refresh rate, and no other field.
+    /// It is never built from the current mode: a copy carries that mode's fields, and a driver may
+    /// reject them for the new one (issue #41: the GeForce scaling of a 1440×1080 mode made the
+    /// request for 1920×1080 invalid, so the desktop mode was never restored).
+    /// </summary>
+    internal static DevMode Request(DisplayModeInfo mode)
+    {
+        var devMode = DevMode.Create();
+        devMode.dmPelsWidth = (uint)mode.Width;
+        devMode.dmPelsHeight = (uint)mode.Height;
+        devMode.dmDisplayFrequency = (uint)mode.RefreshRate;
+        devMode.dmFields = DmPelsWidth | DmPelsHeight | DmDisplayFrequency;
+        return devMode;
     }
 
     [DllImport("user32.dll", EntryPoint = "EnumDisplaySettingsExW", CharSet = CharSet.Unicode)]
@@ -91,7 +99,7 @@ internal sealed class Win32DisplayModeBackend : IDisplayModeBackend
     private static extern int ChangeDisplaySettingsEx(string lpszDeviceName, ref DevMode lpDevMode, IntPtr hwnd, uint dwflags, IntPtr lParam);
 
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
-    private struct DevMode
+    internal struct DevMode
     {
         private const int CchDeviceName = 32;
         private const int CchFormName = 32;
