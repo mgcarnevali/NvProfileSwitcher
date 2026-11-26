@@ -82,6 +82,16 @@ internal sealed class DisplayTopologyService
         Restart(RetryDelay);
     }
 
+    /// <summary>
+    /// Reports a change this application made itself (a display resolution) as a display change:
+    /// it is settled with the WM_DISPLAYCHANGE it causes, so it does not depend on that message.
+    /// </summary>
+    public void RequestRefresh()
+    {
+        retried = false;
+        Restart(Debounce);
+    }
+
     public void Stop() => debounceTimer.Stop();
 
     private void Restart(TimeSpan interval)

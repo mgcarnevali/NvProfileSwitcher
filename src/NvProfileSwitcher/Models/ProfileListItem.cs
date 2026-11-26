@@ -168,4 +168,20 @@ public sealed class ProfileDisplaySettings
     public double Gamma { get; set; } = 1;
     public int DigitalVibrance { get; set; } = 50;
     public int Hue { get; set; }
+
+    /// <summary>
+    /// The resolution of this monitor while the application profile is active; null keeps the
+    /// resolution as it is. Written only when set, so configurations without resolutions are
+    /// unchanged; earlier versions ignore it.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public DisplayResolution? Resolution { get; set; }
+}
+
+/// <summary>A desktop resolution in pixels.</summary>
+public sealed record DisplayResolution(int Width, int Height)
+{
+    public bool IsValid => Width > 0 && Height > 0;
+
+    public override string ToString() => $"{Width} × {Height}";
 }

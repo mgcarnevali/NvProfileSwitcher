@@ -74,7 +74,7 @@ internal static class AppHost
 
         var displayRefresh = new DisplayRefreshCoordinator(
             services.Nvidia, services.Profiles, services.DisplaySync, services.Topology, services.AutomaticSwitching, services.ActiveProfile,
-            services.Preview, services.Colors, services.Editor, services.Switching);
+            services.Preview, services.Colors, services.Resolutions, services.Editor, services.Switching);
         var startup = new StartupCoordinator(
             host, services.Configuration, services.StartupRegistration, services.Settings, services.Nvidia, displayRefresh,
             services.Colors, services.ActiveProfile, services.AutomaticSwitching, services.Switching, services.UpdateCheck,
@@ -82,14 +82,15 @@ internal static class AppHost
         _ = new WindowActivityCoordinator(host, services.Nvidia, services.Settings, tray, services.Capture, services.Preview);
         _ = new HotkeyActionDispatcher(services.Hotkeys, host, services.AutomaticSwitching, services.Preview);
         _ = new ShutdownCoordinator(
-            host, services.Topology, services.Nvidia, services.AutomaticSwitching, services.Colors, tray, platform.SingleInstance,
+            host, services.Topology, services.Nvidia, services.AutomaticSwitching, services.Colors, services.Resolutions, tray, platform.SingleInstance,
             services.Hotkeys, services.Editor, services.Editing, services.Preview, services.Configuration);
 
         startup.LoadBeforeWindow();
 
         var mainViewModel = new MainWindowViewModel(
             new ProfilesViewModel(services.Profiles, services.Editor, services.Editing, services.ProfileList),
-            new ProfileSettingsViewModel(services.Editor, services.Editing, services.Hotkeys, services.Capture, services.Dialogs),
+            new ProfileSettingsViewModel(services.Editor, services.Editing, services.Hotkeys, services.Capture, services.Dialogs,
+                services.Resolutions.SupportedResolutions),
             new HotkeysViewModel(services.Capture, services.Hotkeys),
             new ApplicationSettingsViewModel(
                 services.Settings, services.Configuration, services.StartupRegistration, tray, host, services.Dialogs,

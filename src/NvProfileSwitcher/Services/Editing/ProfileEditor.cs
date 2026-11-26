@@ -232,6 +232,21 @@ internal sealed class ProfileEditor(ProfileStore store) : INotifyPropertyChanged
         DraftChanged?.Invoke();
     }
 
+    /// <summary>The resolution of the selected display in the draft; null keeps it as it is.</summary>
+    public DisplayResolution? Resolution =>
+        Session?.Draft is { } draft && SelectedDisplay is { } display ? DisplayCore.FindValues(draft, display.MonitorId)?.Resolution : null;
+
+    /// <summary>The user chose a resolution for the selected display of an application profile; null keeps it as it is.</summary>
+    public void SetResolution(DisplayResolution? resolution)
+    {
+        if (Session?.Draft is not { IsWindowsProfile: false } draft || SelectedDisplay is not { } display) return;
+        CompleteDraft();
+        var values = DisplayCore.FindValues(draft, display.MonitorId);
+        if (values is null || values.Resolution == resolution) return;
+        values.Resolution = resolution;
+        DraftChanged?.Invoke();
+    }
+
     /// <summary>The user moved a slider: the values go to the draft for the selected display.</summary>
     public void SetCurrentValues(ColorValues values)
     {

@@ -17,6 +17,10 @@ internal sealed class DisplayColorController(NvidiaService nvidia, ProfileStore 
 {
     private readonly HashSet<string> pending = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> written = new(StringComparer.OrdinalIgnoreCase);
+
+    // Displays whose resolution was just changed: written by the display refresh that follows the
+    // change, with the NVIDIA handles that refresh enumerates, never during the change.
+    private readonly HashSet<string> awaitingRefresh = new(StringComparer.OrdinalIgnoreCase);
     private bool pendingAll;
     private bool forced;
     private int depth;
@@ -93,9 +97,34 @@ internal sealed class DisplayColorController(NvidiaService nvidia, ProfileStore 
         Commit();
     }
 
-    /// <summary>Writes every display again with what it should show, as after a display topology change.</summary>
-    public void RefreshAll()
+    /// <summary>
+    /// Holds the displays of <paramref name="monitorIds"/>, whose resolution was just changed, until
+    /// the display refresh that follows the change (<see cref="RefreshAll"/>): they are not written
+    /// during the change, nor with the NVIDIA handles enumerated before it. Every resolution change
+    /// requests that refresh (<see cref="DisplayResolutionController.ResolutionsChanged"/>).
+    /// </summary>
+    public void AwaitRefresh(IReadOnlyCollection<string> monitorIds)
     {
+        foreach (var monitorId in monitorIds)
+            awaitingRefresh.Add(monitorId);
+    }
+
+    /// <summary>Writes the held displays with the next write: closing, when no display refresh follows.</summary>
+    public void ReleaseHeld() => awaitingRefresh.Clear();
+
+    /// <summary>
+    /// Writes every display again with what it should show, as after a display topology change,
+    /// with the displays just enumerated. It releases the held displays and writes them too, also
+    /// while global switching is paused, since a held display is waiting for exactly this write;
+    /// the displays whose resolution changed during this refresh (<paramref name="changedNow"/>) are
+    /// held for the next one.
+    /// </summary>
+    public void RefreshAll(IReadOnlyCollection<string>? changedNow = null)
+    {
+        if (awaitingRefresh.Count > 0)
+            forced = true;
+        awaitingRefresh.Clear();
+        AwaitRefresh(changedNow ?? []);
         pendingAll = true;
         Commit();
     }
@@ -137,7 +166,7 @@ internal sealed class DisplayColorController(NvidiaService nvidia, ProfileStore 
         ExceptionDispatchInfo? failure = null;
         foreach (var display in nvidia.Displays)
         {
-            if (!all && !marked.Contains(display.MonitorId, StringComparer.OrdinalIgnoreCase))
+            if ((!all && !marked.Contains(display.MonitorId, StringComparer.OrdinalIgnoreCase)) || awaitingRefresh.Contains(display.MonitorId))
                 continue;
 
             int vibrance, hue;

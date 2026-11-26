@@ -19,6 +19,7 @@ internal sealed class DisplayRefreshCoordinator
     private readonly ActiveProfileService activeProfile;
     private readonly LivePreviewController preview;
     private readonly DisplayColorController colors;
+    private readonly DisplayResolutionController resolutions;
     private readonly ProfileEditor editor;
     private readonly SwitchingState switching;
 
@@ -31,6 +32,7 @@ internal sealed class DisplayRefreshCoordinator
         ActiveProfileService activeProfile,
         LivePreviewController preview,
         DisplayColorController colors,
+        DisplayResolutionController resolutions,
         ProfileEditor editor,
         SwitchingState switching)
     {
@@ -42,6 +44,7 @@ internal sealed class DisplayRefreshCoordinator
         this.activeProfile = activeProfile;
         this.preview = preview;
         this.colors = colors;
+        this.resolutions = resolutions;
         this.editor = editor;
         this.switching = switching;
         topology.TopologyChanged += OnTopologyChanged;
@@ -74,9 +77,13 @@ internal sealed class DisplayRefreshCoordinator
             {
                 preview.Discard();
                 var newlySharedIds = nvidia.RefreshDisplays(profiles.NonUniqueMonitorIds);
+                // The first refresh restores what a previous session left changed, and a monitor
+                // waiting to be restored is restored once connected; those are written by the next
+                // refresh, with the handles it enumerates.
+                var restored = resolutions.OnDisplaysChanged();
                 // The displays may have lost their colors with the topology change: each one is
-                // written again with what it shows.
-                colors.RefreshAll();
+                // written again with what it shows, with the handles just enumerated.
+                colors.RefreshAll(restored);
                 var remaps = displaySync.Synchronize(newlySharedIds);
                 // The editor's display selector follows the new displays; as in the original,
                 // choosing its display again may resume the preview.

@@ -85,6 +85,7 @@ internal sealed class SwitchingFixture : IDisposable
     public FakeReleaseSource Releases { get; } = new();
     public NvidiaService Nvidia => Services.Nvidia;
     public DisplayColorController Colors => Services.Colors;
+    public DisplayResolutionController Resolutions => Services.Resolutions;
     public ActiveProfileService Active => Services.ActiveProfile;
     public FakeDialogService Dialogs { get; } = new();
     public FakeHotkeyRegistrar Registrar { get; } = new();

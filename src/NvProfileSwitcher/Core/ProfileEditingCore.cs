@@ -26,7 +26,8 @@ public static class ProfileEditingCore
         Contrast = source.Contrast,
         Gamma = source.Gamma,
         DigitalVibrance = source.DigitalVibrance,
-        Hue = source.Hue
+        Hue = source.Hue,
+        Resolution = source.Resolution
     };
 
     /// <summary>
@@ -115,7 +116,8 @@ public static class ProfileEditingCore
                 x.Contrast != y.Contrast ||
                 x.Gamma != y.Gamma ||
                 x.DigitalVibrance != y.DigitalVibrance ||
-                x.Hue != y.Hue)
+                x.Hue != y.Hue ||
+                x.Resolution != y.Resolution)
                 return false;
         }
 

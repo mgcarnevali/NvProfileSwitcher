@@ -78,7 +78,8 @@
 
       <!-- Common section: identical structure for Windows and application profiles. -->
       <Grid Grid.Row="2" Margin="0,7,0,0" RowDefinitions="Auto,*" RowSpacing="11">
-        <Grid RowDefinitions="Auto,Auto" RowSpacing="6">
+        <!-- The Resolution selector shares the Display row, for application profiles only. -->
+        <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="*,Auto" RowSpacing="6" ColumnSpacing="8">
           <StackPanel Orientation="Horizontal" Spacing="7">
             <Viewbox Classes="strokeIcon" Width="18" Height="18">
               <Canvas Width="24" Height="24"><Path Classes="strokeIcon" Data="{StaticResource DisplayIcon}"/></Canvas>
@@ -101,6 +102,19 @@
                             IsHitTestVisible="False" Focusable="False" VerticalAlignment="Center"/>
                   <TextBlock Text="{CompiledBinding SelectorLabel}" VerticalAlignment="Center"/>
                 </StackPanel>
+              </DataTemplate>
+            </ComboBox.ItemTemplate>
+          </ComboBox>
+          <TextBlock Grid.Column="1" Text="Resolution" VerticalAlignment="Center"
+                     IsVisible="{CompiledBinding IsApplicationProfile}"/>
+          <ComboBox Grid.Row="1" Grid.Column="1" Classes="resolutionCombo" Width="160"
+                    IsVisible="{CompiledBinding IsApplicationProfile}"
+                    ToolTip.Tip="Resolution of this display while the profile is active"
+                    ItemsSource="{CompiledBinding ResolutionItems}"
+                    SelectedItem="{CompiledBinding SelectedResolutionItem}">
+            <ComboBox.ItemTemplate>
+              <DataTemplate x:DataType="local:ResolutionComboItem">
+                <TextBlock Text="{CompiledBinding Text}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
               </DataTemplate>
             </ComboBox.ItemTemplate>
           </ComboBox>

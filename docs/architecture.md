@@ -1327,3 +1327,54 @@ same scale as this application. The NVIDIA API does not report them.
   another type, different channels or a value out of range leave the neutral 100, 100 and 1.00.
 - There is no polling and nothing is written to the registry. The reader is passed through
   `AppPlatform.ReadNvTweakColors`, so tests use a fake registry.
+
+### 22.7 Resolution per profile (stage 1)
+
+An application profile can set the desktop resolution of each display
+(`ProfileDisplaySettings.Resolution`, width × height; absent means "Don't change"). The Windows
+Profile never sets one. Color-only profiles behave exactly as in 3.1.0.
+
+- **NVAPI only changes the resolution.** `NvApi.SetResolution` reads the whole configuration with
+  `NvAPI_DISP_GetDisplayConfig` (path count, target count per path, then the source modes, targets
+  and their details), changes only the width and height of the source mode of the display's path,
+  and passes every path back to `NvAPI_DISP_SetDisplayConfig`, first with `VALIDATE_ONLY` and then
+  without flags. `SAVE_TO_PERSISTENCE` is never set. Timing, refresh rate, scaling, rotation and the
+  positions of the monitors are returned as they were read. A clone path (more than one target) is
+  refused, since the other display would change as well. Both functions are resolved optionally: a
+  driver without them reports every change as failed. The list offered in the editor is read with
+  `EnumDisplaySettings` (current color depth, progressive modes, distinct, largest first); Windows
+  APIs are used only to read.
+- **Ownership.** `DisplayResolutionController` keeps, per monitor, the resolution it found
+  (Original) and the one it set (Applied), decided by the result of `SetResolution`, not by a later
+  readback. A monitor is restored only while it still shows Applied; any other resolution is a
+  change made by the user, which is respected and ends the ownership. `Apply` does nothing when the
+  target is the one already applied, so reapplying the same profile does not undo a manual change.
+- **When it is restored.** Switching to a profile that does not set the monitor's resolution
+  (including the Windows Profile, focus loss and Windows Override), Global Switching off, and
+  closing. A failed restore keeps the entry, so the next display refresh tries again.
+- **Crash recovery.** `display-modes.json`, next to `config.json`, holds the owned monitors. It is
+  written (temporary file and move) before each change; a change that cannot be recorded is not
+  made, and the file is deleted when nothing is owned. The first `OnDisplaysChanged` after starting
+  loads it and restores the monitors that still show the resolution a previous session left.
+- **Colors after a mode change.** A mode change replaces the driver's display handles, and a color
+  written before the displays are enumerated again would use stale ones. The monitors whose
+  resolution changed are therefore *held* by `DisplayColorController.AwaitRefresh`: they are not
+  written until the next `RefreshAll`, which runs after `NvidiaService.RefreshDisplays` (the
+  `WM_DISPLAYCHANGE` debounce, restarted by `ResolutionsChanged`) and so uses the new handles. A
+  refresh that fails keeps them held, so they are never written with stale handles. When there were
+  holds, `RefreshAll` writes even while paused (the forced Windows restore). There are no timers,
+  retries or repeated writes; colors are written only through NVAPI.
+- **Closing.** No refresh follows, so `ShutdownCoordinator` restores the resolutions, releases the
+  holds and writes the Windows colors at once.
+
+Open points, pending validation on NVIDIA hardware and the user's decision:
+
+1. The colors written at closing after a restore use the handles from before the change.
+2. Clone paths are refused.
+3. A monitor connected again while its profile is active is not changed again until the profile
+   changes.
+4. A rejected change is not retried until the target changes.
+5. Whether the driver keeps the positions of the neighboring monitors when the width of one
+   changes.
+6. The NVAPI function ids and structure layouts are taken from `nvapi.h` and checked by size tests,
+   not yet on hardware.

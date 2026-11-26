@@ -3,7 +3,7 @@ using NvProfileSwitcher.Core;
 
 namespace NvProfileSwitcher.Nvidia;
 
-internal sealed class NvApi : IDisplayColorBackend
+internal sealed partial class NvApi : IDisplayColorBackend
 {
     private const uint InitializeHash = 0x0150E828;
     private const uint UnloadHash = 0xD22BDD7E;
@@ -67,6 +67,8 @@ internal sealed class NvApi : IDisplayColorBackend
             setGamma = Resolve<SetTargetGammaFn>(SetTargetGammaHash);
             getDriverVersion = TryResolve<GetDriverVersionFn>(GetDriverVersionHash);
             getLuidFromDisplayId = TryResolve<GetLuidFromDisplayIdFn>(GetLuidFromDisplayIdHash);
+            getDisplayConfig = TryResolve<GetDisplayConfigFn>(GetDisplayConfigHash);
+            setDisplayConfig = TryResolve<SetDisplayConfigFn>(SetDisplayConfigHash);
             var status = init();
             if (status != 0) throw new InvalidOperationException($"NvAPI_Initialize failed: {status}");
         }

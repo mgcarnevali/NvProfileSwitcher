@@ -4,6 +4,12 @@ All notable changes to NvProfileSwitcher will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project follows [Semantic Versioning](https://semver.org/).
 
+## Unreleased
+
+### Added
+
+- Application profiles can set the resolution of each display while they are active. The resolution is changed through the NVIDIA driver without changing the scaling, refresh rate or position of the monitors, and the previous resolution is restored when the profile stops being active, when Global Switching is turned off and when NvProfileSwitcher closes, unless it was changed by hand in the meantime. If NvProfileSwitcher closes unexpectedly, the resolution is restored the next time it starts. Colors are applied after the display has changed.
+
 ## 3.1.0 --- 2026-11-08
 
 ### Added

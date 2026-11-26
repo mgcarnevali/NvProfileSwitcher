@@ -97,6 +97,17 @@ internal sealed partial class NvidiaService(
     public bool Apply(NvidiaDisplay display, int vibrance, double brightness, double contrast, double gamma, int hue) =>
         backend?.Apply(display, vibrance, brightness, contrast, gamma, hue) ?? false;
 
+    /// <summary>The desktop resolution the NVIDIA driver reports for a display; null when it cannot be read or the API is not initialized.</summary>
+    public DisplayResolution? GetResolution(NvidiaDisplay display) => backend?.GetResolution(display);
+
+    /// <summary>Sets a display's desktop resolution through the NVIDIA driver, for this session only; false when it is rejected or the API is not initialized.</summary>
+    public bool SetResolution(NvidiaDisplay display, DisplayResolution resolution) =>
+        backend?.SetResolution(display, resolution) ?? false;
+
+    /// <summary>The resolutions a display offers; none when they cannot be read or the API is not initialized.</summary>
+    public IReadOnlyList<DisplayResolution> GetSupportedResolutions(NvidiaDisplay display) =>
+        backend?.GetSupportedResolutions(display) ?? [];
+
     public void Dispose()
     {
         backend?.Dispose();

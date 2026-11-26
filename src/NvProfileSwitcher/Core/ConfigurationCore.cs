@@ -79,7 +79,19 @@ internal static class ConfigurationCore
         HasNumber(display, nameof(ProfileDisplaySettings.Contrast)) &&
         HasNumber(display, nameof(ProfileDisplaySettings.Gamma)) &&
         HasInteger(display, nameof(ProfileDisplaySettings.DigitalVibrance)) &&
-        HasInteger(display, nameof(ProfileDisplaySettings.Hue));
+        HasInteger(display, nameof(ProfileDisplaySettings.Hue)) &&
+        HasOptionalResolution(display, nameof(ProfileDisplaySettings.Resolution));
+
+    // Absent or null when the display keeps its resolution; otherwise a positive width and height.
+    private static bool HasOptionalResolution(JsonElement element, string name)
+    {
+        if (!element.TryGetProperty(name, out var value) || value.ValueKind == JsonValueKind.Null) return true;
+        return value.ValueKind == JsonValueKind.Object &&
+               value.TryGetProperty(nameof(DisplayResolution.Width), out var width) && width.ValueKind == JsonValueKind.Number &&
+               width.TryGetInt32(out var w) && w > 0 &&
+               value.TryGetProperty(nameof(DisplayResolution.Height), out var height) && height.ValueKind == JsonValueKind.Number &&
+               height.TryGetInt32(out var h) && h > 0;
+    }
 
     private static bool HasExecutablePaths(JsonElement profile) =>
         profile.TryGetProperty("Exe Paths", out var paths) &&

@@ -7,12 +7,16 @@ internal sealed class FakeDisplayBackend : IDisplayColorBackend
 {
     private readonly List<string> log;
 
-    public FakeDisplayBackend(int number, List<string> log)
+    public FakeDisplayBackend(int number, List<string> log, FakeDisplayModes? modes = null)
     {
         Number = number;
         this.log = log;
+        Modes = modes ?? new FakeDisplayModes();
         log.Add($"create {number}");
     }
+
+    /// <summary>The desktop resolutions, which outlive an instance as the system's do.</summary>
+    public FakeDisplayModes Modes { get; }
 
     public int Number { get; }
     public int DisposeCount { get; private set; }
@@ -56,8 +60,16 @@ internal sealed class FakeDisplayBackend : IDisplayColorBackend
         if (ApplyFailure?.Invoke(display) is { } failure)
             throw failure;
         Applied.Add(new ColorApplication(display.MonitorId, vibrance, brightness, contrast, gamma, hue));
+        Modes.Timeline.Add($"colors {display.MonitorId} handle {display.Handle}");
         return !RejectedMonitors.Contains(display.MonitorId);
     }
+
+    public DisplayResolution? GetResolution(NvidiaDisplay display) => Modes.Get(display);
+
+    public bool SetResolution(NvidiaDisplay display, DisplayResolution resolution) => Modes.Set(display, resolution);
+
+    public IReadOnlyList<DisplayResolution> GetSupportedResolutions(NvidiaDisplay display) =>
+        Modes.Supported.TryGetValue(display.DisplayId, out var supported) ? supported : [];
 
     public void Dispose()
     {
@@ -97,9 +109,52 @@ internal readonly record struct ColorApplication(
         values.Gamma == Gamma && values.Hue == Hue;
 }
 
+// The desktop resolution of each display, by NVIDIA display id: what the driver reports and
+// applies. Every change and every color write is recorded in one timeline, in order.
+internal sealed class FakeDisplayModes
+{
+    public Dictionary<uint, DisplayResolution> Current { get; } = [];
+    public Dictionary<uint, List<DisplayResolution>> Supported { get; } = [];
+
+    /// <summary>Displays whose resolution changes the driver rejects.</summary>
+    public HashSet<uint> Rejected { get; } = [];
+
+    /// <summary>Accepted changes, in order.</summary>
+    public List<(uint DisplayId, DisplayResolution Resolution)> Changes { get; } = [];
+
+    /// <summary>"resolution {id} {w}x{h}" and "colors {monitor} handle {handle}", in order.</summary>
+    public List<string> Timeline { get; } = [];
+
+    /// <summary>Runs after an accepted change, as the WM_DISPLAYCHANGE Windows sends would.</summary>
+    public Action? AfterChange { get; set; }
+
+    public void Add(uint displayId, DisplayResolution current, params DisplayResolution[] supported)
+    {
+        Current[displayId] = current;
+        Supported[displayId] = [current, .. supported.Where(resolution => resolution != current)];
+    }
+
+    public DisplayResolution? Get(NvidiaDisplay display) => Current.TryGetValue(display.DisplayId, out var resolution) ? resolution : null;
+
+    public bool Set(NvidiaDisplay display, DisplayResolution resolution)
+    {
+        if (Rejected.Contains(display.DisplayId) || !Supported.TryGetValue(display.DisplayId, out var supported) || !supported.Contains(resolution))
+            return false;
+
+        Current[display.DisplayId] = resolution;
+        Changes.Add((display.DisplayId, resolution));
+        Timeline.Add($"resolution {display.DisplayId} {resolution.Width}x{resolution.Height}");
+        AfterChange?.Invoke();
+        return true;
+    }
+}
+
 // Creates fake backends in sequence; a creation can be set to fail as NVAPI initialization would.
 internal sealed class FakeBackendFactory
 {
+    /// <summary>The desktop resolutions every created backend shares.</summary>
+    public FakeDisplayModes Modes { get; } = new();
+
     public List<string> Log { get; } = [];
     public List<FakeDisplayBackend> Created { get; } = [];
     public Exception? NextFailure { get; set; }
@@ -114,7 +169,7 @@ internal sealed class FakeBackendFactory
             throw failure;
         }
 
-        var backend = new FakeDisplayBackend(Created.Count + 1, Log);
+        var backend = new FakeDisplayBackend(Created.Count + 1, Log, Modes);
         Configure?.Invoke(backend);
         Created.Add(backend);
         return backend;

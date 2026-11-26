@@ -13,6 +13,7 @@ namespace NvProfileSwitcher.Services;
 /// </summary>
 internal sealed class ActiveProfileService(
     DisplayColorController colors,
+    DisplayResolutionController resolutions,
     NvidiaService nvidia,
     ProfileStore profiles,
     SwitchingState switching,
@@ -54,11 +55,15 @@ internal sealed class ActiveProfileService(
         try
         {
             // The preview ends and the profile is applied in one operation: every display
-            // receives the profile's values once, the previewed one included.
+            // receives the profile's values once, the previewed one included. The resolutions
+            // change first; a display whose resolution changed is written by the display refresh
+            // that follows, with the NVIDIA handles it enumerates.
+            var target = decision.ProfileIndex >= 0 ? applicationProfiles[decision.ProfileIndex] : null;
             using (colors.Batch(throwOnFailure: true))
             {
                 ProfileSwitching?.Invoke();
-                colors.SetBase(decision.ProfileIndex >= 0 ? applicationProfiles[decision.ProfileIndex] : null, allDisplays: true);
+                colors.AwaitRefresh(resolutions.Apply(target));
+                colors.SetBase(target, allDisplays: true);
             }
 
             Publish(decision.ActiveName);
@@ -88,6 +93,8 @@ internal sealed class ActiveProfileService(
                 switching.OverrideMode,
                 switching.OverrideProfileIndex);
             var target = index >= 0 ? applicationProfiles[index] : null;
+            // Nothing changes when the target's resolutions are already applied.
+            colors.AwaitRefresh(resolutions.Apply(target));
             colors.SetBase(target, allDisplays);
             Publish(target?.Name ?? "Windows");
         }
