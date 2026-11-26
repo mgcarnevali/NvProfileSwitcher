@@ -1184,7 +1184,7 @@ draft, and Exit from the tray twice while the confirmation is open; second insta
   controls (§22.7); colors on NVIDIA hardware with the displays now enumerated by Windows (§22.8);
   hybrid laptops with displays on both GPUs; custom resolutions; whether issue #41 (a profile's
   resolution never restored, GeForce with two monitors) is solved by the restore rules of §22.7,
-  and whether a monitor identity ever changes after a mode change there (H2, §22.7).
+  and the identity rules of §22.7 (H2) on monitors with a shared serial number.
 - NVIDIA driver update while the application runs (§22.5, §22.8): whether the colors return
   without reopening the window, since the API is initialized again only when it was reported
   unavailable, at an opening of the window or after resume, and the library loaded at start stays
@@ -1450,14 +1450,21 @@ desktop mode again, resolution and rate.
   accepted it, so a rejected restore keeps it, in memory and in `display-modes.json`, for the
   next display change or start. A monitor back at its desktop mode after a change of resolution
   is not ambiguous and is not written again.
-- **Known limitation: identity changes** (H2). An entry follows the monitor id. A mode change does
-  not change an id (the EDID and the device instance stay), but an id can change afterwards: a
-  second monitor with the same serial number identified only later makes both take their
-  connection identity (§22.1), and a monitor without a serial number moved to another connection
-  takes a new one. Such an entry is no longer found, so that monitor is not restored; it is never
-  matched to another monitor, since ids are unique in each enumeration, and nothing is written
-  for it. The entry stays. Not addressed until it is seen on hardware: a fallback identity would
-  add state for a case whose worst outcome is a mode left unrestored.
+- **Identity changes** (H2). An entry follows the monitor id, and keeps the monitor's connection
+  identity too (`MonitorIdentityCore.ConnectionId`, recorded in `display-modes.json` as
+  `Connection`). A mode change does not change an id (the EDID and the device instance stay),
+  but a second monitor with the same serial number identified only later makes both take their
+  connection identity (§22.1). The entry then follows its monitor only when both identities
+  match: the physical identity the display keeps (`PhysicalMonitorId`) is the entry's id, and its
+  new id is the connection recorded. The connection includes the device instance Windows gives
+  that port, so no other monitor has it; a monitor that replaces it on the same port has another
+  model, no serial number (no physical identity) or another serial number, so it never takes the
+  entry, even showing the mode the entry restores. Still not followed: a monitor without a
+  serial number moved to another port, which has no identity linking both connections (Windows
+  usually gives it its desktop mode there); its entry is kept and writes nothing. Profile
+  synchronization is unchanged: the values of a serial number found shared, resolutions
+  included, are carried over to both monitors (§22.1), and each is restored by its own entry. A
+  file written without `Connection` is read, its entries followed by id only.
 - **Failures.** The controller never throws: an unexpected failure on one monitor leaves its
   recovery entry for the next display change or start, requests no refresh (so it cannot loop),
   and the other monitors and the colors written after it go on. `ModeOptions` returns none.

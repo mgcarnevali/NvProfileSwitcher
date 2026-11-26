@@ -6,8 +6,13 @@ internal readonly record struct DisplayModeInfo(int Width, int Height, int Refre
     public bool SameResolution(DisplayResolution resolution) => Width == resolution.Width && Height == resolution.Height;
 }
 
-/// <summary>A monitor whose mode was changed: its desktop mode, the mode requested and the mode read back.</summary>
-internal sealed record DisplayModeRecoveryEntry(string MonitorId, DisplayModeInfo Original, DisplayModeInfo Target, DisplayModeInfo? Applied);
+/// <summary>
+/// A monitor whose mode was changed: its desktop mode, the mode requested and the mode read back,
+/// and its connection identity (<see cref="MonitorIdentityCore.ConnectionId"/>), which it takes
+/// if its serial number is later found shared; null in files written without it.
+/// </summary>
+internal sealed record DisplayModeRecoveryEntry(
+    string MonitorId, DisplayModeInfo Original, DisplayModeInfo Target, DisplayModeInfo? Applied, string? Connection = null);
 
 /// <summary>The content of the recovery file (display-modes.json).</summary>
 internal sealed class DisplayModeRecovery

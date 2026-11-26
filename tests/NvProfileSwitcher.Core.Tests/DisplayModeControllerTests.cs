@@ -892,31 +892,96 @@ public sealed class DisplayModeControllerTests
         Assert.False(app.Services.Modes.OwnsAnyMonitor);
     }
 
-    // H2, a known limitation: a monitor whose identity changes after its mode was changed (a second
-    // monitor with the same serial number found afterwards, so both take their connection identity)
-    // is no longer found by its entry. It is not restored, but no monitor is ever written for it,
-    // and nothing fails; the entry is kept.
+    // ---- Monitor identity changes (H2) ----
+
+    private const string TwinGdi = @"\\.\DISPLAY3";
+
+    private static string ConnectionOf(int number) => $"DEL4321@{FakeDisplayBackend.Instance(number)}";
+
+    // A second monitor with the same serial number, found after the Dell's mode was changed: both
+    // take their connection identity. The Dell's entry follows it by the connection recorded with
+    // it, so the Dell is restored, and the other monitor is never written.
     [Fact]
-    public void AMonitorWhoseIdentityChangesIsNeverConfusedWithAnother()
+    public void AMonitorWhoseSerialIsFoundSharedLaterIsStillRestored()
     {
         using var app = Fixture();
-        const string TwinGdi = @"\\.\DISPLAY3";
         app.DisplayModes.AddMonitor(TwinGdi, DellDesktop, Dell1080At144);
         SetResolution(app.Game, Dell, 1920, 1080);
         Focus(app, "game.exe");
-        Assert.Equal(Dell1080At144, app.DisplayModes.Current[DellGdi]);
+        Assert.Equal(ConnectionOf(1), Assert.Single(Recovery(app).Load()!).Connection);
 
         Connect(app, FakeDisplayBackend.Display(Dell, "DELL U2720Q", 3));
         Assert.DoesNotContain(app.Services.Displays.Displays, display => display.MonitorId == Dell);
         app.Services.Modes.OnDisplaysChanged();
         Focus(app, "explorer.exe");
+
+        Assert.Equal(DellDesktop, app.DisplayModes.Current[DellGdi]);
+        Assert.Equal([(DellGdi, Dell1080At144), (DellGdi, DellDesktop)], app.DisplayModes.Applied);
+        Assert.DoesNotContain(app.DisplayModes.Calls, call => call.StartsWith($"apply {TwinGdi}", StringComparison.Ordinal));
+        Assert.False(app.Services.Modes.OwnsAnyMonitor);
+        Assert.False(File.Exists(RecoveryPath(app)));
+    }
+
+    // A previous session changed the monitor on \\.\DISPLAY3 while its serial number was its own;
+    // both monitors with that serial number are connected now. Only that one is restored, even
+    // with the other one showing the same mode.
+    [Fact]
+    public void AnEntryFromAPreviousSessionFollowsItsConnectionOnly()
+    {
+        using var app = Fixture();
+        app.DisplayModes.AddMonitor(TwinGdi, DellDesktop, Dell1080At144);
+        Connect(app, FakeDisplayBackend.Display(Dell, "DELL U2720Q", 3));
+        app.DisplayModes.Current[DellGdi] = Dell1080At144;
+        app.DisplayModes.Current[TwinGdi] = Dell1080At144;
+        Recovery(app).Save([new DisplayModeRecoveryEntry(Dell, DellDesktop, Dell1080At144, Dell1080At144, ConnectionOf(3))]);
+
+        app.Services.Modes.OnDisplaysChanged();
+
+        Assert.Equal([(TwinGdi, DellDesktop)], app.DisplayModes.Applied);
+        Assert.Equal(Dell1080At144, app.DisplayModes.Current[DellGdi]);
+        Assert.False(File.Exists(RecoveryPath(app)));
+    }
+
+    // The Dell is replaced on the same port while its entry is open, by a monitor of the same
+    // model without a serial number (whose connection identity is the one recorded) or with
+    // another one. Neither takes the entry, even showing the mode the Dell had: nothing is written.
+    [Theory]
+    [InlineData("DEL4321")]
+    [InlineData("DEL4321-XYZ999")]
+    public void AMonitorReplacedOnTheSamePortNeverTakesTheEntry(string replacementId)
+    {
+        using var app = Fixture();
+        SetResolution(app.Game, Dell, 1920, 1080);
+        Focus(app, "game.exe");
+
+        Disconnect(app, Dell);
+        Connect(app, FakeDisplayBackend.Display(replacementId, "DELL U2720Q", 1));
+        app.DisplayModes.Current[DellGdi] = Dell1080At144;
+        app.Services.Modes.OnDisplaysChanged();
+        Focus(app, "explorer.exe");
         app.Services.Modes.RestoreOriginals();
 
-        Assert.Single(app.DisplayModes.Applied);
-        Assert.Equal(DellDesktop, app.DisplayModes.Current[TwinGdi]);
-        Assert.DoesNotContain(app.DisplayModes.Calls, call => call.StartsWith($"apply {TwinGdi}", StringComparison.Ordinal));
+        Assert.Equal([(DellGdi, Dell1080At144)], app.DisplayModes.Applied);
         Assert.True(app.Services.Modes.OwnsAnyMonitor);
-        Assert.Single(Recovery(app).Load()!);
+        Assert.Equal(Dell, Assert.Single(Recovery(app).Load()!).MonitorId);
+    }
+
+    // A recovery file written without the connection (an earlier development build) is read, and
+    // its entries are restored by monitor id as before.
+    [Fact]
+    public void ARecoveryFileWithoutConnectionsIsStillRead()
+    {
+        using var app = Fixture();
+        app.DisplayModes.Current[DellGdi] = Dell1080At144;
+        Recovery(app).Save([new DisplayModeRecoveryEntry(Dell, DellDesktop, Dell1080At144, Dell1080At144)]);
+        var json = File.ReadAllText(RecoveryPath(app));
+        File.WriteAllText(RecoveryPath(app), System.Text.RegularExpressions.Regex.Replace(json, @",?\s*""Connection""\s*:\s*null", string.Empty));
+        Assert.DoesNotContain("Connection", File.ReadAllText(RecoveryPath(app)));
+
+        app.Services.Modes.OnDisplaysChanged();
+
+        Assert.Equal(DellDesktop, app.DisplayModes.Current[DellGdi]);
+        Assert.False(File.Exists(RecoveryPath(app)));
     }
 
     // A rate the user sets while the profile is active, more than 1 Hz from the applied one, is

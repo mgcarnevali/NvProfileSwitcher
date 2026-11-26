@@ -126,7 +126,7 @@ internal sealed class DisplayModeController(
             return;
 
         foreach (var entry in recovery.Load() ?? [])
-            owned.TryAdd(entry.MonitorId, new Owned(entry.Original, entry.Target, entry.Applied));
+            owned.TryAdd(entry.MonitorId, new Owned(entry.Original, entry.Target, entry.Applied, entry.Connection));
     }
 
     /// <summary>
@@ -141,6 +141,7 @@ internal sealed class DisplayModeController(
 
         try
         {
+            Adopt(display);
             var desktop = owned.TryGetValue(display.MonitorId, out var monitor) ? monitor.Original : backend.GetCurrent(display.GdiName);
             return desktop is { } mode ? new DisplayModeOptions(mode, backend.GetModes(display.GdiName)) : null;
         }
@@ -182,6 +183,7 @@ internal sealed class DisplayModeController(
 
                 try
                 {
+                    Adopt(display);
                     if (next.TryGetValue(display.MonitorId, out var request))
                     {
                         if (handled.Add(display.MonitorId))
@@ -231,7 +233,8 @@ internal sealed class DisplayModeController(
             return false;
 
         // Recorded before the change; a change that cannot be recorded is not made.
-        owned[display.MonitorId] = new Owned(desktop, mode, previous?.Applied);
+        var connection = display.Monitor is { } monitor ? MonitorIdentityCore.ConnectionId(monitor) : previous?.Connection;
+        owned[display.MonitorId] = new Owned(desktop, mode, previous?.Applied, connection);
         if (!SaveRecovery())
         {
             Revert(display.MonitorId, previous);
@@ -251,7 +254,7 @@ internal sealed class DisplayModeController(
             return false;
         }
 
-        owned[display.MonitorId] = new Owned(desktop, mode, shown ?? (applied ? mode : previous?.Applied));
+        owned[display.MonitorId] = new Owned(desktop, mode, shown ?? (applied ? mode : previous?.Applied), connection);
         SaveRecovery();
         return applied || after != now;
     }
@@ -296,6 +299,24 @@ internal sealed class DisplayModeController(
         return after != now;
     }
 
+    // A monitor whose serial number was found shared after its mode was changed takes its
+    // connection identity (MonitorIdentityCore.Identify), and its entry is no longer found by id.
+    // The entry follows it only when both identities match: the physical one the display keeps
+    // (PhysicalMonitorId) is the entry's id, and its id is the connection recorded with the entry.
+    // The connection includes the device instance Windows gives that port, so no other monitor has
+    // it; and a monitor without that serial number on the same port has no such physical identity.
+    private void Adopt(ConnectedDisplay display)
+    {
+        if (owned.ContainsKey(display.MonitorId) || display.PhysicalMonitorId is not { } physical ||
+            !owned.TryGetValue(physical, out var entry) ||
+            !string.Equals(entry.Connection, display.MonitorId, StringComparison.OrdinalIgnoreCase))
+            return;
+
+        owned.Remove(physical);
+        owned[display.MonitorId] = entry;
+        SaveRecovery();
+    }
+
     private void Revert(string monitorId, Owned? previous)
     {
         if (previous is null)
@@ -305,7 +326,7 @@ internal sealed class DisplayModeController(
     }
 
     private bool SaveRecovery() =>
-        recovery.Save(owned.Select(pair => new DisplayModeRecoveryEntry(pair.Key, pair.Value.Original, pair.Value.Target, pair.Value.Applied)).ToList());
+        recovery.Save(owned.Select(pair => new DisplayModeRecoveryEntry(pair.Key, pair.Value.Original, pair.Value.Target, pair.Value.Applied, pair.Value.Connection)).ToList());
 
     // The mode each monitor of the profile asks for: a resolution, a refresh rate, or both.
     private static Dictionary<string, ModeRequest> TargetOf(ProfileListItem? profile)
@@ -331,5 +352,5 @@ internal sealed class DisplayModeController(
     // A resolution, a refresh rate, or both; null keeps the desktop one.
     private sealed record ModeRequest(DisplayResolution? Resolution, RefreshRateSetting? RefreshRate);
 
-    private sealed record Owned(DisplayModeInfo Original, DisplayModeInfo Target, DisplayModeInfo? Applied);
+    private sealed record Owned(DisplayModeInfo Original, DisplayModeInfo Target, DisplayModeInfo? Applied, string? Connection);
 }
