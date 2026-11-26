@@ -826,6 +826,99 @@ public sealed class DisplayModeControllerTests
         Assert.False(app.Services.Modes.OwnsAnyMonitor);
     }
 
+    // A profile that changed only the rate by 1 Hz (59 over a 60 Hz desktop), and a driver that
+    // reports the applied rate rounded to the desktop one: leaving applies the exact desktop mode
+    // all the same. The monitor already reports it, so no change is requested and no display
+    // refresh follows: a later display change finds nothing to do.
+    [Fact]
+    public void AnAppliedRateReportedAsTheDesktopOneIsRestoredWithoutALoop()
+    {
+        using var app = FixtureAt60();
+        SetRate(app.Game, Dell, RefreshRateSetting.Explicit(59));
+        var raised = 0;
+        app.Services.Modes.ModesChanged += () => raised++;
+
+        Focus(app, "game.exe");
+        Assert.Equal(1, raised);
+        app.DisplayModes.Current[DellGdi] = Desktop60;
+        Focus(app, "explorer.exe");
+
+        Assert.Equal([Desktop59, Desktop60], app.DisplayModes.Applied.Select(applied => applied.Mode));
+        Assert.False(app.Services.Modes.OwnsAnyMonitor);
+        Assert.False(File.Exists(RecoveryPath(app)));
+        Assert.Equal(1, raised);
+
+        app.Services.Modes.OnDisplaysChanged();
+        app.Services.Modes.OnDisplaysChanged();
+        Assert.Equal(2, app.DisplayModes.Applied.Count);
+        Assert.Equal(1, raised);
+    }
+
+    // The same restore, rejected by Windows: the monitor still reports the desktop rate, but the
+    // entry is kept, in memory and in the recovery file, and the next display change restores it.
+    [Fact]
+    public void ARejectedRestoreOfAnAmbiguousRateKeepsTheEntry()
+    {
+        using var app = FixtureAt60();
+        SetRate(app.Game, Dell, RefreshRateSetting.Explicit(59));
+        Focus(app, "game.exe");
+        app.DisplayModes.Current[DellGdi] = Desktop60;
+        app.DisplayModes.Rejected.Add(DellGdi);
+
+        Focus(app, "explorer.exe");
+        Assert.True(app.Services.Modes.OwnsAnyMonitor);
+        Assert.Single(Recovery(app).Load()!);
+
+        app.DisplayModes.Rejected.Clear();
+        app.Services.Modes.OnDisplaysChanged();
+        Assert.Equal([Desktop59, Desktop60], app.DisplayModes.Applied.Select(applied => applied.Mode));
+        Assert.False(app.Services.Modes.OwnsAnyMonitor);
+        Assert.False(File.Exists(RecoveryPath(app)));
+    }
+
+    // A monitor back at its desktop mode after a change of resolution is not ambiguous: nothing is
+    // applied again.
+    [Fact]
+    public void AMonitorBackAtItsDesktopModeAfterAResolutionIsNotChangedAgain()
+    {
+        using var app = FixtureAt60();
+        SetResolution(app.Game, Dell, 1440, 1080);
+        Focus(app, "game.exe");
+
+        app.DisplayModes.Current[DellGdi] = Desktop60;
+        Focus(app, "explorer.exe");
+
+        Assert.Equal([Stretched60], app.DisplayModes.Applied.Select(applied => applied.Mode));
+        Assert.False(app.Services.Modes.OwnsAnyMonitor);
+    }
+
+    // H2, a known limitation: a monitor whose identity changes after its mode was changed (a second
+    // monitor with the same serial number found afterwards, so both take their connection identity)
+    // is no longer found by its entry. It is not restored, but no monitor is ever written for it,
+    // and nothing fails; the entry is kept.
+    [Fact]
+    public void AMonitorWhoseIdentityChangesIsNeverConfusedWithAnother()
+    {
+        using var app = Fixture();
+        const string TwinGdi = @"\\.\DISPLAY3";
+        app.DisplayModes.AddMonitor(TwinGdi, DellDesktop, Dell1080At144);
+        SetResolution(app.Game, Dell, 1920, 1080);
+        Focus(app, "game.exe");
+        Assert.Equal(Dell1080At144, app.DisplayModes.Current[DellGdi]);
+
+        Connect(app, FakeDisplayBackend.Display(Dell, "DELL U2720Q", 3));
+        Assert.DoesNotContain(app.Services.Displays.Displays, display => display.MonitorId == Dell);
+        app.Services.Modes.OnDisplaysChanged();
+        Focus(app, "explorer.exe");
+        app.Services.Modes.RestoreOriginals();
+
+        Assert.Single(app.DisplayModes.Applied);
+        Assert.Equal(DellDesktop, app.DisplayModes.Current[TwinGdi]);
+        Assert.DoesNotContain(app.DisplayModes.Calls, call => call.StartsWith($"apply {TwinGdi}", StringComparison.Ordinal));
+        Assert.True(app.Services.Modes.OwnsAnyMonitor);
+        Assert.Single(Recovery(app).Load()!);
+    }
+
     // A rate the user sets while the profile is active, more than 1 Hz from the applied one, is
     // theirs: leaving does not restore over it.
     [Fact]

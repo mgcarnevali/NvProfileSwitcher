@@ -267,7 +267,13 @@ internal sealed class DisplayModeController(
         // The application's own mode is recognized with the 1 Hz a fractional rate can vary.
         var ours = (monitor.Applied is { } applied && DisplayModeCore.StillShows(now, applied)) ||
                    DisplayModeCore.StillShows(now, monitor.Target);
-        if (now == monitor.Original || !ours)
+        // A monitor that reports exactly its desktop mode, after a change of its rate alone by 1 Hz,
+        // may still show the applied rate rounded the other way: the desktop mode is applied all the
+        // same. Already shown, it is the mode the monitor reports, so nothing the user set is lost.
+        var ambiguous = now == monitor.Original &&
+                        ((monitor.Applied is { } shown && shown != monitor.Original && DisplayModeCore.StillShows(now, shown)) ||
+                         (monitor.Target != monitor.Original && DisplayModeCore.StillShows(now, monitor.Target)));
+        if (!ambiguous && (now == monitor.Original || !ours))
         {
             // Already back, or changed by the user or a game since: nothing to restore.
             owned.Remove(display.MonitorId);
@@ -275,14 +281,18 @@ internal sealed class DisplayModeController(
             return false;
         }
 
-        backend.Apply(display.GdiName, monitor.Original);
+        var restored = backend.Apply(display.GdiName, monitor.Original);
         var after = backend.GetCurrent(display.GdiName);
-        if (after == monitor.Original)
+        // Done once the monitor shows its desktop mode; in the ambiguous case only when Windows
+        // accepted it, since the monitor reported that mode already. A rejected restore keeps the
+        // entry for the next display change or start.
+        if (after == monitor.Original && (restored || !ambiguous))
         {
             owned.Remove(display.MonitorId);
             SaveRecovery();
         }
 
+        // The ambiguous case reports no change, so it requests no display refresh of its own.
         return after != now;
     }
 

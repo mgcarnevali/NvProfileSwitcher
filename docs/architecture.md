@@ -1182,7 +1182,9 @@ draft, and Exit from the tray twice while the confirmation is open; second insta
 - Version 4.0, on hardware: the desktop mode a monitor is restored to when Windows reports another
   one at the first change (§22.7); the NVIDIA handles after a mode change on a display the API
   controls (§22.7); colors on NVIDIA hardware with the displays now enumerated by Windows (§22.8);
-  hybrid laptops with displays on both GPUs; custom resolutions.
+  hybrid laptops with displays on both GPUs; custom resolutions; whether issue #41 (a profile's
+  resolution never restored, GeForce with two monitors) is solved by the restore rules of §22.7,
+  and whether a monitor identity ever changes after a mode change there (H2, §22.7).
 - NVIDIA driver update while the application runs (§22.5, §22.8): whether the colors return
   without reopening the window, since the API is initialized again only when it was reported
   unavailable, at an opening of the window or after resume, and the library loaded at start stays
@@ -1440,8 +1442,22 @@ desktop mode again, resolution and rate.
   reported rounded either way. Whether to apply a mode, and whether a monitor is back at its
   desktop mode, are decided with exact modes, so 59 and 60 Hz stay different choices in both
   directions. A rate the user sets more than 1 Hz from the applied one, or another resolution,
-  is still left alone. Not resolved: a driver that reports the applied rate exactly as the
-  desktop one (59 Hz applied, read as 60 over a 60 Hz desktop) makes the monitor look back.
+  is still left alone. A monitor that reports exactly its desktop mode after a change of its
+  rate alone by 1 Hz (59 Hz applied over a 60 Hz desktop) may still show the applied rate
+  rounded the other way: restoring applies the exact desktop mode all the same. The monitor
+  already reports that mode, so nothing the user set is lost; the restore reports no change and
+  requests no display refresh, so it cannot loop; and the entry is dropped only when Windows
+  accepted it, so a rejected restore keeps it, in memory and in `display-modes.json`, for the
+  next display change or start. A monitor back at its desktop mode after a change of resolution
+  is not ambiguous and is not written again.
+- **Known limitation: identity changes** (H2). An entry follows the monitor id. A mode change does
+  not change an id (the EDID and the device instance stay), but an id can change afterwards: a
+  second monitor with the same serial number identified only later makes both take their
+  connection identity (§22.1), and a monitor without a serial number moved to another connection
+  takes a new one. Such an entry is no longer found, so that monitor is not restored; it is never
+  matched to another monitor, since ids are unique in each enumeration, and nothing is written
+  for it. The entry stays. Not addressed until it is seen on hardware: a fallback identity would
+  add state for a case whose worst outcome is a mode left unrestored.
 - **Failures.** The controller never throws: an unexpected failure on one monitor leaves its
   recovery entry for the next display change or start, requests no refresh (so it cannot loop),
   and the other monitors and the colors written after it go on. `ModeOptions` returns none.
